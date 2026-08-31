@@ -6,7 +6,7 @@ This guide provides instructions for deploying the Renu's Collections e-commerce
 
 - **Brand Name**: Renu's Collections
 - **Owner**: Renuga Sree
-- **Contact**: renugasree28@gmail.com
+- **Contact**: renuscollection05@gmail.com
 - **Frontend**: React + TypeScript + Vite
 - **Backend**: Express + TypeScript + MongoDB
 - **Database**: MongoDB Atlas (recommended) or local MongoDB
@@ -309,7 +309,7 @@ mongodump --uri="mongodb+srv://<username>:<password>@<cluster>.mongodb.net/renu_
 
 ## Support
 
-For issues or questions, contact: renugasree28@gmail.com
+For issues or questions, contact: renuscollection05@gmail.com
 
 ## License
 

@@ -3,7 +3,7 @@
 **Project**: Reyan Luxe → Renu's Collections  
 **Date**: August 31, 2026  
 **Owner**: Renuga Sree  
-**Contact**: renugasree28@gmail.com
+**Contact**: renuscollection05@gmail.com
 
 ---
 
@@ -211,7 +211,7 @@ Successfully completed the rebranding of the e-commerce project from "Reyan Luxe
 ### New Brand Identity
 - **Brand Name**: Renu's Collections
 - **Owner Name**: Renuga Sree
-- **Contact Email**: renugasree28@gmail.com
+- **Contact Email**: renuscollection05@gmail.com
 - **Domain**: renucollections.com
 - **Support Emails**: info@renucollections.com, support@renucollections.com
 - **Admin Email**: admin@renucollections.com
