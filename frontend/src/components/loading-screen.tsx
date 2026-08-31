@@ -47,10 +47,9 @@ export function LoadingScreen({ onFinishLoading }: LoadingScreenProps) {
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.5, delay: 0.6 }}
         >
-          <span className="text-foreground" style={{ textShadow: '0 0 1px var(--heading-outline-color)' }}>Re</span>
-          <span className="text-primary">yan</span>
+          <span className="text-primary">Renu's</span>
           <br />
-          <span className="text-primary">Luxe</span>
+          <span className="text-primary">Collection</span>
         </motion.h1>
       </motion.div>
 
