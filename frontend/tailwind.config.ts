@@ -61,13 +61,13 @@ export default {
           border: "var(--sidebar-border)",
           ring: "var(--sidebar-ring)",
         },
-        // Custom Reyan Luxe brand colors
+        // Custom Renu's Collections brand colors
         "rose-gold": "var(--rose-gold)",
         "matte-black": "var(--matte-black)",
         "cream": "var(--cream)",
         "rose-glow": "var(--rose-glow)",
-        "re-color": "var(--re-color)",
-        "yan-luxe-color": "var(--yan-luxe-color)",
+        "renu-color": "var(--renu-color)",
+        "collections-color": "var(--collections-color)",
       },
       fontFamily: {
         sans: ["var(--font-sans)"],

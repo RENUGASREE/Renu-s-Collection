@@ -15,18 +15,18 @@ interface SEOProps {
 }
 
 export const SEO: React.FC<SEOProps> = ({
-  title = 'Reyan Luxe - Luxury Customized Jewelry',
-  description = 'Discover exquisite luxury bracelets and chains at Reyan Luxe. Shop online for custom, gemstone, and handmade jewelry designs. Your premier jewelry brand in India.',
-  keywords = 'womens bracelets, chains, custom jewelry, luxury bracelets, gemstone jewelry, handmade jewelry, Reyan Luxe, jewelry brand India, online jewelry store',
+  title = "Renu's Collections - Luxury Customized Jewelry",
+  description = 'Discover exquisite luxury bracelets and chains at Renu\'s Collections. Shop online for custom, gemstone, and handmade jewelry designs. Your premier jewelry brand in India.',
+  keywords = 'womens bracelets, chains, custom jewelry, luxury bracelets, gemstone jewelry, handmade jewelry, Renu\'s Collections, jewelry brand India, online jewelry store',
   image = '/logo.png',
   url = typeof window !== 'undefined' ? window.location.href : '',
   type = 'website',
-  siteName = 'Reyan Luxe',
+  siteName = "Renu's Collections",
   locale = 'en_IN',
   noindex = false,
   canonicalUrl
 }) => {
-  const fullTitle = title.includes('Reyan Luxe') ? title : `${title} | Reyan Luxe`;
+  const fullTitle = title.includes("Renu's Collections") ? title : `${title} | Renu's Collections`;
   
   return (
     <Helmet>
@@ -54,11 +54,11 @@ export const SEO: React.FC<SEOProps> = ({
       <meta name="twitter:title" content={fullTitle} />
       <meta name="twitter:description" content={description} />
       <meta name="twitter:image" content={image} />
-      <meta name="twitter:site" content="@reyanluxe" />
+      <meta name="twitter:site" content="@renucollections" />
       
       {/* Additional SEO Meta Tags */}
-      <meta name="author" content="Reyan Luxe" />
-      <meta name="publisher" content="Reyan Luxe" />
+      <meta name="author" content="Renu's Collections" />
+      <meta name="publisher" content="Renu's Collections" />
       <meta name="theme-color" content="#000000" />
       <meta name="msapplication-TileColor" content="#000000" />
       
@@ -67,11 +67,11 @@ export const SEO: React.FC<SEOProps> = ({
         {JSON.stringify({
           "@context": "https://schema.org",
           "@type": "WebSite",
-          "name": "Reyan Luxe",
-          "url": "https://reyanluxe.com",
+          "name": "Renu's Collections",
+          "url": "https://renucollections.com",
           "potentialAction": {
             "@type": "SearchAction",
-            "target": "https://reyanluxe.com/search?q={search_term_string}",
+            "target": "https://renucollections.com/search?q={search_term_string}",
             "query-input": "required name=search_term_string"
           }
         })}
@@ -82,9 +82,9 @@ export const SEO: React.FC<SEOProps> = ({
         {JSON.stringify({
           "@context": "https://schema.org",
           "@type": "LocalBusiness",
-          "name": "Reyan Luxe",
+          "name": "Renu's Collections",
           "description": "Luxury customized jewelry store specializing in bracelets and chains",
-          "url": "https://reyanluxe.com",
+          "url": "https://renucollections.com",
           "telephone": "+91-XXXXXXXXXX",
           "address": {
             "@type": "PostalAddress",

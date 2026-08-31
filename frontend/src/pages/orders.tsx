@@ -126,10 +126,10 @@ export default function Orders() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <SEO 
-        title="My Orders - Reyan Luxe"
-        description="View your order history and track your jewelry purchases from Reyan Luxe."
-        keywords="my orders, order history, track order, reyan luxe orders, jewelry orders"
-        url="https://reyanluxe.com/orders"
+        title="My Orders - Renu's Collections"
+        description="View your order history and track your jewelry purchases from Renu's Collections."
+        keywords="my orders, order history, track order, renu's collections orders, jewelry orders"
+        url="https://renucollections.com/orders"
       />
       <main className="container mx-auto px-4 py-8">
         <h1 className="text-5xl font-bold text-center mb-12">My Orders</h1>

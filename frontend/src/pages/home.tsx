@@ -9,9 +9,9 @@ export default function Home() {
   return (
     <>
       <SEO 
-        title="Reyan Luxe - Luxury Customized Jewelry"
-        description="Discover exquisite luxury bracelets and chains at Reyan Luxe. Shop online for custom, gemstone, and handmade jewelry designs. Your premier jewelry brand in India."
-        keywords="womens bracelets, chains, custom jewelry, luxury bracelets, gemstone jewelry, handmade jewelry, Reyan Luxe, jewelry brand India, online jewelry store, customized jewelry"
+        title="Renu's Collections - Luxury Customized Jewelry"
+        description="Discover exquisite luxury bracelets and chains at Renu's Collections. Shop online for custom, gemstone, and handmade jewelry designs. Your premier jewelry brand in India."
+        keywords="womens bracelets, chains, custom jewelry, luxury bracelets, gemstone jewelry, handmade jewelry, Renu's Collections, jewelry brand India, online jewelry store, customized jewelry"
         type="website"
       />
       <div className="min-h-screen bg-background">

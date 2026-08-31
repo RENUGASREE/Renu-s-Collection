@@ -249,10 +249,10 @@ export default function Checkout() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <SEO 
-        title="Checkout - Reyan Luxe"
+        title="Checkout - Renu's Collections"
         description="Complete your purchase of luxury customized jewelry. Secure checkout process for your bracelets and chains with multiple payment options."
-        keywords="checkout, secure payment, jewelry purchase, custom jewelry checkout, reyan luxe payment"
-        url="https://reyanluxe.com/checkout"
+        keywords="checkout, secure payment, jewelry purchase, custom jewelry checkout, renu's collections payment"
+        url="https://renucollections.com/checkout"
       />
       <main className="container mx-auto px-4 py-8">
         <h1 className="text-5xl font-bold text-center mb-12">Checkout</h1>

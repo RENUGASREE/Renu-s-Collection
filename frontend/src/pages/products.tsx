@@ -154,10 +154,10 @@ export default function Products() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <SEO 
-        title="Our Products - Reyan Luxe"
+        title="Our Products - Renu's Collections"
         description="Discover our exquisite collection of luxury jewelry. Shop from our curated selection of premium bracelets, earrings, and bangles."
         keywords="luxury jewelry, bracelets, earrings, bangles, custom jewelry, kundan jewelry"
-        url="https://reyanluxe.com/products"
+        url="https://renucollections.com/products"
       />
       <main className="container mx-auto px-4 py-8 pt-20">
         <h1 className="text-5xl font-bold text-center mb-12">Our Products</h1>

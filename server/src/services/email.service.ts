@@ -38,7 +38,7 @@ class DevEmailService implements EmailService {
     await this.sendEmail({
       to: data.customerEmail,
       subject: `Order Confirmation - ${data.orderNumber}`,
-      text: `Dear ${data.customerName},\n\nYour order ${data.orderNumber} has been confirmed.\n\nTotal: ₹${data.total}\n\nThank you for shopping with Reyan Luxe!`,
+      text: `Dear ${data.customerName},\n\nYour order ${data.orderNumber} has been confirmed.\n\nTotal: ₹${data.total}\n\nThank you for shopping with Renu's Collections!`
     });
   }
 
@@ -46,7 +46,7 @@ class DevEmailService implements EmailService {
     await this.sendEmail({
       to: data.customerEmail,
       subject: `Order Shipped - ${data.orderNumber}`,
-      text: `Dear ${data.customerName},\n\nYour order ${data.orderNumber} has been shipped.\n${data.trackingNumber ? `Tracking Number: ${data.trackingNumber}\n` : ""}Thank you for shopping with Reyan Luxe!`,
+      text: `Dear ${data.customerName},\n\nYour order ${data.orderNumber} has been shipped.\n${data.trackingNumber ? `Tracking Number: ${data.trackingNumber}\n` : ""}Thank you for shopping with Renu's Collections!`
     });
   }
 
@@ -54,7 +54,7 @@ class DevEmailService implements EmailService {
     await this.sendEmail({
       to: data.customerEmail,
       subject: `Refund Processed - ${data.orderNumber}`,
-      text: `Dear ${data.customerName},\n\nA refund of ₹${data.refundAmount} has been processed for your order ${data.orderNumber}.\n\nThank you for shopping with Reyan Luxe!`,
+      text: `Dear ${data.customerName},\n\nA refund of ₹${data.refundAmount} has been processed for your order ${data.orderNumber}.\n\nThank you for shopping with Renu's Collections!`
     });
   }
 }
@@ -80,7 +80,7 @@ class ProductionEmailService implements EmailService {
         ${data.items.map(item => `<li>${item.name} x ${item.quantity} - ₹${item.price}</li>`).join('')}
       </ul>
       <p><strong>Total: ₹${data.total}</strong></p>
-      <p>Thank you for shopping with Reyan Luxe!</p>
+      <p>Thank you for shopping with Renu's Collections!</p>
     `;
     
     await this.sendEmail({
@@ -97,7 +97,7 @@ class ProductionEmailService implements EmailService {
       <p>Dear ${data.customerName},</p>
       <p>Your order <strong>${data.orderNumber}</strong> has been shipped.</p>
       ${data.trackingNumber ? `<p>Tracking Number: <strong>${data.trackingNumber}</strong></p>` : ''}
-      <p>Thank you for shopping with Reyan Luxe!</p>
+      <p>Thank you for shopping with Renu's Collections!</p>
     `;
     
     await this.sendEmail({
@@ -114,7 +114,7 @@ class ProductionEmailService implements EmailService {
       <p>Dear ${data.customerName},</p>
       <p>A refund of <strong>₹${data.refundAmount}</strong> has been processed for your order <strong>${data.orderNumber}</strong>.</p>
       <p>The refund will be credited to your original payment method within 5-7 business days.</p>
-      <p>Thank you for shopping with Reyan Luxe!</p>
+      <p>Thank you for shopping with Renu's Collections!</p>
     `;
     
     await this.sendEmail({

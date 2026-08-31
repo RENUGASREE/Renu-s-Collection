@@ -122,10 +122,9 @@ export default function HeroSection() {
           transition={{ duration: 1.2, ease: "easeOut" }}
           data-testid="hero-logo"
         >
-          <span className="text-primary" style={{ textShadow: '0 0 1px var(--heading-outline-color)' }}>Re</span>
-          <span className="text-primary" style={{ textShadow: '0 0 1px var(--heading-primary-shadow)' }}>yan</span>
+          <span className="text-primary" style={{ textShadow: '0 0 1px var(--heading-outline-color)' }}>Renu's</span>
           <br />
-          <span className="text-primary" style={{ textShadow: '0 0 1px var(--heading-primary-shadow)' }}>Luxe</span>
+          <span className="text-primary" style={{ textShadow: '0 0 1px var(--heading-primary-shadow)' }}>Collections</span>
         </motion.h1>
 
         {/* Tagline */}

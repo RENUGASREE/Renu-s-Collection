@@ -234,10 +234,10 @@ const AccountPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-background">
       <SEO 
-        title="My Account - Reyan Luxe"
-        description="Manage your Reyan Luxe account, view order history, track shipments, and update your profile information."
-        keywords="my account, order history, account management, reyan luxe account, jewelry orders"
-        url="https://reyanluxe.com/account"
+        title="My Account - Renu's Collections"
+        description="Manage your Renu's Collections account, view order history, track shipments, and update your profile information."
+        keywords="my account, order history, account management, renu's collections account, jewelry orders"
+        url="https://renucollections.com/account"
       />
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto">

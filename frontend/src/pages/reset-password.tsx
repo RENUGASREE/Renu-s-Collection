@@ -48,9 +48,9 @@ export default function ResetPassword() {
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center p-4">
       <SEO
-        title="Reset Password - Reyan Luxe"
-        description="Reset your Reyan Luxe account password."
-        url="https://reyanluxe.com/reset-password"
+        title="Reset Password - Renu's Collections"
+        description="Reset your Renu's Collections account password."
+        url="https://renucollections.com/reset-password"
       />
       <div className="w-full max-w-md">
         <main className="flex-grow container mx-auto px-4 py-8 flex items-center justify-center">

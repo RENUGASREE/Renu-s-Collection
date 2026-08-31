@@ -41,10 +41,10 @@ export default function Login() {
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center p-4">
       <SEO 
-        title="Login - Reyan Luxe"
-        description="Login to your Reyan Luxe account to access your orders, customize jewelry, and manage your profile."
-        keywords="login, account access, reyan luxe login, jewelry account, customer login"
-        url="https://reyanluxe.com/login"
+        title="Login - Renu's Collections"
+        description="Login to your Renu's Collections account to access your orders, customize jewelry, and manage your profile."
+        keywords="login, account access, renu's collections login, jewelry account, customer login"
+        url="https://renucollections.com/login"
       />
       <div className="w-full max-w-md">
         <main className="flex-grow container mx-auto px-4 py-8 flex items-center justify-center">

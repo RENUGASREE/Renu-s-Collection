@@ -47,7 +47,7 @@ export function createApp() {
   app.get("/", (_req, res) => {
     res.json({
       success: true,
-      message: "Reyan Luxe API",
+      message: "Renu's Collections API",
       version: "1.0.0",
       docs: `${env.API_PREFIX}/health`,
     });

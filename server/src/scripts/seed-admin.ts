@@ -9,7 +9,7 @@ dotenv.config();
 async function seedAdmin() {
   await connectDatabase();
 
-  const email = (env.ADMIN_SEED_EMAIL || "admin@reyanluxe.com").toLowerCase();
+  const email = (env.ADMIN_SEED_EMAIL || "admin@renucollections.com").toLowerCase();
   const passwordHash = await hashPassword(env.ADMIN_SEED_PASSWORD || "Admin@123");
 
   const user = await User.findOneAndUpdate(
@@ -20,8 +20,8 @@ async function seedAdmin() {
       passwordHash,
       role: "admin",
       isEmailVerified: true,
-      firstName: "Reyan",
-      lastName: "Admin",
+      firstName: "Renuga",
+      lastName: "Sree",
     },
     { upsert: true, new: true }
   );

@@ -17,8 +17,8 @@ async function seedAdminUser() {
         passwordHash,
         role: "admin",
         isEmailVerified: true,
-        firstName: "Reyan",
-        lastName: "Admin",
+        firstName: "Renuga",
+        lastName: "Sree",
       },
       { upsert: true, new: true }
     );
@@ -41,7 +41,7 @@ async function bootstrap() {
   const app = createApp();
 
   app.listen(env.PORT, () => {
-    console.log(`Reyan Luxe API listening on http://localhost:${env.PORT}${env.API_PREFIX}`);
+    console.log(`Renu's Collections API listening on http://localhost:${env.PORT}${env.API_PREFIX}`);
   });
 }
 

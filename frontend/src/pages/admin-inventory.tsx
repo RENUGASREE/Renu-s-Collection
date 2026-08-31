@@ -73,7 +73,7 @@ export default function AdminInventory() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <SEO title="Admin Inventory - Reyan Luxe" noindex />
+      <SEO title="Admin Inventory - Renu's Collections" noindex />
       <main className="container mx-auto px-4 py-8 pt-20">
         <h1 className="text-4xl font-bold mb-6">Inventory Management</h1>
 

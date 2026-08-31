@@ -31,7 +31,7 @@ export async function createRazorpayOrder(userId: string, orderId: string, amoun
       amount: Math.round(amountRupees * 100),
       currency: "INR",
       key_id: env.RAZORPAY_KEY_ID ?? "rzp_test_dev",
-      name: "Reyan Luxe",
+      name: "Renu's Collections",
       description: `Order #${order.orderNumber}`,
       devMode: true,
     };
@@ -53,7 +53,7 @@ export async function createRazorpayOrder(userId: string, orderId: string, amoun
     amount: razorpayOrder.amount,
     currency: razorpayOrder.currency,
     key_id: env.RAZORPAY_KEY_ID,
-    name: "Reyan Luxe",
+    name: "Renu's Collections",
     description: `Order #${order.orderNumber}`,
   };
 }

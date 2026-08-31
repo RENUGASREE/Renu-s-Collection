@@ -83,7 +83,7 @@ export default function Admin() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background text-foreground">
-        <SEO title="Admin Dashboard - Reyan Luxe" noindex />
+        <SEO title="Admin Dashboard - Renu's Collections" noindex />
         <main className="container mx-auto px-4 py-8 pt-20">
           <div className="text-center text-xl">Loading admin dashboard...</div>
         </main>
@@ -94,7 +94,7 @@ export default function Admin() {
   if (error) {
     return (
       <div className="min-h-screen bg-background text-foreground">
-        <SEO title="Admin Dashboard - Reyan Luxe" noindex />
+        <SEO title="Admin Dashboard - Renu's Collections" noindex />
         <main className="container mx-auto px-4 py-8 pt-20">
           <div className="text-center">
             <p className="text-xl text-destructive mb-6">{error}</p>
@@ -107,7 +107,7 @@ export default function Admin() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <SEO title="Admin Dashboard - Reyan Luxe" noindex />
+      <SEO title="Admin Dashboard - Renu's Collections" noindex />
       <main className="container mx-auto px-4 py-8 pt-20">
         <h1 className="text-4xl font-bold text-center mb-2">Admin Dashboard</h1>
         <p className="text-center text-muted-foreground mb-8">

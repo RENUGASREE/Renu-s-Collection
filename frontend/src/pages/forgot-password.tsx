@@ -31,10 +31,10 @@ export default function ForgotPassword() {
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center p-4">
       <SEO 
-        title="Forgot Password - Reyan Luxe"
-        description="Reset your Reyan Luxe account password. Enter your email to receive a password reset link."
-        keywords="forgot password, password reset, reyan luxe password, account recovery"
-        url="https://reyanluxe.com/forgot-password"
+        title="Forgot Password - Renu's Collections"
+        description="Reset your Renu's Collections account password. Enter your email to receive a password reset link."
+        keywords="forgot password, password reset, renu's collections password, account recovery"
+        url="https://renucollections.com/forgot-password"
       />
       {/* <Navbar /> */}
       <main className="flex-grow container mx-auto px-4 py-8 flex items-center justify-center">
@@ -49,7 +49,7 @@ export default function ForgotPassword() {
               <Input
                 id="email"
                 type="email"
-                placeholder="reyanluxe@gmail.com"
+                placeholder="renucollections@gmail.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required

@@ -1,8 +1,8 @@
 {
-  "name": "reyan-luxe-server",
+  "name": "renu-collections-server",
   "version": "1.0.0",
   "private": true,
-  "description": "Reyan Luxe production API — Express + TypeScript + MongoDB",
+  "description": "Renu's Collections production API — Express + TypeScript + MongoDB",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",

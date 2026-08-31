@@ -9,7 +9,7 @@ export function getAssetUrl(path: string | null | undefined): string {
   // Remove leading slash if present to avoid double slashes with BASE_URL
   const normalizedPath = path.startsWith("/") ? path.slice(1) : path;
   
-  // BASE_URL usually ends with a slash, e.g., "/Reyan_Luxe/"
+  // BASE_URL usually ends with a slash, e.g., "/Renu_Collections/"
   const baseUrl = (import.meta as any).env?.BASE_URL || "/";
   
   return `${baseUrl}${normalizedPath}`;

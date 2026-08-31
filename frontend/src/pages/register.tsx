@@ -59,10 +59,10 @@ export default function Register() {
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center p-4">
       <SEO 
-        title="Register - Reyan Luxe"
-        description="Create your Reyan Luxe account to customize jewelry, track orders, and enjoy exclusive benefits."
-        keywords="register, create account, reyan luxe signup, jewelry account, customer registration"
-        url="https://reyanluxe.com/register"
+        title="Register - Renu's Collections"
+        description="Create your Renu's Collections account to customize jewelry, track orders, and enjoy exclusive benefits."
+        keywords="register, create account, renu's collections signup, jewelry account, customer registration"
+        url="https://renucollections.com/register"
       />
       <div className="w-full max-w-md">
         <main className="flex-grow container mx-auto px-4 py-8 flex items-center justify-center">

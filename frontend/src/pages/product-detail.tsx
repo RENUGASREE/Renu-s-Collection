@@ -226,12 +226,12 @@ export default function ProductDetail() {
     return (
       <>
         <SEO
-          title="Loading Product - Reyan Luxe"
+          title="Loading Product - Renu's Collections"
           description="Loading product details..."
           image="/logo.png"
           type="product"
-          keywords="loading, product, Reyan Luxe"
-          canonicalUrl={`http://localhost:5173/Reyan_Luxe/product/${productId}`}
+          keywords="loading, product, Renu's Collections"
+          canonicalUrl={`http://localhost:5173/Renu_Collections/product/${productId}`}
         />
         <div className="min-h-screen bg-background flex flex-col">
           <main className="flex-grow container mx-auto px-4 py-8 text-center">

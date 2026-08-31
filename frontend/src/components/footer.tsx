@@ -12,9 +12,8 @@ export default function Footer() {
         transition={{ duration: 0.6 }}
       >
         <div className="text-2xl font-playfair font-bold text-foreground mb-4" data-testid="footer-logo">
-          <span className="text-foreground">Re</span>
-          <span className="text-primary">yan</span>{" "}
-          <span className="text-primary">Luxe</span>
+          <span className="text-foreground">Renu's</span>
+          <span className="text-primary"> Collections</span>
         </div>
         <p className="text-background/70 mb-4" data-testid="footer-tagline">
           Refined Adornment. Uncompromising Elegance.
@@ -31,7 +30,7 @@ export default function Footer() {
           <Link to="/admin" className="text-primary hover:underline">Admin</Link>
         </div>
         <p className="text-background/50 text-sm" data-testid="footer-copyright">
-          © 2024 Reyan Luxe. All rights reserved.
+          © 2024 Renu's Collections. All rights reserved.
         </p>
       </motion.div>
     </footer>

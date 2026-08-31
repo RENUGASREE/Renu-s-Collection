@@ -88,10 +88,10 @@ export default function Cart() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <SEO 
-        title="Shopping Cart - Reyan Luxe"
+        title="Shopping Cart - Renu's Collections"
         description="Review your selected luxury jewelry items in your shopping cart. Complete your purchase of customized bracelets and chains."
-        keywords="shopping cart, luxury jewelry cart, custom jewelry checkout, reyan luxe cart"
-        url="https://reyanluxe.com/cart"
+        keywords="shopping cart, luxury jewelry cart, custom jewelry checkout, renu's collections cart"
+        url="https://renucollections.com/cart"
       />
       {/* <Navbar /> */}
       <main className="container mx-auto px-4 py-8 pt-20">

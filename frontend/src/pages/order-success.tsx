@@ -73,10 +73,10 @@ export default function OrderSuccess() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <SEO 
-        title="Order Success - Reyan Luxe"
-        description="Your order has been placed successfully! Thank you for purchasing from Reyan Luxe. Track your order and view order details."
-        keywords="order success, order confirmation, purchase complete, reyan luxe order, jewelry order"
-        url="https://reyanluxe.com/order-success"
+        title="Order Success - Renu's Collections"
+        description="Your order has been placed successfully! Thank you for purchasing from Renu's Collections. Track your order and view order details."
+        keywords="order success, order confirmation, purchase complete, renu's collections order, jewelry order"
+        url="https://renucollections.com/order-success"
       />
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-2xl mx-auto">

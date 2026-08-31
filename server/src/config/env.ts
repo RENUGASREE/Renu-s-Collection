@@ -27,7 +27,7 @@ const envSchema = z.object({
   FRONTEND_BASE_PATH: z.string().default("/"),
   ADMIN_API_KEY: z.string().optional(),
   ADMIN_SEED_USERNAME: z.string().min(2).default("admin"),
-  ADMIN_SEED_EMAIL: z.string().email().default("admin@reyanluxe.com"),
+  ADMIN_SEED_EMAIL: z.string().email().default("admin@renucollections.com"),
   ADMIN_SEED_PASSWORD: z.string().min(8).default("Admin@12345"),
   COOKIE_DOMAIN: z.string().optional(),
 });

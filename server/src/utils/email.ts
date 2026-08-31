@@ -28,7 +28,7 @@ export async function sendEmail(params: {
   text: string;
   html?: string;
 }): Promise<void> {
-  const from = env.EMAIL_FROM || "noreply@reyanluxe.com";
+  const from = env.EMAIL_FROM || "noreply@renucollections.com";
   const mailer = getTransporter();
 
   if (!mailer) {
@@ -48,10 +48,10 @@ export async function sendEmail(params: {
 export async function sendPasswordResetEmail(email: string, resetUrl: string): Promise<void> {
   await sendEmail({
     to: email,
-    subject: "Reset your Reyan Luxe password",
+    subject: "Reset your Renu's Collections password",
     text: `Reset your password using this link (valid for 1 hour): ${resetUrl}`,
     html: `
-      <p>You requested a password reset for your Reyan Luxe account.</p>
+      <p>You requested a password reset for your Renu's Collections account.</p>
       <p><a href="${resetUrl}">Reset your password</a></p>
       <p>This link expires in 1 hour. If you did not request this, ignore this email.</p>
     `,

@@ -42,7 +42,7 @@ export default function AboutSection() {
           transition={{ duration: 0.8 }}
         >
           <h2 className="text-4xl md:text-5xl font-playfair font-bold text-foreground mb-4" data-testid="about-title">
-            The Story Behind Reyan Luxe
+            The Story Behind Renu's Collections
           </h2>
           <div className="w-20 h-1 bg-primary mx-auto"></div>
         </motion.div>
@@ -62,7 +62,7 @@ export default function AboutSection() {
                 Our Origins
               </h3>
               <p className="text-lg text-foreground leading-relaxed mb-6">
-                Born from a vision of elegance and simplicity, Reyan Luxe emerged from the desire to create jewelry that transcends trends and speaks to the soul. Our journey began with a single belief: that true luxury lies not in excess, but in the perfect harmony of design and craftsmanship.
+                Born from a vision of elegance and simplicity, Renu's Collections emerged from the desire to create jewelry that transcends trends and speaks to the soul. Our journey began with a single belief: that true luxury lies not in excess, but in the perfect harmony of design and craftsmanship.
               </p>
               <p className="text-lg text-foreground leading-relaxed">
                 What started as a passionate pursuit of creating the perfect bracelet has evolved into a brand synonymous with refined taste and uncompromising quality.

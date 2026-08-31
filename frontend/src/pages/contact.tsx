@@ -79,8 +79,8 @@ export default function Contact() {
                   </div>
                   <div>
                     <h3 className="font-semibold text-cream mb-1">Email</h3>
-                    <p className="text-cream/70">info@reyanluxe.com</p>
-                    <p className="text-cream/70">support@reyanluxe.com</p>
+                    <p className="text-cream/70">info@renucollections.com</p>
+                    <p className="text-cream/70">support@renucollections.com</p>
                   </div>
                 </div>
 

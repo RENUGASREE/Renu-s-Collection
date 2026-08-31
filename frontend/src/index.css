@@ -25,14 +25,14 @@
   --popover-foreground: hsl(0, 0%, 0%);
   --radius: 0.75rem;
   
-  /* Custom Reyan Luxe Brand Colors */
+  /* Custom Renu's Collections Brand Colors */
   --rose-gold: hsl(330, 100%, 50%); /* Rose gold set to #FF0066 */
   --matte-black: hsl(0, 0%, 0%); /* Full black */
   --cream: hsl(0, 0%, 100%); /* Full white */
   --rose-glow: hsl(330, 100%, 75%); /* Rose glow based on #FF0066 */
   --heading-glow: rgba(0, 0, 0, 0.7); /* Light theme black glow */
-  --re-color: hsl(330, 100%, 50%); /* Set to primary color */
-  --yan-luxe-color: hsl(330, 100%, 50%); /* Set to primary color */
+  --renu-color: hsl(330, 100%, 50%); /* Set to primary color */
+  --collections-color: hsl(330, 100%, 50%); /* Set to primary color */
   
   /* Typography */
   --font-playfair: 'Playfair Display', serif;

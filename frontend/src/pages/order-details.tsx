@@ -189,10 +189,10 @@ export default function OrderDetails() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <SEO 
-        title={`Order ${order.orderNumber} - Reyan Luxe`}
-        description={`View details for order ${order.orderNumber} from Reyan Luxe.`}
-        keywords={`order ${order.orderNumber}, order details, reyan luxe`}
-        url={`https://reyanluxe.com/orders/${order._id}`}
+        title={`Order ${order.orderNumber} - Renu's Collections`}
+        description={`View details for order ${order.orderNumber} from Renu's Collections.`}
+        keywords={`order ${order.orderNumber}, order details, renu's collections`}
+        url={`https://renucollections.com/orders/${order._id}`}
       />
       <main className="container mx-auto px-4 py-8">
         <div className="mb-8">

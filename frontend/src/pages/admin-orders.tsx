@@ -248,10 +248,10 @@ export default function AdminOrders() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <SEO 
-        title="Order Management - Admin - Reyan Luxe"
-        description="Manage and track customer orders for Reyan Luxe jewelry store."
-        keywords="admin orders, order management, reyan luxe admin"
-        url="https://reyanluxe.com/admin/orders"
+        title="Order Management - Admin - Renu's Collections"
+        description="Manage and track customer orders for Renu's Collections jewelry store."
+        keywords="admin orders, order management, renu's collections admin"
+        url="https://renucollections.com/admin/orders"
       />
       <main className="container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-8">

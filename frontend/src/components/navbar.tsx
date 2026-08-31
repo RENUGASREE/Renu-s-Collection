@@ -69,9 +69,8 @@ export default function Navbar() {
             transition={{ type: "spring", stiffness: 400, damping: 10 }}
             data-testid="logo"
           >
-            <span className="text-primary">Re</span>
-            <span className="text-primary">yan</span>{" "}
-            <span className="text-primary">Luxe</span>
+            <span className="text-primary">Renu's</span>
+            <span className="text-primary"> Collections</span>
           </motion.div>
 
           {/* Desktop Navigation */}
