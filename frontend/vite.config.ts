@@ -4,12 +4,11 @@ import { defineConfig } from "vite"
 import svgr from "vite-plugin-svgr"
  
 export default defineConfig(({ mode }) => ({
-  base: '/',
+  base: mode === 'production' ? '/' : '/',
   plugins: [react(), svgr()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
-
     },
   },
   server: {
@@ -25,6 +24,9 @@ export default defineConfig(({ mode }) => ({
     rollupOptions: {
       output: {
         manualChunks: undefined,
+        assetFileNames: 'assets/[name]-[hash][extname]',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        entryFileNames: 'assets/[name]-[hash].js',
       },
     },
   },
