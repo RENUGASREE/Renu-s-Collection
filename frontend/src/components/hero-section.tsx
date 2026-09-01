@@ -34,7 +34,13 @@ export default function HeroSection() {
             params: { isSignaturePiece: true }
           });
           const productsRes = response.data.data as any[];
-          const images = productsRes.map((p: any) => getAssetUrl(p.imageUrl)).filter(Boolean);
+          const images = productsRes
+            .map((p: any) => {
+              const primaryMedia = p.media?.find((m: any) => m.isPrimary);
+              const imageUrl = primaryMedia?.url || p.media?.[0]?.url;
+              return imageUrl ? getAssetUrl(imageUrl) : null;
+            })
+            .filter(Boolean);
 
           if (images.length > 0) {
             setProductImages(images);

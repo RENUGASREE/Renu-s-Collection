@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { Gem, Heart, Star, Leaf, Moon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import axios from "axios";
-import { API_BASE_URL } from "@/lib/queryClient";
+import { API_BASE_URL, getAssetUrl } from "@/lib/queryClient";
 import { useNavigate } from "react-router-dom";
 
 interface BraceletCard {
@@ -11,7 +11,7 @@ interface BraceletCard {
   name: string;
   description: string;
   price: number;
-  imageUrl: string; // Renamed from 'image' to reflect the backend change to a single image URL
+  media: { url: string; isPrimary: boolean }[];
   category: string;
   icon: string;
   badge: string;
@@ -77,10 +77,16 @@ export default function CollectionSection() {
   const filteredBracelets = bracelets.filter((bracelet) => {
     if (activeFilter === "all") return bracelet.is_signature_piece === true;
     if (activeFilter === "signature_none") {
-      return bracelet.is_signature_piece === true && (bracelet.signature_category === null || bracelet.signature_category === "");
+      return bracelet.is_signature_piece === true && (bracelet.signature_category === null || bracelet.signature_category === "" || bracelet.signature_category === "none");
     }
     return bracelet.is_signature_piece === true && bracelet.signature_category === activeFilter.replace("signature_", "");
   });
+
+  const getImageUrl = (bracelet: BraceletCard) => {
+    const primaryMedia = bracelet.media?.find(m => m.isPrimary);
+    const imageUrl = primaryMedia?.url || bracelet.media?.[0]?.url;
+    return imageUrl ? getAssetUrl(imageUrl) : '';
+  };
 
   if (loading) {
     return <div className="text-center py-20">Loading favorites...</div>;
@@ -156,7 +162,7 @@ export default function CollectionSection() {
             >
               <div className="relative overflow-hidden">
                 <img
-                  src={bracelet.imageUrl}
+                  src={getImageUrl(bracelet)}
                   alt={bracelet.name}
                   className="w-full h-64 object-cover transition-transform duration-300 group-hover:scale-110"
                   data-testid={`bracelet-image-${bracelet.id}`}

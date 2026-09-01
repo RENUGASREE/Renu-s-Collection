@@ -48,6 +48,7 @@ export const createProductSchema = z.object({
   materialInfo: z.string().optional(),
   careInstructions: z.string().optional(),
   media: z.array(mediaSchema).optional(),
+  imageUrl: z.string().url().optional(),
   colors: z.array(z.string()).optional(),
   materials: z.array(z.string()).optional(),
   tags: z.array(z.string()).optional(),

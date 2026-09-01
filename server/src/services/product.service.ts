@@ -12,7 +12,7 @@ import type { InventoryAction } from "../types/index.js";
 type CreateProductInput = z.infer<typeof createProductSchema>;
 type UpdateProductInput = z.infer<typeof updateProductSchema>;
 type ProductQuery = z.infer<typeof productQuerySchema>;
-type ProductLean = FlattenMaps<IProduct> & { _id: Types.ObjectId };
+type ProductLean = FlattenMaps<IProduct> & { _id: Types.ObjectId; isInStock: boolean; effectivePrice: number };
 
 function buildProductFilter(query: ProductQuery): FilterQuery<IProduct> {
   const filter: FilterQuery<IProduct> = { isActive: true };
@@ -65,8 +65,15 @@ export async function listProducts(query: ProductQuery): Promise<{ items: Produc
     Product.countDocuments(filter),
   ]);
 
+  // Add virtual fields to lean documents
+  const itemsWithVirtuals = items.map(item => ({
+    ...item,
+    isInStock: (item.stock as number) > 0,
+    effectivePrice: item.salePrice != null && item.salePrice < item.price ? item.salePrice : item.price,
+  }));
+
   return {
-    items,
+    items: itemsWithVirtuals,
     meta: {
       page,
       limit,
@@ -87,13 +94,23 @@ export async function getProductById(id: string): Promise<ProductLean> {
   if (!Types.ObjectId.isValid(id)) throw new AppError("Invalid product id", 400);
   const product = await Product.findById(id).lean();
   if (!product) throw new AppError("Product not found", 404);
-  return product;
+  // Add virtual fields to lean document
+  return {
+    ...product,
+    isInStock: (product.stock as number) > 0,
+    effectivePrice: product.salePrice != null && product.salePrice < product.price ? product.salePrice : product.price,
+  };
 }
 
 export async function getProductBySlug(slug: string): Promise<ProductLean> {
   const product = await Product.findOne({ slug: slug.toLowerCase(), isActive: true }).lean();
   if (!product) throw new AppError("Product not found", 404);
-  return product;
+  // Add virtual fields to lean document
+  return {
+    ...product,
+    isInStock: (product.stock as number) > 0,
+    effectivePrice: product.salePrice != null && product.salePrice < product.price ? product.salePrice : product.price,
+  };
 }
 
 export async function createProduct(input: CreateProductInput): Promise<ProductLean> {
@@ -114,15 +131,26 @@ export async function createProduct(input: CreateProductInput): Promise<ProductL
   const existingSku = await Product.findOne({ sku });
   if (existingSku) throw new AppError("SKU already exists", 409);
 
+  // Convert imageUrl to media array if provided
+  const media = input.imageUrl
+    ? [{ url: input.imageUrl, type: "image" as const, isPrimary: true, sortOrder: 0 }]
+    : input.media || [];
+
   const product = await Product.create({
     ...input,
     slug,
     sku,
+    media,
     categoryId: new Types.ObjectId(input.categoryId),
     subcategoryId: input.subcategoryId ? new Types.ObjectId(input.subcategoryId) : null,
   });
 
-  return product.toObject() as ProductLean;
+  const productObj = product.toObject() as any;
+  return {
+    ...productObj,
+    isInStock: (productObj.stock as number) > 0,
+    effectivePrice: productObj.salePrice != null && productObj.salePrice < productObj.price ? productObj.salePrice : productObj.price,
+  };
 }
 
 export async function updateProduct(id: string, input: UpdateProductInput): Promise<ProductLean> {
@@ -136,13 +164,23 @@ export async function updateProduct(id: string, input: UpdateProductInput): Prom
     update.subcategoryId = input.subcategoryId ? new Types.ObjectId(input.subcategoryId) : null;
   }
 
+  // Convert imageUrl to media array if provided
+  if (input.imageUrl) {
+    update.media = [{ url: input.imageUrl, type: "image" as const, isPrimary: true, sortOrder: 0 }];
+  }
+
   const product = await Product.findByIdAndUpdate(id, update, {
     new: true,
     runValidators: true,
   }).lean();
 
   if (!product) throw new AppError("Product not found", 404);
-  return product;
+  const productObj = product as any;
+  return {
+    ...productObj,
+    isInStock: (productObj.stock as number) > 0,
+    effectivePrice: productObj.salePrice != null && productObj.salePrice < productObj.price ? productObj.salePrice : productObj.price,
+  };
 }
 
 export async function deleteProduct(id: string): Promise<void> {
@@ -153,7 +191,13 @@ export async function deleteProduct(id: string): Promise<void> {
 
 export async function listLowStockProducts(threshold?: number): Promise<ProductLean[]> {
   const products = await Product.find({ isActive: true }).lean();
-  return products.filter((p) => p.stock <= (threshold ?? p.lowStockThreshold));
+  return products
+    .filter((p) => p.stock <= (threshold ?? p.lowStockThreshold))
+    .map((p) => ({
+      ...p,
+      isInStock: (p.stock as number) > 0,
+      effectivePrice: p.salePrice != null && p.salePrice < p.price ? p.salePrice : p.price,
+    }));
 }
 
 export async function adjustStock(

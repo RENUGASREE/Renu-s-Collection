@@ -7,11 +7,15 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from "@/components/ui/dropdown-menu";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Footer from "@/components/footer";
 import { SEO } from "@/components/SEO";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Product {
   _id: string;
@@ -48,8 +52,10 @@ export default function Products() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [wishlistIds, setWishlistIds] = useState<Set<string>>(new Set());
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth(); // Use the useAuth hook
 
   // Handle URL parameters for filtering
   useEffect(() => {
@@ -69,7 +75,7 @@ export default function Products() {
         navigate('/login');
         return;
       }
-      
+
       const response = await apiRequest('POST', '/api/v1/cart', {
         productId,
         quantity: 1,
@@ -86,6 +92,32 @@ export default function Products() {
     }
   };
 
+  const toggleWishlist = async (productId: string) => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    try {
+      if (wishlistIds.has(productId)) {
+        const response = await apiRequest('POST', '/api/v1/users/wishlist/remove', { productId });
+        if (response.ok) {
+          setWishlistIds(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(productId);
+            return newSet;
+          });
+        }
+      } else {
+        const response = await apiRequest('POST', '/api/v1/users/wishlist', { productId });
+        if (response.ok) {
+          setWishlistIds(prev => new Set(prev).add(productId));
+        }
+      }
+    } catch (error) {
+      console.error('Failed to toggle wishlist:', error);
+    }
+  };
+
   useEffect(() => {
     const fetchCategories = async () => {
       try {
@@ -99,12 +131,34 @@ export default function Products() {
     fetchCategories();
   }, []);
 
+  // Build category tree for dropdown
+  const categoryTree = categories.filter(c => c.parentId === null).map(parent => ({
+    ...parent,
+    subcategories: categories.filter(c => c.parentId === parent._id)
+  }));
+
+  useEffect(() => {
+    const fetchWishlist = async () => {
+      if (user) {
+        try {
+          const response = await apiRequest('GET', '/api/v1/users/wishlist');
+          const data = await response.json();
+          const ids: Set<string> = new Set((data.data?.productIds || []).map((id: any) => String(id)));
+          setWishlistIds(ids);
+        } catch (err) {
+          console.error('Failed to fetch wishlist:', err);
+        }
+      }
+    };
+    fetchWishlist();
+  }, [user]);
+
   useEffect(() => {
     const fetchProducts = async () => {
       try {
         let url = '/api/v1/products';
         const params = new URLSearchParams();
-        
+
         if (filterCategory !== 'all') {
           if (filterCategory === 'signature_all') {
             params.append('isSignaturePiece', 'true');
@@ -112,19 +166,25 @@ export default function Products() {
             // Check if it's a category ID or slug
             const cat = categories.find(c => c._id === filterCategory || c.slug === filterCategory);
             if (cat) {
-              params.append('categoryId', cat._id);
+              // If it's a subcategory (has parentId), filter by subcategoryId
+              if (cat.parentId) {
+                params.append('subcategoryId', cat._id);
+              } else {
+                // If it's a parent category, filter by categoryId
+                params.append('categoryId', cat._id);
+              }
             }
           }
         }
-        
+
         if (searchTerm) {
           params.append('q', searchTerm);
         }
-        
+
         if (params.toString()) {
           url += `?${params.toString()}`;
         }
-        
+
         const response = await apiRequest('GET', url);
         const data = await response.json();
         setAllProducts(data.data);
@@ -182,10 +242,26 @@ export default function Products() {
               <DropdownMenuItem onClick={() => { setFilterCategory("signature_all"); setFilterLabel("Signature Pieces"); }}>
                 Signature Pieces
               </DropdownMenuItem>
-              {categories.filter(c => c.parentId === null).map((cat) => (
-                <DropdownMenuItem key={cat._id} onClick={() => { setFilterCategory(cat._id); setFilterLabel(cat.name); }}>
-                  {cat.name}
-                </DropdownMenuItem>
+              {categoryTree.map((cat) => (
+                cat.subcategories.length > 0 ? (
+                  <DropdownMenuSub key={cat._id}>
+                    <DropdownMenuSubTrigger>{cat.name}</DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>
+                      <DropdownMenuItem onClick={() => { setFilterCategory(cat._id); setFilterLabel(`All ${cat.name}`); }}>
+                        All {cat.name}
+                      </DropdownMenuItem>
+                      {cat.subcategories.map((sub) => (
+                        <DropdownMenuItem key={sub._id} onClick={() => { setFilterCategory(sub._id); setFilterLabel(sub.name); }}>
+                          {sub.name}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                ) : (
+                  <DropdownMenuItem key={cat._id} onClick={() => { setFilterCategory(cat._id); setFilterLabel(cat.name); }}>
+                    {cat.name}
+                  </DropdownMenuItem>
+                )
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
@@ -210,6 +286,17 @@ export default function Products() {
                     {product.badge}
                   </span>
                 )}
+                <button
+                  onClick={() => toggleWishlist(product._id)}
+                  className="absolute top-2 right-2 p-2 bg-white/80 hover:bg-white rounded-full shadow-md transition-colors"
+                  title={wishlistIds.has(product._id) ? "Remove from wishlist" : "Add to wishlist"}
+                >
+                  {wishlistIds.has(product._id) ? (
+                    <span className="text-red-500 text-xl">♥</span>
+                  ) : (
+                    <span className="text-gray-400 text-xl">♡</span>
+                  )}
+                </button>
                 <CardTitle>{product.name}</CardTitle>
               </CardHeader>
               <CardContent className="flex-grow flex flex-col justify-between">
@@ -230,14 +317,14 @@ export default function Products() {
                   <p className="text-sm text-red-500 mb-2">Out of Stock</p>
                 )}
                 <div className="flex gap-2 mt-4">
-                  <Button 
-                    className="flex-1" 
+                  <Button
+                    className="flex-1"
                     onClick={() => navigate(`/product/${product._id}`)}
                   >
                     View Details
                   </Button>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     onClick={() => addToCart(product._id, product.name, product.effectivePrice, getProductImage(product))}
                     disabled={!product.isInStock}
                   >

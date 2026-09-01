@@ -40,7 +40,7 @@ export default function Wishlist() {
     try {
       const response = await apiRequest('GET', '/api/v1/users/wishlist');
       const data = await response.json();
-      setItems(data.data || []);
+      setItems(data.data?.items || []);
     } catch (e: any) {
       console.error('Wishlist fetch error:', e);
       setError(e.message || 'Failed to load wishlist');

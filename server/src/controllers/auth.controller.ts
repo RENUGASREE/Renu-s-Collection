@@ -10,7 +10,7 @@ export function setRefreshCookie(res: Response, refreshToken: string): void {
     secure: env.isProduction,
     sameSite: env.isProduction ? "none" : "lax",
     maxAge: 7 * 24 * 60 * 60 * 1000,
-    path: `${env.API_PREFIX}/auth`,
+    path: "/",
     ...(env.COOKIE_DOMAIN ? { domain: env.COOKIE_DOMAIN } : {}),
   });
 }
@@ -20,7 +20,7 @@ export function clearRefreshCookie(res: Response): void {
     httpOnly: true,
     secure: env.isProduction,
     sameSite: env.isProduction ? "none" : "lax",
-    path: `${env.API_PREFIX}/auth`,
+    path: "/",
     ...(env.COOKIE_DOMAIN ? { domain: env.COOKIE_DOMAIN } : {}),
   });
 }

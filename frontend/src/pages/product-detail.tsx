@@ -62,6 +62,8 @@ export default function ProductDetail() {
   const [customizationSelections, setCustomizationSelections] = useState<Record<string, string | string[]>>({});
   const [customizationPrice, setCustomizationPrice] = useState<{ basePrice: number; priceModifier: number; totalPrice: number } | null>(null);
   const [showCustomization, setShowCustomization] = useState(false);
+  const [isInWishlist, setIsInWishlist] = useState(false);
+  const [wishlistIds, setWishlistIds] = useState<Set<string>>(new Set());
   const { toast } = useToast();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -92,10 +94,25 @@ export default function ProductDetail() {
       }
     };
 
+    const fetchWishlist = async () => {
+      if (user) {
+        try {
+          const response = await apiRequest('GET', '/api/v1/users/wishlist');
+          const data = await response.json();
+          const ids: Set<string> = new Set((data.data?.productIds || []).map((id: any) => String(id)));
+          setWishlistIds(ids);
+          setIsInWishlist(ids.has(productId!));
+        } catch (err) {
+          console.error('Failed to fetch wishlist:', err);
+        }
+      }
+    };
+
     if (productId) {
       fetchProduct();
+      fetchWishlist();
     }
-  }, [productId]);
+  }, [productId, user]);
 
   useEffect(() => {
     if (product && Object.keys(customizationSelections).length > 0) {
@@ -212,13 +229,46 @@ export default function ProductDetail() {
         productId: product!._id,
       });
       if (response.ok) {
-        toast({ 
-          title: "Added to Wishlist", 
+        setIsInWishlist(true);
+        setWishlistIds(prev => new Set(prev).add(product!._id));
+        toast({
+          title: "Added to Wishlist",
           description: "Product added to your wishlist",
         });
       }
     } catch (error) {
       toast({ title: "Error", description: "Failed to add to wishlist", variant: "destructive" });
+    }
+  };
+
+  const removeFromWishlist = async () => {
+    if (!user) {
+      toast({
+        title: "Login Required",
+        description: "Please login to manage wishlist",
+        variant: "destructive",
+      });
+      navigate("/login");
+      return;
+    }
+    try {
+      const response = await apiRequest('POST', '/api/v1/users/wishlist/remove', {
+        productId: product!._id,
+      });
+      if (response.ok) {
+        setIsInWishlist(false);
+        setWishlistIds(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(product!._id);
+          return newSet;
+        });
+        toast({
+          title: "Removed from Wishlist",
+          description: "Product removed from your wishlist",
+        });
+      }
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to remove from wishlist", variant: "destructive" });
     }
   };
 
@@ -355,10 +405,10 @@ export default function ProductDetail() {
             <div className="flex gap-3 mt-4">
               <Button
                 variant="outline"
-                onClick={addToWishlist}
+                onClick={isInWishlist ? removeFromWishlist : addToWishlist}
                 className="flex-1"
               >
-                Add to Wishlist
+                {isInWishlist ? "Remove from Wishlist" : "Add to Wishlist"}
               </Button>
             </div>
             <div className="flex items-center gap-4 mb-6">

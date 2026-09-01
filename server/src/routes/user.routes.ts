@@ -16,5 +16,6 @@ router.post("/change-password", validateBody(changePasswordSchema), userControll
 router.get("/wishlist", userController.getWishlist);
 router.post("/wishlist", userController.addToWishlist);
 router.delete("/wishlist/:id", userController.removeFromWishlist);
+router.post("/wishlist/remove", userController.removeFromWishlist);
 
 export default router;
