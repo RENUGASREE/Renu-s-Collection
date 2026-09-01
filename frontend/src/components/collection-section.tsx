@@ -44,7 +44,7 @@ export default function CollectionSection() {
   const [bracelets, setBracelets] = useState<BraceletCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const dynamicFilters: string[] = ["all", "signature_trending", "signature_fashion", "signature_latest", "signature_none"]; // Show actual signature categories based on data
+  const [dynamicFilters, setDynamicFilters] = useState<string[]>(["all"]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -63,6 +63,25 @@ export default function CollectionSection() {
         })) || [];
 
         setBracelets(products);
+
+        // Extract unique signature categories from products
+        const signatureCategories = new Set<string>();
+        products.forEach((p: any) => {
+          if (p.signature_category && p.signature_category !== 'none') {
+            signatureCategories.add(p.signature_category);
+          }
+        });
+
+        // Build dynamic filters
+        const filters = ["all"];
+        signatureCategories.forEach(cat => {
+          filters.push(`signature_${cat}`);
+        });
+        if (products.some((p: any) => !p.signature_category || p.signature_category === 'none')) {
+          filters.push("signature_none");
+        }
+        setDynamicFilters(filters);
+
         setLoading(false);
       } catch (err) {
         setError("Failed to fetch signature pieces.");

@@ -21,8 +21,8 @@ export async function addCartItem(
   input: {
     product_id?: string;
     productId?: string;
-    name: string;
-    price: number;
+    name?: string;
+    price?: number;
     quantity?: number;
     image_url?: string;
     customization?: ICartItem["customization"];
@@ -33,6 +33,7 @@ export async function addCartItem(
   let sku = "CUSTOM";
   let resolvedName = input.name;
   let imageUrl = input.image_url;
+  let unitPrice = input.price;
 
   const rawId = input.productId ?? input.product_id ?? "";
   const mongoId = rawId.includes("-") ? rawId.split("-").pop()! : rawId;
@@ -42,14 +43,23 @@ export async function addCartItem(
     if (product) {
       productObjectId = product._id as Types.ObjectId;
       sku = product.sku;
-      resolvedName = product.name;
+      resolvedName = resolvedName || product.name;
       const primary = product.media.find((m) => m.isPrimary) ?? product.media[0];
-      imageUrl = primary?.url ?? imageUrl;
+      imageUrl = imageUrl || primary?.url;
+      unitPrice = unitPrice || (product.salePrice && product.salePrice < product.price ? product.salePrice : product.price);
     }
   }
 
   if (!productObjectId) {
     throw new AppError("Product not found", 404);
+  }
+
+  if (!resolvedName) {
+    throw new AppError("Product name is required", 400);
+  }
+
+  if (unitPrice === undefined || unitPrice === null) {
+    throw new AppError("Product price is required", 400);
   }
 
   // Check for existing item with same product and same customization
@@ -75,7 +85,7 @@ export async function addCartItem(
       sku,
       name: resolvedName,
       imageUrl,
-      unitPrice: input.price, // Use the provided price (includes customization)
+      unitPrice: unitPrice!,
       quantity: input.quantity ?? 1,
       customization: input.customization,
       savedForLater: false,

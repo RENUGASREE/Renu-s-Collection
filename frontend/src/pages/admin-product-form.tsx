@@ -14,6 +14,7 @@ interface Category {
   _id: string;
   name: string;
   slug: string;
+  parentId: string | null;
 }
 
 interface ProductFormData {
@@ -38,6 +39,7 @@ export default function AdminProductForm() {
   const isEditing = !!productId;
 
   const [categories, setCategories] = useState<Category[]>([]);
+  const [subcategories, setSubcategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<ProductFormData>({
     name: '',
@@ -59,7 +61,8 @@ export default function AdminProductForm() {
       try {
         const response = await apiRequest('GET', '/api/v1/categories');
         const data = await response.json();
-        setCategories(data.data || []);
+        const allCategories = data.data || [];
+        setCategories(allCategories);
       } catch (error) {
         console.error('Failed to fetch categories:', error);
       }
@@ -94,6 +97,16 @@ export default function AdminProductForm() {
     }
   }, [productId, isEditing]);
 
+  // Load subcategories when category changes
+  useEffect(() => {
+    if (formData.categoryId) {
+      const subs = categories.filter((c: any) => c.parentId === formData.categoryId);
+      setSubcategories(subs);
+    } else {
+      setSubcategories([]);
+    }
+  }, [formData.categoryId, categories]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -104,6 +117,7 @@ export default function AdminProductForm() {
         salePrice: formData.salePrice || undefined,
         badge: formData.badge || undefined,
         subcategoryId: formData.subcategoryId || undefined,
+        imageUrl: formData.imageUrl || undefined,
       };
 
       let response;
@@ -116,7 +130,9 @@ export default function AdminProductForm() {
       if (response.ok) {
         navigate('/admin/products');
       } else {
-        alert('Failed to save product');
+        const errorData = await response.json();
+        const errorMessage = errorData.errors ? JSON.stringify(errorData.errors, null, 2) : errorData.message || 'Failed to save product';
+        alert(`Failed to save product: ${errorMessage}`);
       }
     } catch (error) {
       console.error('Failed to save product:', error);
@@ -228,8 +244,24 @@ export default function AdminProductForm() {
                     className="w-full px-3 py-2 border rounded-md"
                   >
                     <option value="">Select a category</option>
-                    {categories.map(cat => (
+                    {categories.filter(c => !c.parentId).map(cat => (
                       <option key={cat._id} value={cat._id}>{cat.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="subcategoryId">Subcategory</Label>
+                  <select
+                    id="subcategoryId"
+                    name="subcategoryId"
+                    value={formData.subcategoryId || ''}
+                    onChange={handleChange}
+                    className="w-full px-3 py-2 border rounded-md"
+                  >
+                    <option value="">None</option>
+                    {subcategories.map(sub => (
+                      <option key={sub._id} value={sub._id}>{sub.name}</option>
                     ))}
                   </select>
                 </div>

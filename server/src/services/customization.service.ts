@@ -20,15 +20,27 @@ export async function getProductCustomization(productId: string) {
   }
 
   const category = await Category.findById(product.categoryId).lean();
-  const config = await CustomizationConfig.findOne({ 
+  const config = await CustomizationConfig.findOne({
     $or: [
       { categoryId: product.categoryId },
       { productType: category?.productType }
     ],
-    isActive: true 
+    isActive: true
   }).lean();
 
   const fields = config?.fields?.length ? config.fields : category?.customizationFields ?? [];
+
+  // If product is not customizable and has no fields, return empty customization config gracefully
+  if (!product.isCustomizable && fields.length === 0) {
+    return {
+      productId: product._id,
+      productName: product.name,
+      basePrice: product.salePrice ?? product.price,
+      fields: [],
+      previewLayers: [],
+      isCustomizable: false,
+    };
+  }
 
   return {
     productId: product._id,
