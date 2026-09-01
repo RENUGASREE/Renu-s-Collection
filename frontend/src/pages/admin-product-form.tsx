@@ -27,6 +27,7 @@ interface ProductFormData {
   subcategoryId: string | null;
   isActive: boolean;
   isSignaturePiece: boolean;
+  signatureCategory: string;
   badge: string | null;
   description: string;
   imageUrl: string;
@@ -51,6 +52,7 @@ export default function AdminProductForm() {
     subcategoryId: null,
     isActive: true,
     isSignaturePiece: false,
+    signatureCategory: 'none',
     badge: null,
     description: '',
     imageUrl: '',
@@ -62,6 +64,7 @@ export default function AdminProductForm() {
         const response = await apiRequest('GET', '/api/v1/categories');
         const data = await response.json();
         const allCategories = data.data || [];
+        console.log('All categories:', allCategories);
         setCategories(allCategories);
       } catch (error) {
         console.error('Failed to fetch categories:', error);
@@ -75,6 +78,7 @@ export default function AdminProductForm() {
           const response = await apiRequest('GET', `/api/v1/products/${productId}`);
           const data = await response.json();
           const product = data.data;
+          console.log('Product data:', product);
           setFormData({
             name: product.name || '',
             sku: product.sku || '',
@@ -85,6 +89,7 @@ export default function AdminProductForm() {
             subcategoryId: product.subcategoryId || null,
             isActive: product.isActive ?? true,
             isSignaturePiece: product.isSignaturePiece ?? false,
+            signatureCategory: product.signatureCategory || 'none',
             badge: product.badge || null,
             description: product.description || '',
             imageUrl: product.imageUrl || '',
@@ -100,7 +105,11 @@ export default function AdminProductForm() {
   // Load subcategories when category changes
   useEffect(() => {
     if (formData.categoryId) {
-      const subs = categories.filter((c: any) => c.parentId === formData.categoryId);
+      const subs = categories.filter((c: any) => {
+        const parentId = c.parentId ? String(c.parentId) : null;
+        return parentId === formData.categoryId;
+      });
+      console.log('Subcategories for category', formData.categoryId, ':', subs);
       setSubcategories(subs);
     } else {
       setSubcategories([]);
@@ -323,6 +332,24 @@ export default function AdminProductForm() {
                   <span>Signature Piece</span>
                 </label>
               </div>
+
+              {formData.isSignaturePiece && (
+                <div className="space-y-2">
+                  <Label htmlFor="signatureCategory">Signature Category</Label>
+                  <select
+                    id="signatureCategory"
+                    name="signatureCategory"
+                    value={formData.signatureCategory}
+                    onChange={handleChange}
+                    className="w-full px-3 py-2 border rounded-md"
+                  >
+                    <option value="none">None</option>
+                    <option value="fashion">Fashion</option>
+                    <option value="trending">Trending</option>
+                    <option value="latest">Latest</option>
+                  </select>
+                </div>
+              )}
 
               <div className="flex gap-4">
                 <Button type="submit" disabled={loading}>

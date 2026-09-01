@@ -132,9 +132,12 @@ export default function Products() {
   }, []);
 
   // Build category tree for dropdown
-  const categoryTree = categories.filter(c => c.parentId === null).map(parent => ({
+  const categoryTree = categories.filter(c => c.parentId === null || c.parentId === undefined).map(parent => ({
     ...parent,
-    subcategories: categories.filter(c => c.parentId === parent._id)
+    subcategories: categories.filter(c => {
+      const parentId = c.parentId ? String(c.parentId) : null;
+      return parentId === parent._id;
+    })
   }));
 
   useEffect(() => {
