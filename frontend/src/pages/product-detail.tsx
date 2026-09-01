@@ -214,6 +214,80 @@ export default function ProductDetail() {
     }
   };
 
+  const buyNow = async () => {
+    if (!user) {
+      toast({
+        title: "Login Required",
+        description: "Please login to purchase this product",
+        variant: "destructive",
+      });
+      navigate("/login");
+      return;
+    }
+
+    if (!product || !product.isInStock || product.stock < quantity) {
+      toast({
+        title: "Out of Stock",
+        description: "This product is currently out of stock",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate customization if product is customizable
+    if (product.isCustomizable && showCustomization) {
+      try {
+        const validateResponse = await apiRequest('POST', `/api/v1/customization/products/${productId}/customization/validate`, {
+          selections: customizationSelections,
+        });
+        const validateData = await validateResponse.json();
+        if (!validateData.data.valid) {
+          toast({
+            title: "Invalid Customization",
+            description: validateData.data.errors.join(', '),
+            variant: "destructive",
+          });
+          return;
+        }
+      } catch (err) {
+        console.error('Validation error:', err);
+      }
+    }
+
+    setAddingToCart(true);
+    try {
+      const cartItem = {
+        productId: product._id,
+        quantity: quantity,
+        customization: product.isCustomizable && Object.keys(customizationSelections).length > 0 ? {
+          selections: customizationSelections,
+          previewImageUrl: customizationConfig?.previewLayers[0]?.imageUrl || getProductImage(product),
+          priceModifier: customizationPrice?.priceModifier || 0,
+        } : undefined,
+      };
+
+      const response = await apiRequest('POST', '/api/v1/cart', cartItem);
+
+      if (response.ok) {
+        toast({
+          title: "Success!",
+          description: "Product added to cart successfully",
+        });
+        navigate("/checkout");
+      } else {
+        throw new Error('Failed to add to cart');
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to add product to cart",
+        variant: "destructive",
+      });
+    } finally {
+      setAddingToCart(false);
+    }
+  };
+
   const addToWishlist = async () => {
     if (!user) {
       toast({
@@ -433,6 +507,14 @@ export default function ProductDetail() {
                 disabled={!product.isInStock || addingToCart}
               >
                 {addingToCart ? "Adding..." : "Add to Cart"}
+              </Button>
+              <Button
+                className="ml-2"
+                onClick={buyNow}
+                disabled={!product.isInStock || addingToCart}
+                variant="default"
+              >
+                {addingToCart ? "Processing..." : "Buy Now"}
               </Button>
             </div>
             {!product.isInStock && (

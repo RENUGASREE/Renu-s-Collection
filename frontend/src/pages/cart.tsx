@@ -45,6 +45,7 @@ export default function Cart() {
         setLoading(true);
         const response = await apiRequest('GET', '/api/v1/cart');
         const data = await response.json();
+        console.log('Cart API response:', data);
         // Normalize backend payload to match UI expectations
         const normalized: CartItem[] = (data.data?.items || []).map((item: any) => ({
           id: String(item._id ?? item.productId ?? ''),
@@ -53,6 +54,7 @@ export default function Cart() {
           quantity: Number(item.quantity ?? 1),
           image: item.imageUrl || item.image_url || item.image || ''
         }));
+        console.log('Normalized cart items:', normalized);
         setCartItems(normalized);
       } catch (err) {
         setError("Failed to fetch cart items.");

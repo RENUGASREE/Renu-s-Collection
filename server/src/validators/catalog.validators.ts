@@ -74,6 +74,7 @@ export const productQuerySchema = z.object({
   minRating: z.coerce.number().min(0).max(5).optional(),
   inStock: z.enum(["true", "false"]).optional(),
   isSignaturePiece: z.enum(["true", "false"]).optional(),
+  isActive: z.enum(["true", "false", "all"]).optional(),
   sort: z.enum(["price_asc", "price_desc", "newest", "rating", "name"]).optional(),
 });
 

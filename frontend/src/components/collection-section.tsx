@@ -52,15 +52,29 @@ export default function CollectionSection() {
       try {
         // Fetch signature pieces using the new API endpoint
         const response = await axios.get<any>(`${API_BASE_URL}/api/v1/products`, {
-          params: { isSignaturePiece: true }
+          params: { isSignaturePiece: true, isActive: true }
         });
 
         // Map the data
-        const products = response.data.data?.map((item: any) => ({
+        let products = response.data.data?.map((item: any) => ({
           ...item,
           id: item._id,
           product_type: 'product'
         })) || [];
+
+        // If no signature pieces, fetch regular products as fallback
+        if (products.length === 0) {
+          const regularResponse = await axios.get<any>(`${API_BASE_URL}/api/v1/products`, {
+            params: { isActive: true, limit: 6 }
+          });
+          products = regularResponse.data.data?.map((item: any) => ({
+            ...item,
+            id: item._id,
+            product_type: 'product',
+            is_signature_piece: false,
+            signature_category: 'none'
+          })) || [];
+        }
 
         setBracelets(products);
 
@@ -94,7 +108,7 @@ export default function CollectionSection() {
   }, []);
 
   const filteredBracelets = bracelets.filter((bracelet) => {
-    if (activeFilter === "all") return bracelet.is_signature_piece === true;
+    if (activeFilter === "all") return true; // Show all products when no signature pieces exist
     if (activeFilter === "signature_none") {
       return bracelet.is_signature_piece === true && (bracelet.signature_category === null || bracelet.signature_category === "" || bracelet.signature_category === "none");
     }

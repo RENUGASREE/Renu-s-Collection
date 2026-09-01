@@ -15,7 +15,12 @@ type ProductQuery = z.infer<typeof productQuerySchema>;
 type ProductLean = FlattenMaps<IProduct> & { _id: Types.ObjectId; isInStock: boolean; effectivePrice: number };
 
 function buildProductFilter(query: ProductQuery): FilterQuery<IProduct> {
-  const filter: FilterQuery<IProduct> = { isActive: true };
+  const filter: FilterQuery<IProduct> = {};
+
+  // Only filter by isActive if not explicitly set to "all"
+  if (query.isActive !== "all") {
+    filter.isActive = query.isActive === "true" ? true : query.isActive === "false" ? false : true;
+  }
 
   if (query.categoryId) filter.categoryId = new Types.ObjectId(query.categoryId);
   if (query.subcategoryId) filter.subcategoryId = new Types.ObjectId(query.subcategoryId);

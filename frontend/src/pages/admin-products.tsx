@@ -42,7 +42,7 @@ export default function AdminProducts() {
     const fetchData = async () => {
       try {
         const [productsRes, categoriesRes] = await Promise.all([
-          apiRequest('GET', '/api/v1/products'),
+          apiRequest('GET', '/api/v1/products?isActive=all'),
           apiRequest('GET', '/api/v1/categories')
         ]);
         const productsData = await productsRes.json();
@@ -76,12 +76,17 @@ export default function AdminProducts() {
         isActive: !currentStatus
       });
       if (response.ok) {
-        setProducts(products.map(p => 
+        setProducts(products.map(p =>
           p._id === productId ? { ...p, isActive: !currentStatus } : p
         ));
+      } else {
+        const errorData = await response.json();
+        console.error('Failed to update product:', errorData);
+        alert(`Failed to update product: ${errorData.message || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Failed to update product:', error);
+      alert('Failed to update product');
     }
   };
 
