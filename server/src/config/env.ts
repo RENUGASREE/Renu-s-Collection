@@ -11,7 +11,7 @@ const envSchema = z.object({
   CORS_ORIGINS: z.string().default("http://localhost:5173"),
   JWT_ACCESS_SECRET: z.string().min(16).default("dev-access-secret-change-me"),
   JWT_REFRESH_SECRET: z.string().min(16).default("dev-refresh-secret-change-me"),
-  JWT_ACCESS_EXPIRES_IN: z.string().default("15m"),
+  JWT_ACCESS_EXPIRES_IN: z.string().default("24h"),
   JWT_REFRESH_EXPIRES_IN: z.string().default("7d"),
   RAZORPAY_KEY_ID: z.string().optional(),
   RAZORPAY_KEY_SECRET: z.string().optional(),

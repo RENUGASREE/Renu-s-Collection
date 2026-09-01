@@ -39,6 +39,25 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
+async function refreshAccessToken(): Promise<boolean> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+    if (!response.ok) return false;
+    const json = await response.json();
+    if (json.success && json.data?.accessToken && json.data?.user) {
+      localStorage.setItem('authToken', json.data.accessToken);
+      localStorage.setItem('authUser', JSON.stringify(json.data.user));
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 export async function apiRequest(
   method: string,
   url: string,
@@ -46,33 +65,45 @@ export async function apiRequest(
 ): Promise<Response> {
   const fullUrl = `${API_BASE_URL}${url}`;
 
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-  };
-
-  // Attach auth token if present (Bearer JWT or legacy Token prefix)
-  try {
-    const token = localStorage.getItem('authToken');
+  const getHeaders = (token?: string | null): HeadersInit => {
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
-  } catch {
-    // ignore storage errors
-  }
+    return headers;
+  };
 
-  if (method !== 'GET') {
-    const csrfToken = document.cookie.split('; ').find(row => row.startsWith('csrftoken='))?.split('=')[1];
-    if (csrfToken) {
-      headers['X-CSRFToken'] = csrfToken;
+  const makeRequest = async (token?: string | null): Promise<Response> => {
+    const headers = getHeaders(token);
+
+    if (method !== 'GET') {
+      const csrfToken = document.cookie.split('; ').find(row => row.startsWith('csrftoken='))?.split('=')[1];
+      if (csrfToken) {
+        (headers as any)['X-CSRFToken'] = csrfToken;
+      }
+    }
+
+    return fetch(fullUrl, {
+      method,
+      headers,
+      body: data ? JSON.stringify(data) : undefined,
+      credentials: "include",
+    });
+  };
+
+  let token = localStorage.getItem('authToken');
+  let res = await makeRequest(token);
+
+  // If 401, try to refresh token and retry once
+  if (res.status === 401 && token) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      token = localStorage.getItem('authToken');
+      res = await makeRequest(token);
     }
   }
-
-  const res = await fetch(fullUrl, {
-    method,
-    headers,
-    body: data ? JSON.stringify(data) : undefined,
-    credentials: "include",
-  });
 
   await throwIfResNotOk(res);
   return res;
