@@ -47,9 +47,9 @@ export function LoadingScreen({ onFinishLoading }: LoadingScreenProps) {
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.5, delay: 0.6 }}
         >
-          <span className="text-primary">Renu's</span>
+          <span className="text-foreground" style={{ textShadow: '0 0 1px var(--heading-outline-color)' }}>Renu's</span>
           <br />
-          <span className="text-primary">Collection</span>
+          <span className="text-primary">Collections</span>
         </motion.h1>
       </motion.div>
 
