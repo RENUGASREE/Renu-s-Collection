@@ -24,6 +24,7 @@ import AccountPage from "./pages/account";
 import Contact from "./pages/contact";
 import Admin from "./pages/admin";
 import AdminProducts from "./pages/admin-products";
+import AdminProductForm from "./pages/admin-product-form";
 import AdminCategories from "./pages/admin-categories";
 import AdminInventory from "./pages/admin-inventory";
 import AdminCustomization from "./pages/admin-customization";
@@ -148,7 +149,15 @@ function App() {
                   path="/admin/products/new"
                   element={
                     <ProtectedRoute adminOnly>
-                      <AdminProducts />
+                      <AdminProductForm />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/products/:productId/edit"
+                  element={
+                    <ProtectedRoute adminOnly>
+                      <AdminProductForm />
                     </ProtectedRoute>
                   }
                 />
