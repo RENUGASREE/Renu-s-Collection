@@ -140,7 +140,7 @@ export default function Contact() {
                       value={formData.name}
                       onChange={handleChange}
                       required
-                      className="bg-primary/5 border-primary/20 text-foreground placeholder:text-cream/50"
+                      className="bg-background border-primary/20 text-foreground placeholder:text-muted-foreground"
                       placeholder="Your name"
                     />
                   </div>
@@ -154,7 +154,7 @@ export default function Contact() {
                       value={formData.email}
                       onChange={handleChange}
                       required
-                      className="bg-primary/5 border-primary/20 text-foreground placeholder:text-cream/50"
+                      className="bg-background border-primary/20 text-foreground placeholder:text-muted-foreground"
                       placeholder="your@email.com"
                     />
                   </div>
@@ -167,7 +167,7 @@ export default function Contact() {
                       value={formData.subject}
                       onChange={handleChange}
                       required
-                      className="bg-primary/5 border-primary/20 text-foreground placeholder:text-cream/50"
+                      className="bg-background border-primary/20 text-foreground placeholder:text-muted-foreground"
                       placeholder="How can we help?"
                     />
                   </div>
@@ -181,7 +181,7 @@ export default function Contact() {
                       onChange={handleChange}
                       required
                       rows={5}
-                      className="bg-primary/5 border-primary/20 text-foreground placeholder:text-cream/50 resize-none"
+                      className="bg-background border-primary/20 text-foreground placeholder:text-muted-foreground resize-none"
                       placeholder="Tell us more about your inquiry..."
                     />
                   </div>
