@@ -65,7 +65,7 @@ export default function AboutSection() {
                 Born from a vision of elegance and simplicity, Renu's Collections emerged from the desire to create jewelry that transcends trends and speaks to the soul. Our journey began with a single belief: that true luxury lies not in excess, but in the perfect harmony of design and craftsmanship.
               </p>
               <p className="text-lg text-foreground leading-relaxed">
-                What started as a passionate pursuit of creating the perfect bracelet has evolved into a brand synonymous with refined taste and uncompromising quality.
+                What started as a passionate pursuit of creating beautiful, meaningful jewelry has evolved into a brand synonymous with refined taste and uncompromising quality, offering a curated collection of bracelets, earrings, bangles, and accessories.
               </p>
             </div>
             <motion.div
@@ -95,7 +95,7 @@ export default function AboutSection() {
                 Handcrafted Excellence
               </h3>
               <p className="text-lg text-foreground leading-relaxed mb-6">
-                Each bracelet is handcrafted with precision by master artisans who bring decades of experience to every piece. We believe that the human touch cannot be replicated by machines—it's what gives our jewelry its soul and character.
+                Each piece is handcrafted with precision by skilled artisans who bring dedication and care to every creation. We believe that the human touch cannot be replicated by machines—it's what gives our jewelry its soul and character.
               </p>
               <p className="text-lg text-foreground leading-relaxed">
                 From selecting the finest materials to the final polish, every step of our process is carefully monitored to ensure that each piece meets our exacting standards of excellence.

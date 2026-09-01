@@ -19,9 +19,9 @@ export function LoadingScreen({ onFinishLoading }: LoadingScreenProps) {
           setIsLoaded(true);
           return 100;
         }
-        return prev + 1;
+        return prev + 5;
       });
-    }, 50);
+    }, 30);
 
     return () => clearInterval(loadingInterval);
   }, []);

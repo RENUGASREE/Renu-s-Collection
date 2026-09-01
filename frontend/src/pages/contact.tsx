@@ -79,8 +79,7 @@ export default function Contact() {
                   </div>
                   <div>
                     <h3 className="font-semibold text-cream mb-1">Email</h3>
-                    <p className="text-cream/70">info@renucollections.com</p>
-                    <p className="text-cream/70">support@renucollections.com</p>
+                    <p className="text-cream/70">renuscollection05@gmail.com</p>
                   </div>
                 </div>
 
@@ -102,11 +101,15 @@ export default function Contact() {
                   <div>
                     <h3 className="font-semibold text-cream mb-1">Address</h3>
                     <p className="text-cream/70">
-                      123 Luxury Lane
+                      Renu's Collections
+                      <br />
+                      MG Road
                       <br />
                       Jewelry District
                       <br />
-                      Mumbai, Maharashtra 400001
+                      Chennai, Tamil Nadu 600001
+                      <br />
+                      India
                     </p>
                   </div>
                 </div>
@@ -137,7 +140,7 @@ export default function Contact() {
                       value={formData.name}
                       onChange={handleChange}
                       required
-                      className="bg-primary/5 border-primary/20 text-cream placeholder:text-cream/50"
+                      className="bg-primary/5 border-primary/20 text-foreground placeholder:text-cream/50"
                       placeholder="Your name"
                     />
                   </div>
@@ -151,7 +154,7 @@ export default function Contact() {
                       value={formData.email}
                       onChange={handleChange}
                       required
-                      className="bg-primary/5 border-primary/20 text-cream placeholder:text-cream/50"
+                      className="bg-primary/5 border-primary/20 text-foreground placeholder:text-cream/50"
                       placeholder="your@email.com"
                     />
                   </div>
@@ -164,7 +167,7 @@ export default function Contact() {
                       value={formData.subject}
                       onChange={handleChange}
                       required
-                      className="bg-primary/5 border-primary/20 text-cream placeholder:text-cream/50"
+                      className="bg-primary/5 border-primary/20 text-foreground placeholder:text-cream/50"
                       placeholder="How can we help?"
                     />
                   </div>
@@ -178,7 +181,7 @@ export default function Contact() {
                       onChange={handleChange}
                       required
                       rows={5}
-                      className="bg-primary/5 border-primary/20 text-cream placeholder:text-cream/50 resize-none"
+                      className="bg-primary/5 border-primary/20 text-foreground placeholder:text-cream/50 resize-none"
                       placeholder="Tell us more about your inquiry..."
                     />
                   </div>

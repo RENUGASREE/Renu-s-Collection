@@ -93,7 +93,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setIsLoading(false);
         return;
       }
-      await refreshSession();
+      // Only attempt refresh if we have a token but no user (partial session)
+      if (token && !user) {
+        await refreshSession();
+      }
       setIsLoading(false);
     };
     init();
