@@ -25,15 +25,17 @@ export default function HeroSection() {
     // This ensures the hero section works without any API dependencies
     console.log('Using fallback slideshow images for hero section');
     setProductImages(slideshowImages);
-    
+
     // Optional: In development, you can try to fetch real images
     if (window.location.hostname === 'localhost') {
       const fetchProductImages = async () => {
         try {
-          const response = await axios.get(`${API_BASE_URL}/api/bracelets/`);
-          const braceletsRes = response.data as any[];
-          const images = braceletsRes.map((p: any) => getAssetUrl(p.imageUrl)).filter(Boolean);
-          
+          const response = await axios.get(`${API_BASE_URL}/api/v1/products`, {
+            params: { isSignaturePiece: true }
+          });
+          const productsRes = response.data.data as any[];
+          const images = productsRes.map((p: any) => getAssetUrl(p.imageUrl)).filter(Boolean);
+
           if (images.length > 0) {
             setProductImages(images);
           }
@@ -42,7 +44,7 @@ export default function HeroSection() {
           // Keep the slideshow images as fallback
         }
       };
-      
+
       // Only try API in development
       fetchProductImages();
     }

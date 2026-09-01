@@ -50,29 +50,19 @@ export default function CollectionSection() {
   useEffect(() => {
     const fetch = async () => {
       try {
-        // Fetch both bracelets and chains that are signature pieces
-        const [braceletsResponse, chainsResponse] = await Promise.all([
-          axios.get<BraceletCard[]>(`${API_BASE_URL}/api/bracelets/`, {
-            params: { is_signature_piece: true }
-          }),
-          axios.get<BraceletCard[]>(`${API_BASE_URL}/api/chains/`, {
-            params: { is_signature_piece: true }
-          })
-        ]);
-        
-        // Combine and map the data
-        const bracelets = braceletsResponse.data.map(item => ({
+        // Fetch signature pieces using the new API endpoint
+        const response = await axios.get<any>(`${API_BASE_URL}/api/v1/products`, {
+          params: { isSignaturePiece: true }
+        });
+
+        // Map the data
+        const products = response.data.data?.map((item: any) => ({
           ...item,
-          id: `bracelet-${item.id}`,
-          product_type: 'bracelet'
-        }));
-        const chains = chainsResponse.data.map(item => ({
-          ...item,
-          id: `chain-${item.id}`,
-          product_type: 'chain'
-        }));
-        
-        setBracelets([...bracelets, ...chains]);
+          id: item._id,
+          product_type: 'product'
+        })) || [];
+
+        setBracelets(products);
         setLoading(false);
       } catch (err) {
         setError("Failed to fetch signature pieces.");
