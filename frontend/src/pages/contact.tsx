@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Mail, Phone, MapPin, Send } from "lucide-react";
+import Footer from "@/components/footer";
 
 export default function Contact() {
   const [formData, setFormData] = useState({
@@ -200,6 +201,7 @@ export default function Contact() {
           </motion.div>
         </div>
       </motion.div>
+      <Footer />
     </div>
   );
 }

@@ -30,7 +30,7 @@ export default function Footer() {
           <Link to="/admin" className="text-primary hover:underline">Admin</Link>
         </div>
         <p className="text-background/50 text-sm" data-testid="footer-copyright">
-          © 2024 Renu's Collections. All rights reserved.
+          © 2026 Renu's Collections. All rights reserved.
         </p>
       </motion.div>
     </footer>
