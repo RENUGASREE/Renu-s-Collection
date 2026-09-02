@@ -456,7 +456,7 @@ export default function Checkout() {
                             <p className="text-sm text-muted-foreground">
                               Qty: {item.quantity} × ₹{item.unitPrice.toFixed(2)}
                             </p>
-                            {item.customization && (
+                            {item.customization && item.customization.selections && (
                               <div className="mt-1 text-sm">
                                 <p className="text-muted-foreground">Customization:</p>
                                 <ul className="text-xs text-muted-foreground ml-4">

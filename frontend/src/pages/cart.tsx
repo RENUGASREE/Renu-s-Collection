@@ -69,16 +69,30 @@ export default function Cart() {
     fetchCartItems();
   }, [user]);
 
-  const updateQuantity = (id: string, newQuantity: number) => {
-    setCartItems((prevItems) =>
-      prevItems.map((item) =>
-        item.id === id ? { ...item, quantity: newQuantity } : item
-      )
-    );
+  const updateQuantity = async (id: string, newQuantity: number) => {
+    try {
+      const response = await apiRequest('PATCH', `/api/v1/cart/${id}`, { quantity: newQuantity });
+      if (response.ok) {
+        setCartItems((prevItems) =>
+          prevItems.map((item) =>
+            item.id === id ? { ...item, quantity: newQuantity } : item
+          )
+        );
+      }
+    } catch (error) {
+      console.error('Error updating quantity:', error);
+    }
   };
 
-  const removeItem = (id: string) => {
-    setCartItems((prevItems) => prevItems.filter((item) => item.id !== id));
+  const removeItem = async (id: string) => {
+    try {
+      const response = await apiRequest('DELETE', `/api/v1/cart/${id}`);
+      if (response.ok) {
+        setCartItems((prevItems) => prevItems.filter((item) => item.id !== id));
+      }
+    } catch (error) {
+      console.error('Error removing item:', error);
+    }
   };
 
   const total = cartItems.reduce(

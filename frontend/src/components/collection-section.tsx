@@ -17,6 +17,7 @@ interface BraceletCard {
   badge: string;
   is_signature_piece: boolean;
   signature_category: string;
+  signatureCategory?: string;
 }
 
 const iconMap: { [key: string]: typeof Gem } = {
@@ -116,9 +117,12 @@ export default function CollectionSection() {
   const filteredBracelets = bracelets.filter((bracelet) => {
     if (activeFilter === "all") return true; // Show all products when no signature pieces exist
     if (activeFilter === "signature_none") {
-      return bracelet.is_signature_piece === true && (bracelet.signature_category === null || bracelet.signature_category === "" || bracelet.signature_category === "none");
+      const sigCat = bracelet.signature_category || bracelet.signatureCategory;
+      return bracelet.is_signature_piece === true && (sigCat === null || sigCat === "" || sigCat === "none");
     }
-    return bracelet.is_signature_piece === true && bracelet.signature_category === activeFilter.replace("signature_", "");
+    const sigCat = bracelet.signature_category || bracelet.signatureCategory;
+    const filterValue = activeFilter.replace("signature_", "");
+    return bracelet.is_signature_piece === true && sigCat === filterValue;
   });
 
   const getImageUrl = (bracelet: BraceletCard) => {
