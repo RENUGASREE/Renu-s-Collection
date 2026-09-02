@@ -32,7 +32,6 @@ const formatCategoryName = (category: string) => {
   if (category === "signature_trending") return "Trending";
   if (category === "signature_fashion") return "Fashion";
   if (category === "signature_latest") return "Latest";
-  if (category === "signature_none") return "General";
   return category
     .split("_")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
@@ -86,14 +85,11 @@ export default function CollectionSection() {
           }
         });
 
-        // Build dynamic filters
+        // Build dynamic filters - only show "all" and actual signature categories
         const filters = ["all"];
         signatureCategories.forEach(cat => {
           filters.push(`signature_${cat}`);
         });
-        if (products.some((p: any) => !p.signature_category || p.signature_category === 'none')) {
-          filters.push("signature_none");
-        }
         setDynamicFilters(filters);
 
         setLoading(false);

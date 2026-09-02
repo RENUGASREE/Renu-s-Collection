@@ -192,18 +192,28 @@ export default function ProductDetail() {
         } : undefined,
       };
 
+      console.log('Adding to cart:', cartItem);
       const response = await apiRequest('POST', '/api/v1/cart', cartItem);
+      console.log('Cart response status:', response.status, response.ok);
 
       if (response.ok) {
         toast({
           title: "Success!",
           description: "Product added to cart successfully",
         });
+        console.log('Navigating to cart...');
         navigate("/cart");
       } else {
-        throw new Error('Failed to add to cart');
+        const errorData = await response.json();
+        console.error('Cart error:', errorData);
+        toast({
+          title: "Error",
+          description: errorData.message || "Failed to add product to cart",
+          variant: "destructive",
+        });
       }
     } catch (error) {
+      console.error('Add to cart error:', error);
       toast({
         title: "Error",
         description: "Failed to add product to cart",
@@ -266,18 +276,28 @@ export default function ProductDetail() {
         } : undefined,
       };
 
+      console.log('Buy Now - Adding to cart:', cartItem);
       const response = await apiRequest('POST', '/api/v1/cart', cartItem);
+      console.log('Buy Now - Cart response status:', response.status, response.ok);
 
       if (response.ok) {
         toast({
           title: "Success!",
           description: "Product added to cart successfully",
         });
+        console.log('Navigating to checkout...');
         navigate("/checkout");
       } else {
-        throw new Error('Failed to add to cart');
+        const errorData = await response.json();
+        console.error('Buy Now - Cart error:', errorData);
+        toast({
+          title: "Error",
+          description: errorData.message || "Failed to add product to cart",
+          variant: "destructive",
+        });
       }
     } catch (error) {
+      console.error('Buy Now - Add to cart error:', error);
       toast({
         title: "Error",
         description: "Failed to add product to cart",

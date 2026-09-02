@@ -28,7 +28,9 @@ export async function addCartItem(
     customization?: ICartItem["customization"];
   }
 ) {
+  console.log('addCartItem called with userId:', userId, 'input:', input);
   const cart = await getOrCreateCart(userId);
+  console.log('Cart found/created:', cart);
   let productObjectId: Types.ObjectId | null = null;
   let sku = "CUSTOM";
   let resolvedName = input.name;
@@ -37,9 +39,11 @@ export async function addCartItem(
 
   const rawId = input.productId ?? input.product_id ?? "";
   const mongoId = rawId.includes("-") ? rawId.split("-").pop()! : rawId;
+  console.log('Processing product ID:', rawId, '->', mongoId);
 
   if (Types.ObjectId.isValid(mongoId)) {
     const product = await Product.findById(mongoId);
+    console.log('Product found:', product);
     if (product) {
       productObjectId = product._id as Types.ObjectId;
       sku = product.sku;
@@ -79,8 +83,9 @@ export async function addCartItem(
 
   if (existing) {
     existing.quantity += input.quantity ?? 1;
+    console.log('Updated existing item quantity:', existing.quantity);
   } else {
-    cart.items.push({
+    const newItem = {
       productId: productObjectId,
       sku,
       name: resolvedName,
@@ -89,11 +94,17 @@ export async function addCartItem(
       quantity: input.quantity ?? 1,
       customization: input.customization,
       savedForLater: false,
-    });
+    };
+    cart.items.push(newItem);
+    console.log('Added new item to cart:', newItem);
   }
 
+  console.log('Cart before save:', cart);
   await cart.save();
-  return cart.items.filter((i) => !i.savedForLater);
+  console.log('Cart saved successfully');
+  const result = cart.items.filter((i) => !i.savedForLater);
+  console.log('Returning cart items:', result);
+  return result;
 }
 
 export async function updateCartItemQuantity(userId: string, itemId: string, quantity: number) {
