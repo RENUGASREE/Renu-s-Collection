@@ -131,31 +131,14 @@ export default function Checkout() {
       }
 
       const orderData = {
-        shippingAddress: {
-          fullName: shippingAddress.fullName,
-          line1: shippingAddress.line1,
-          line2: shippingAddress.line2,
-          city: shippingAddress.city,
-          state: shippingAddress.state,
-          postalCode: shippingAddress.postalCode,
-          country: shippingAddress.country,
-          phone: shippingAddress.phone,
-        },
-        billingAddress: {
-          fullName: shippingAddress.fullName,
-          line1: shippingAddress.line1,
-          line2: shippingAddress.line2,
-          city: shippingAddress.city,
-          state: shippingAddress.state,
-          postalCode: shippingAddress.postalCode,
-          country: shippingAddress.country,
-          phone: shippingAddress.phone,
-        },
+        shippingAddress: `${shippingAddress.fullName}, ${shippingAddress.line1}, ${shippingAddress.line2 || ''}, ${shippingAddress.city}, ${shippingAddress.state}, ${shippingAddress.postalCode}, ${shippingAddress.country}`,
+        billingAddress: `${shippingAddress.fullName}, ${shippingAddress.line1}, ${shippingAddress.line2 || ''}, ${shippingAddress.city}, ${shippingAddress.state}, ${shippingAddress.postalCode}, ${shippingAddress.country}`,
         email: user?.email || '',
         phone: shippingAddress.phone,
         notes: orderNotes,
         paymentMethod: paymentMethod,
       };
+      console.log('Order data being sent:', orderData);
 
       const response = await apiRequest('POST', '/api/v1/orders', orderData);
       const data = await response.json();

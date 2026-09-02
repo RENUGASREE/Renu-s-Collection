@@ -16,6 +16,7 @@ interface BraceletCard {
   icon: string;
   badge: string;
   is_signature_piece: boolean;
+  isSignaturePiece?: boolean;
   signature_category: string;
   signatureCategory?: string;
 }
@@ -118,11 +119,15 @@ export default function CollectionSection() {
     if (activeFilter === "all") return true; // Show all products when no signature pieces exist
     if (activeFilter === "signature_none") {
       const sigCat = bracelet.signature_category || bracelet.signatureCategory;
-      return bracelet.is_signature_piece === true && (sigCat === null || sigCat === "" || sigCat === "none");
+      const isSig = bracelet.is_signature_piece || bracelet.isSignaturePiece;
+      console.log('Filtering signature_none:', { sigCat, isSig, bracelet });
+      return isSig === true && (sigCat === null || sigCat === "" || sigCat === "none");
     }
     const sigCat = bracelet.signature_category || bracelet.signatureCategory;
+    const isSig = bracelet.is_signature_piece || bracelet.isSignaturePiece;
     const filterValue = activeFilter.replace("signature_", "");
-    return bracelet.is_signature_piece === true && sigCat === filterValue;
+    console.log('Filtering category:', { activeFilter, filterValue, sigCat, isSig, bracelet });
+    return isSig === true && sigCat === filterValue;
   });
 
   const getImageUrl = (bracelet: BraceletCard) => {
