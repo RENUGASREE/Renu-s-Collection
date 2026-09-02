@@ -54,12 +54,16 @@ export default function CollectionSection() {
           params: { isSignaturePiece: true, isActive: true }
         });
 
+        console.log('Signature pieces API response:', response.data);
+
         // Map the data
         let products = response.data.data?.map((item: any) => ({
           ...item,
           id: item._id,
           product_type: 'product'
         })) || [];
+
+        console.log('Mapped products:', products);
 
         // If no signature pieces, fetch regular products as fallback
         if (products.length === 0) {
@@ -80,10 +84,13 @@ export default function CollectionSection() {
         // Extract unique signature categories from products
         const signatureCategories = new Set<string>();
         products.forEach((p: any) => {
+          console.log('Product signature_category:', p.signature_category);
           if (p.signature_category && p.signature_category !== 'none') {
             signatureCategories.add(p.signature_category);
           }
         });
+
+        console.log('Signature categories found:', signatureCategories);
 
         // Build dynamic filters - only show "all" and actual signature categories
         const filters = ["all"];
@@ -91,6 +98,8 @@ export default function CollectionSection() {
           filters.push(`signature_${cat}`);
         });
         setDynamicFilters(filters);
+
+        console.log('Dynamic filters:', filters);
 
         setLoading(false);
       } catch (err) {

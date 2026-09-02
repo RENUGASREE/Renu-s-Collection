@@ -46,8 +46,10 @@ export default function Cart() {
         const response = await apiRequest('GET', '/api/v1/cart');
         const data = await response.json();
         console.log('Cart API response:', data);
-        // Normalize backend payload to match UI expectations
-        const normalized: CartItem[] = (data.data?.items || []).map((item: any) => ({
+        // Backend returns { success: true, data: items } where data is the items array
+        const items = data.data || [];
+        console.log('Items from API:', items);
+        const normalized: CartItem[] = items.map((item: any) => ({
           id: String(item._id ?? item.productId ?? ''),
           name: item.name ?? '',
           price: Number(item.unitPrice ?? item.price ?? 0),
