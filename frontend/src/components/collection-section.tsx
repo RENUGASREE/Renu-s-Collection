@@ -84,9 +84,10 @@ export default function CollectionSection() {
         // Extract unique signature categories from products
         const signatureCategories = new Set<string>();
         products.forEach((p: any) => {
-          console.log('Product signature_category:', p.signature_category);
-          if (p.signature_category && p.signature_category !== 'none') {
-            signatureCategories.add(p.signature_category);
+          console.log('Product signature_category:', p.signature_category, 'signatureCategory:', p.signatureCategory);
+          const sigCat = p.signature_category || p.signatureCategory;
+          if (sigCat && sigCat !== 'none') {
+            signatureCategories.add(sigCat);
           }
         });
 

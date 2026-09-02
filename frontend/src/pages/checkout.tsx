@@ -95,7 +95,11 @@ export default function Checkout() {
     try {
       const response = await apiRequest('GET', '/api/v1/cart');
       const data = await response.json();
-      setCartItems(data.data.items || []);
+      console.log('Checkout - Cart API response:', data);
+      // Backend returns { success: true, data: items } where data is the items array
+      const items = data.data || [];
+      console.log('Checkout - Items from API:', items);
+      setCartItems(items);
     } catch (error) {
       console.error('Error fetching cart items:', error);
       toast({
