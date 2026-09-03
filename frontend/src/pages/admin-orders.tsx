@@ -100,6 +100,7 @@ export default function AdminOrders() {
 
   const fetchOrders = async () => {
     try {
+      setLoading(true);
       const response = await apiRequest('GET', '/api/v1/orders');
       const data = await response.json();
       setOrders(data.data || []);
@@ -176,7 +177,7 @@ export default function AdminOrders() {
       }
 
       console.log('Updating order status:', { orderId, newStatus, trackingNumber });
-      const response = await apiRequest('PATCH', `/api/v1/admin/orders/${orderId}/status`, {
+      const response = await apiRequest('PATCH', `/api/v1/orders/admin/${orderId}/status`, {
         status: newStatus,
         trackingNumber,
       });

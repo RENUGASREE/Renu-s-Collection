@@ -125,12 +125,14 @@ router.patch(
     try {
       const { orderId } = req.params;
       const { status, trackingNumber } = req.body;
-      
+
+      console.log('Admin order status update:', { orderId, status, trackingNumber });
+
       if (!status) {
         return res.status(400).json({ success: false, error: "Status is required" });
       }
 
-      const order = await updateOrderStatus(orderId, status, trackingNumber);
+      const order = await updateOrderStatus(orderId, status, trackingNumber, req.user?.id);
       return res.json({ success: true, data: order });
     } catch (error) {
       next(error);
