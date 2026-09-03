@@ -177,7 +177,11 @@ export default function Orders() {
                     {/* Order Items */}
                     <div className="space-y-3">
                       {order.items.map((item, idx) => (
-                        <div key={`${order._id}-${idx}`} className="flex gap-4">
+                        <Link
+                          key={`${order._id}-${idx}`}
+                          to={`/product/${item.productId}`}
+                          className="flex gap-4 hover:bg-muted/50 p-2 rounded transition-colors"
+                        >
                           {item.imageUrl && (
                             <img
                               src={item.imageUrl}
@@ -199,7 +203,7 @@ export default function Orders() {
                           <div className="text-right">
                             <p className="font-medium">₹{item.subtotal.toFixed(2)}</p>
                           </div>
-                        </div>
+                        </Link>
                       ))}
                     </div>
 

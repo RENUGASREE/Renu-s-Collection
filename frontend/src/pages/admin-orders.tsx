@@ -161,11 +161,29 @@ export default function AdminOrders() {
   const handleUpdateStatus = async (orderId: string, newStatus: string) => {
     setUpdating(true);
     try {
+      let trackingNumber = undefined;
+      if (newStatus === 'shipped') {
+        trackingNumber = prompt('Enter tracking number (e.g., FedEx: 123456789012, BlueDart: B123456789):');
+        if (!trackingNumber) {
+          toast({
+            title: 'Cancelled',
+            description: 'Status update cancelled - tracking number required for shipped status',
+            variant: 'destructive',
+          });
+          setUpdating(false);
+          return;
+        }
+      }
+
+      console.log('Updating order status:', { orderId, newStatus, trackingNumber });
       const response = await apiRequest('PATCH', `/api/v1/admin/orders/${orderId}/status`, {
         status: newStatus,
-        trackingNumber: newStatus === 'shipped' ? prompt('Enter tracking number:') : undefined,
+        trackingNumber,
       });
-      
+
+      const data = await response.json();
+      console.log('Update status response:', data);
+
       if (response.ok) {
         toast({
           title: 'Success',
@@ -173,14 +191,16 @@ export default function AdminOrders() {
         });
         fetchOrders();
         if (selectedOrder?._id === orderId) {
-          setSelectedOrder({ ...selectedOrder, status: newStatus as any });
+          setSelectedOrder({ ...selectedOrder, status: newStatus as any, trackingNumber });
         }
+      } else {
+        throw new Error(data.error || 'Failed to update order status');
       }
     } catch (error) {
       console.error('Error updating order status:', error);
       toast({
         title: 'Error',
-        description: 'Failed to update order status',
+        description: error instanceof Error ? error.message : 'Failed to update order status',
         variant: 'destructive',
       });
     } finally {
