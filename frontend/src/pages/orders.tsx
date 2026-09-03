@@ -239,13 +239,23 @@ export default function Orders() {
                       <Button asChild variant="outline" size="sm">
                         <Link to={`/orders/${order._id}`}>View Details</Link>
                       </Button>
-                      {order.status === 'pending' && (
+                      {(order.status === 'pending' || order.status === 'processing') && (
                         <Button 
                           size="sm" 
                           variant="destructive"
                           onClick={() => handleCancelOrder(order._id)}
                         >
                           Cancel Order
+                        </Button>
+                      )}
+                      {(order.status === 'shipped' || order.status === 'delivered') && (
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          disabled
+                          className="cursor-not-allowed"
+                        >
+                          Order shipped - Cannot cancel
                         </Button>
                       )}
                     </div>

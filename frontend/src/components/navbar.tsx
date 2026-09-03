@@ -34,6 +34,7 @@ export default function Navbar() {
     { label: "Home", path: "/" },
     { label: "Products", path: "/products" },
     { label: "Wishlist", path: "/wishlist" },
+    { label: "Orders", path: "/orders" },
     { label: "About", path: "/about" },
     { label: "Contact", path: "/contact" },
     { label: "Cart", path: "/cart" },
