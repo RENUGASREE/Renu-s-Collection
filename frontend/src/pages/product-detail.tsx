@@ -9,6 +9,9 @@ import { SEO } from "@/components/SEO";
 import { CustomizationPreview } from "@/components/CustomizationPreview";
 import { CustomizationControls } from "@/components/CustomizationControls";
 import { Card, CardContent } from "@/components/ui/card";
+import { ReviewList } from "@/components/review-list";
+import { ReviewForm } from "@/components/review-form";
+import { StarRating } from "@/components/star-rating";
 
 interface Product {
   _id: string;
@@ -31,6 +34,8 @@ interface Product {
   careInstructions?: string;
   materialInfo?: string;
   isCustomizable: boolean;
+  averageRating?: number;
+  reviewCount?: number;
 }
 
 interface CustomizationField {
@@ -64,6 +69,7 @@ export default function ProductDetail() {
   const [showCustomization, setShowCustomization] = useState(false);
   const [isInWishlist, setIsInWishlist] = useState(false);
   const [wishlistIds, setWishlistIds] = useState<Set<string>>(new Set());
+  const [showReviewForm, setShowReviewForm] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -505,6 +511,18 @@ export default function ProductDetail() {
                 {isInWishlist ? "Remove from Wishlist" : "Add to Wishlist"}
               </Button>
             </div>
+
+            {/* Rating Display */}
+            {product.averageRating && (
+              <div className="mt-6 p-4 bg-muted/50 rounded-lg">
+                <div className="flex items-center gap-4">
+                  <StarRating rating={product.averageRating} size={20} showValue />
+                  <span className="text-sm text-muted-foreground">
+                    {product.reviewCount} {product.reviewCount === 1 ? 'review' : 'reviews'}
+                  </span>
+                </div>
+              </div>
+            )}
             <div className="flex items-center gap-4 mb-6">
               <Button
                 onClick={() => setQuantity(Math.max(1, quantity - 1))}
@@ -543,6 +561,34 @@ export default function ProductDetail() {
               </div>
             )}
           </div>
+        </div>
+
+        {/* Reviews Section */}
+        <div className="mt-12">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-3xl font-bold">Customer Reviews</h2>
+            {user && (
+              <Button onClick={() => setShowReviewForm(!showReviewForm)}>
+                {showReviewForm ? 'Cancel' : 'Write a Review'}
+              </Button>
+            )}
+          </div>
+
+          {showReviewForm && (
+            <div className="mb-8">
+              <ReviewForm
+                productId={productId!}
+                onSuccess={() => {
+                  setShowReviewForm(false);
+                  window.location.reload();
+                }}
+
+                onCancel={() => setShowReviewForm(false)}
+              />
+            </div>
+          )}
+
+          <ReviewList productId={productId!} />
         </div>
       </main>
       <Footer />

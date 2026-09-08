@@ -179,7 +179,7 @@ router.get("/reviews", async (req: Request, res: Response, next: NextFunction) =
       res.json([]);
       return;
     }
-    const reviews = await reviewService.listProductReviews(String(_pt ?? "bracelet"), String(product_id));
+    const reviews = await reviewService.listProductReviews(String(product_id));
     res.json(reviews.map((r) => reviewService.toLegacyReview(r as Record<string, unknown>)));
   } catch (e) {
     next(e);

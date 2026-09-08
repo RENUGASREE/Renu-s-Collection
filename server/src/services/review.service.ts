@@ -4,7 +4,7 @@ import { Product } from "../models/Product.js";
 import { Order } from "../models/Order.js";
 import { AppError } from "../middleware/errorHandler.js";
 
-export async function listProductReviews(_productType: string, productId: string) {
+export async function listProductReviews(productId: string) {
   if (!Types.ObjectId.isValid(productId)) return [];
   return Review.find({
     productId: new Types.ObjectId(productId),
@@ -18,20 +18,18 @@ export async function listProductReviews(_productType: string, productId: string
 export async function createReview(
   userId: string,
   input: {
-    product_type: string;
-    product_id: number | string;
+    productId: string;
     rating: number;
     title: string;
-    comment: string;
+    body: string;
     images?: string[];
   }
 ) {
-  const productId = String(input.product_id);
-  if (!Types.ObjectId.isValid(productId)) throw new AppError("Invalid product", 400);
+  if (!Types.ObjectId.isValid(input.productId)) throw new AppError("Invalid product", 400);
 
   const existing = await Review.findOne({
     userId: new Types.ObjectId(userId),
-    productId: new Types.ObjectId(productId),
+    productId: new Types.ObjectId(input.productId),
   });
   if (existing) throw new AppError("You already reviewed this product", 409);
 
@@ -39,22 +37,22 @@ export async function createReview(
     userId: new Types.ObjectId(userId),
     paymentStatus: { $in: ["paid", "pending"] },
     status: { $ne: "cancelled" },
-    "items.productId": new Types.ObjectId(productId),
+    "items.productId": new Types.ObjectId(input.productId),
   });
 
   const review = await Review.create({
     userId: new Types.ObjectId(userId),
-    productId: new Types.ObjectId(productId),
+    productId: new Types.ObjectId(input.productId),
     orderId: paidOrder?._id,
     rating: input.rating,
     title: input.title,
-    comment: input.comment,
+    body: input.body,
     images: input.images ?? [],
     isVerifiedPurchase: Boolean(paidOrder),
     isApproved: false,
   });
 
-  await recalculateProductRating(productId);
+  await recalculateProductRating(input.productId);
   return review;
 }
 
@@ -80,16 +78,16 @@ export function toLegacyReview(review: Record<string, unknown>) {
   const user = review.userId as { username?: string; email?: string } | undefined;
   return {
     id: (review._id as { toString(): string }).toString(),
-    user: typeof user === "object" && user && "_id" in user ? (user as { _id: unknown })._id : review.userId,
-    user_name: user?.username ?? user?.email?.split("@")[0] ?? "Customer",
-    product_type: review.productType ?? "bracelet",
-    product_id: review.productId,
+    userId: review.userId,
+    username: user?.username ?? user?.email?.split("@")[0] ?? "Customer",
+    productId: review.productId,
     rating: review.rating,
     title: review.title,
-    comment: review.comment,
-    is_verified_purchase: review.isVerifiedPurchase,
-    created_at: review.createdAt,
-    is_approved: review.isApproved,
+    body: review.body,
+    isVerifiedPurchase: review.isVerifiedPurchase,
+    createdAt: review.createdAt,
+    isApproved: review.isApproved,
     images: review.images ?? [],
+    helpfulCount: review.helpfulCount ?? 0,
   };
 }
