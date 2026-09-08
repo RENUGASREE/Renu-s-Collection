@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { BrowserRouter as Router, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -35,6 +35,35 @@ import Navbar from "./components/navbar";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { HelmetProvider } from 'react-helmet-async';
 
+// Component to check for malicious URLs
+function UrlSanitizer() {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const url = location.pathname + location.search;
+    const suspiciousPatterns = [
+      /~and~/i,
+      /\/\.\.\/|\/\.\.\\/,
+      /<script|javascript:|onerror=/i,
+      /union.*select|select.*from|insert.*into|delete.*from|drop.*table/i,
+      /eval\(|exec\(|system\(/i,
+      /\.\./,
+      /%2e%2e/i,
+    ];
+
+    for (const pattern of suspiciousPatterns) {
+      if (pattern.test(url)) {
+        console.warn('Blocked malicious URL:', url);
+        navigate('/', { replace: true });
+        return;
+      }
+    }
+  }, [location, navigate]);
+
+  return null;
+}
+
 function App() {
   const [loading, setLoading] = useState(true);
 
@@ -50,6 +79,7 @@ function App() {
         <TooltipProvider>
           <Toaster />
           <Router>
+            <UrlSanitizer />
             {loading && <LoadingScreen onFinishLoading={handleFinishLoading} />}
             {!loading && <Navbar />}
             <FloatingParticles />
