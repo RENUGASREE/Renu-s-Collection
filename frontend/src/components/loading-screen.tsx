@@ -28,7 +28,7 @@ export function LoadingScreen({ onFinishLoading }: LoadingScreenProps) {
 
   return (
     <motion.div
-      className="fixed inset-0 z-[999] flex flex-col items-center justify-center bg-background text-foreground"
+      className="fixed inset-0 z-[999] flex flex-col items-center justify-end pb-20 bg-background text-foreground"
       initial={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.5 }}
@@ -49,12 +49,12 @@ export function LoadingScreen({ onFinishLoading }: LoadingScreenProps) {
 
       {/* Progress Bar */}
       <motion.div
-        className="mt-8 w-64"
+        className="w-64 mb-4 relative z-10"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.8 }}
       >
-        <Progress value={progress} className="h-2 bg-primary/20" />
+        <Progress value={progress} className="h-2 bg-white/30" />
       </motion.div>
 
       {/* Enter button */}
@@ -64,11 +64,11 @@ export function LoadingScreen({ onFinishLoading }: LoadingScreenProps) {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
-            className="mt-10"
+            className="relative z-10"
           >
             <Button
               onClick={onFinishLoading}
-              className="bg-rose-gold text-matte-black hover:bg-rose-gold/90 px-8 py-3 text-lg font-playfair rounded-md transition-all duration-300 shadow-lg hover:shadow-xl"
+              className="bg-white/90 text-gray-900 hover:bg-white px-8 py-3 text-lg font-playfair rounded-md transition-all duration-300 shadow-lg hover:shadow-xl"
             >
               Enter World
             </Button>
