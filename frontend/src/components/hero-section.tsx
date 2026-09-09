@@ -8,10 +8,7 @@ import { API_BASE_URL, getAssetUrl } from "@/lib/queryClient";
 // Define slideshow images
 const slideshowImages = [
   "/assets/hero-banner-1.png",
-  "/assets/hero-banner-2.png",
-  "/assets/hero-banner-3.png",
-  "/assets/hero-banner-4.png",
-  "/assets/hero-banner-5.png"
+  "/assets/hero-banner-2.png"
 ];
 
 export default function HeroSection() {

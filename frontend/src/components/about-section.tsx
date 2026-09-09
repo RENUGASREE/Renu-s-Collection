@@ -3,8 +3,9 @@ import { motion } from "framer-motion";
 import { getAssetUrl } from "@/lib/queryClient";
 
 export default function AboutSection() {
-  const originsImage: string | null = getAssetUrl("/assets/about-section.png");
-  const craftsmanshipImage: string | null = getAssetUrl("/assets/product-showcase-1.png");
+  const originsImage: string | null = getAssetUrl("/assets/about-section-1.png");
+  const craftsmanshipImage: string | null = getAssetUrl("/assets/about-section-2.png");
+  const showcaseImage: string | null = getAssetUrl("/assets/about-section-3.png");
 
   const philosophyItems = [
     {
@@ -185,7 +186,7 @@ export default function AboutSection() {
               transition={{ type: "spring", stiffness: 300 }}
             >
               <img
-                src={getAssetUrl("/assets/product-showcase-2.png") || "/placeholders/placeholder.png"}
+                src={showcaseImage || "/placeholders/placeholder.png"}
                 alt="Signature jewelry collection"
                 className="rounded-lg shadow-2xl w-full"
               />
