@@ -32,6 +32,7 @@ import AdminOrders from "./pages/admin-orders";
 import { FloatingParticles, PageTransition } from "@/components/visual-effects";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import Navbar from "./components/navbar";
+import { MobileBottomNav } from "./components/mobile-bottom-nav";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { HelmetProvider } from 'react-helmet-async';
 
@@ -82,9 +83,11 @@ function App() {
             <UrlSanitizer />
             {loading && <LoadingScreen onFinishLoading={handleFinishLoading} />}
             {!loading && <Navbar />}
+            {!loading && <MobileBottomNav />}
             <FloatingParticles />
             <PageTransition>
-              <Routes>
+              <div className="pb-16 md:pb-0">
+                <Routes>
                 <Route path="/" element={<Home />} />
                 <Route path="/about" element={<About />} />
                 <Route path="/contact" element={<Contact />} />
@@ -256,7 +259,8 @@ function App() {
                   }
                 />
                 <Route path="*" element={<NotFound />} />
-              </Routes>
+                </Routes>
+              </div>
             </PageTransition>
           </Router>
         </TooltipProvider>

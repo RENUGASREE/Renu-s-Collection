@@ -89,28 +89,32 @@ export default function HeroSection() {
   return (
     <section id="home" className="min-h-screen hero-bg flex items-center justify-center relative overflow-hidden">
       {/* Hero Background Images - Current */}
-      <motion.div 
-        className="absolute inset-0 bg-cover bg-center"
+      <motion.div
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
         initial={{ opacity: 1 }}
         animate={{
           opacity: isFading ? 0 : 1, // Fade out current image
           transition: { duration: 1 }
         }}
         style={{
-          backgroundImage: `url('${imagesToDisplay[currentImageIndex]}')`
+          backgroundImage: `url('${imagesToDisplay[currentImageIndex]}')`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
         }}
       />
 
       {/* Hero Background Images - Next (preloaded) */}
-      <motion.div 
-        className="absolute inset-0 bg-cover bg-center"
+      <motion.div
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
         initial={{ opacity: 0 }}
         animate={{
           opacity: isFading ? 1 : 0, // Fade in next image
           transition: { duration: 1 }
         }}
         style={{
-          backgroundImage: `url('${imagesToDisplay[nextImageIndex]}')`
+          backgroundImage: `url('${imagesToDisplay[nextImageIndex]}')`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
         }}
       />
       

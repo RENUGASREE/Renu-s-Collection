@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, Sun, Moon } from "lucide-react";
+import { motion } from "framer-motion";
+import { Sun, Moon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "react-router-dom";
 import { useTheme } from "../contexts/ThemeContext";
@@ -8,7 +8,6 @@ import { useAuth } from "../contexts/AuthContext";
 
 export default function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
   const { user, logout } = useAuth();
   const location = useLocation();
@@ -26,7 +25,6 @@ export default function Navbar() {
     const element = document.getElementById(sectionId);
     if (element) {
       element.scrollIntoView({ behavior: "smooth" });
-      setIsMobileMenuOpen(false);
     }
   };
 
@@ -112,7 +110,7 @@ export default function Navbar() {
             ))}
           </div>
 
-          {/* Mobile Menu Button */}
+          {/* Theme Toggle */}
           <div className="flex items-center space-x-4">
             <Button
               variant="ghost"
@@ -124,62 +122,9 @@ export default function Navbar() {
               <Sun className="h-6 w-6 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
               <Moon className="absolute h-6 w-6 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="md:hidden text-primary"
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              data-testid="mobile-menu-btn"
-            >
-              {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-            </Button>
           </div>
         </div>
       </motion.nav>
-
-      {/* Mobile Menu */}
-      <AnimatePresence>
-        {isMobileMenuOpen && (
-          <motion.div
-            className="fixed inset-0 z-40 bg-primary md:hidden"
-            initial={{ x: "-100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "-100%" }}
-            transition={{ type: "spring", stiffness: 400, damping: 40 }}
-            data-testid="mobile-menu"
-          >
-            <div className="flex flex-col justify-center items-center h-full space-y-8">
-              {navItems.map((item, index) => (
-                ("onClick" in item) ? (
-                  <motion.button
-                    key={item.label}
-                    onClick={() => { item.onClick(); setIsMobileMenuOpen(false); }}
-                    className="text-white text-2xl font-playfair bg-transparent border-none cursor-pointer"
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                  >
-                    {item.label}
-                  </motion.button>
-                ) : (
-                  <motion.a
-                    key={item.label}
-                    href={("href" in item) ? item.href as string : item.path}
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className="text-white text-2xl font-playfair"
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    data-testid={`mobile-nav-link-${item.label.toLowerCase()}`}
-                  >
-                    {item.label}
-                  </motion.a>
-                )
-              ))}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </>
   );
 }

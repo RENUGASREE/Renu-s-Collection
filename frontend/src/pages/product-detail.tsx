@@ -424,7 +424,7 @@ export default function ProductDetail() {
           {/* Left: Product Image / Preview */}
           <div>
             {showCustomization && customizationConfig ? (
-              <div className="aspect-square bg-gray-100 rounded-lg shadow-lg overflow-hidden">
+              <div className="aspect-square bg-gray-100 rounded-lg shadow-lg overflow-hidden max-w-full">
                 <CustomizationPreview
                   baseImage={getProductImage(product)}
                   layers={customizationConfig.previewLayers}
@@ -436,7 +436,7 @@ export default function ProductDetail() {
               <img
                 src={getProductImage(product)}
                 alt={product.name}
-                className="w-full h-auto rounded-lg shadow-lg"
+                className="w-full h-auto rounded-lg shadow-lg object-cover max-w-full"
               />
             )}
           </div>

@@ -282,7 +282,7 @@ export default function Products() {
                 <img
                   src={getProductImage(product)}
                   alt={product.name}
-                  className="w-full h-48 object-cover rounded-md mb-4"
+                  className="w-full h-48 md:h-56 object-cover rounded-md mb-4"
                 />
                 {product.badge && (
                   <span className="absolute top-2 left-2 bg-primary text-primary-foreground px-2 py-1 text-xs rounded">
