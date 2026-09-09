@@ -12,66 +12,34 @@ const slideshowImages = [
 ];
 
 export default function HeroSection() {
-  const [productImages, setProductImages] = useState<string[]>([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [nextImageIndex, setNextImageIndex] = useState(1);
-  const [isFading, setIsFading] = useState(false); // New state to control fade
-
-  useEffect(() => {
-    const fetchProductImages = async () => {
-      try {
-        const response = await axios.get(`${API_BASE_URL}/api/v1/products`, {
-          params: { isSignaturePiece: true }
-        });
-        const productsRes = response.data.data as any[];
-        const images = productsRes
-          .map((p: any) => {
-            const primaryMedia = p.media?.find((m: any) => m.isPrimary);
-            const imageUrl = primaryMedia?.url || p.media?.[0]?.url;
-            return imageUrl ? getAssetUrl(imageUrl) : null;
-          })
-          .filter(Boolean);
-
-        if (images.length > 0) {
-          setProductImages(images);
-        } else {
-          setProductImages(slideshowImages);
-        }
-      } catch (error) {
-        // API not available or no signature pieces, use fallback images
-        setProductImages(slideshowImages);
-      }
-    };
-
-    fetchProductImages();
-  }, []);
+  const [isFading, setIsFading] = useState(false);
 
   // Preload images
   useEffect(() => {
-    const imagesToUse = productImages.length > 0 ? productImages : slideshowImages;
-    imagesToUse.forEach(image => {
+    slideshowImages.forEach(image => {
       const img = new Image();
       img.src = image;
     });
-  }, [productImages, slideshowImages]);
+  }, []);
 
   // Handle slideshow transitions
   useEffect(() => {
-    const imagesToUse = productImages.length > 0 ? productImages : slideshowImages;
-    if (imagesToUse.length === 0) return;
+    if (slideshowImages.length === 0) return;
 
     const interval = setInterval(() => {
-      setIsFading(true); // Start fade out of current, fade in of next
+      setIsFading(true);
 
       setTimeout(() => {
-        setCurrentImageIndex(prevIndex => (prevIndex + 1) % imagesToUse.length);
-        setNextImageIndex(prevIndex => (prevIndex + 2) % imagesToUse.length); // Update next image index
-        setIsFading(false); // Reset fade state after indices are updated
-      }, 1000); // Duration of the fade transition
-    }, 3000); // Total cycle: 2s display + 1s transition
+        setCurrentImageIndex(prevIndex => (prevIndex + 1) % slideshowImages.length);
+        setNextImageIndex(prevIndex => (prevIndex + 2) % slideshowImages.length);
+        setIsFading(false);
+      }, 1000);
+    }, 3000);
 
     return () => clearInterval(interval);
-  }, [productImages, slideshowImages]); // Removed incomingImageIndex from dependency array
+  }, []);
 
   const scrollToCollection = () => {
     const element = document.getElementById("collection");
@@ -80,8 +48,7 @@ export default function HeroSection() {
     }
   };
 
-  const imagesToDisplay = productImages.length > 0 ? productImages : slideshowImages;
-  if (imagesToDisplay.length === 0) return null; // Render nothing if no images are available
+  if (slideshowImages.length === 0) return null;
 
   return (
     <section id="home" className="min-h-screen hero-bg flex items-center justify-center relative overflow-hidden">
@@ -90,11 +57,11 @@ export default function HeroSection() {
         className="absolute inset-0 bg-cover bg-center bg-no-repeat"
         initial={{ opacity: 1 }}
         animate={{
-          opacity: isFading ? 0 : 1, // Fade out current image
+          opacity: isFading ? 0 : 1,
           transition: { duration: 1 }
         }}
         style={{
-          backgroundImage: `url('${imagesToDisplay[currentImageIndex]}')`,
+          backgroundImage: `url('${slideshowImages[currentImageIndex]}')`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
         }}
@@ -105,11 +72,11 @@ export default function HeroSection() {
         className="absolute inset-0 bg-cover bg-center bg-no-repeat"
         initial={{ opacity: 0 }}
         animate={{
-          opacity: isFading ? 1 : 0, // Fade in next image
+          opacity: isFading ? 1 : 0,
           transition: { duration: 1 }
         }}
         style={{
-          backgroundImage: `url('${imagesToDisplay[nextImageIndex]}')`,
+          backgroundImage: `url('${slideshowImages[nextImageIndex]}')`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
         }}

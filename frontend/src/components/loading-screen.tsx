@@ -38,12 +38,12 @@ export function LoadingScreen({ onFinishLoading }: LoadingScreenProps) {
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.5, delay: 0.2 }}
-        className="relative w-full max-w-4xl px-4"
+        className="absolute inset-0 w-full h-full"
       >
         <img
           src="/assets/loading-screen.png"
           alt="Renu's Collections Loading"
-          className="w-full h-auto object-contain max-h-[80vh]"
+          className="w-full h-full object-cover"
         />
       </motion.div>
 
