@@ -7,11 +7,11 @@ import { API_BASE_URL, getAssetUrl } from "@/lib/queryClient";
 
 // Define slideshow images
 const slideshowImages = [
-  "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=2340&h=1560",
-  "https://images.unsplash.com/photo-1611591437281-460bfbe1220a?ixlib=rb-4.0.3&auto=format&fit=crop&w=2340&h=1560",
-  "https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?ixlib=rb-4.0.3&auto=format&fit=crop&w=2340&h=1560",
-  "https://images.unsplash.com/photo-1617038220319-276d3cfab638?ixlib=rb-4.0.3&auto=format&fit=crop&w=2340&h=1560",
-  "https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?ixlib=rb-4.0.3&auto=format&fit=crop&w=2340&h=1560"
+  "/assets/hero-banner-1.png",
+  "/assets/hero-banner-2.png",
+  "/assets/hero-banner-3.png",
+  "/assets/hero-banner-4.png",
+  "/assets/hero-banner-5.png"
 ];
 
 export default function HeroSection() {

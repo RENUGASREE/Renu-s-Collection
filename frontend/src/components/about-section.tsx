@@ -3,8 +3,8 @@ import { motion } from "framer-motion";
 import { getAssetUrl } from "@/lib/queryClient";
 
 export default function AboutSection() {
-  const originsImage: string | null = getAssetUrl("/placeholders/placeholder.png");
-  const craftsmanshipImage: string | null = getAssetUrl("/placeholders/placeholder.png");
+  const originsImage: string | null = getAssetUrl("/assets/about-section.png");
+  const craftsmanshipImage: string | null = getAssetUrl("/assets/product-showcase-1.png");
 
   const philosophyItems = [
     {
@@ -158,6 +158,38 @@ export default function AboutSection() {
                 ))}
               </div>
             </div>
+          </motion.div>
+
+          {/* Product Showcase */}
+          <motion.div
+            className="flex flex-col lg:flex-row items-center gap-12"
+            initial={{ opacity: 0, y: 50 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.8 }}
+          >
+            <div className="lg:w-1/2">
+              <h3 className="text-3xl font-playfair font-bold text-foreground mb-6">
+                Our Signature Collections
+              </h3>
+              <p className="text-lg text-foreground leading-relaxed mb-6">
+                Discover our exquisite range of handcrafted jewelry, from elegant bracelets to stunning earrings. Each piece is designed to make a statement and elevate your style.
+              </p>
+              <p className="text-lg text-foreground leading-relaxed">
+                Our signature pieces combine traditional craftsmanship with modern design, creating timeless jewelry that you'll treasure for years to come.
+              </p>
+            </div>
+            <motion.div
+              className="lg:w-1/2"
+              whileHover={{ scale: 1.02 }}
+              transition={{ type: "spring", stiffness: 300 }}
+            >
+              <img
+                src={getAssetUrl("/assets/product-showcase-2.png") || "/placeholders/placeholder.png"}
+                alt="Signature jewelry collection"
+                className="rounded-lg shadow-2xl w-full"
+              />
+            </motion.div>
           </motion.div>
         </div>
       </div>

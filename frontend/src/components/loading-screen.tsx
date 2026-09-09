@@ -33,24 +33,18 @@ export function LoadingScreen({ onFinishLoading }: LoadingScreenProps) {
       exit={{ opacity: 0 }}
       transition={{ duration: 0.5 }}
     >
+      {/* Loading Image */}
       <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.5, delay: 0.2 }}
-        className="flex items-center space-x-4"
+        className="relative w-full max-w-4xl px-4"
       >
-        {/* Logo or Brand Name */}
-        
-        <motion.h1
-          className="text-6xl md:text-8xl font-playfair font-bold mb-6 text-center"
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5, delay: 0.6 }}
-        >
-          <span className="text-foreground" style={{ textShadow: '0 0 1px var(--heading-outline-color)' }}>Renu's</span>
-          <br />
-          <span className="text-primary">Collections</span>
-        </motion.h1>
+        <img
+          src="/assets/loading-screen.png"
+          alt="Renu's Collections Loading"
+          className="w-full h-auto object-contain max-h-[80vh]"
+        />
       </motion.div>
 
       {/* Progress Bar */}
@@ -63,7 +57,6 @@ export function LoadingScreen({ onFinishLoading }: LoadingScreenProps) {
         <Progress value={progress} className="h-2 bg-primary/20" />
       </motion.div>
 
-      
       {/* Enter button */}
       <AnimatePresence>
         {isLoaded && (
