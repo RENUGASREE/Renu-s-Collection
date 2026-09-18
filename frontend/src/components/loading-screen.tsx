@@ -43,7 +43,7 @@ export function LoadingScreen({ onFinishLoading }: LoadingScreenProps) {
         <img
           src="/assets/loading-screen.png"
           alt="Renu's Collections Loading"
-          className="w-full h-full object-cover"
+          className="w-full h-full object-contain md:object-cover"
         />
       </motion.div>
 

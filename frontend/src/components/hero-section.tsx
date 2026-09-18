@@ -15,6 +15,19 @@ export default function HeroSection() {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [nextImageIndex, setNextImageIndex] = useState(1);
   const [isFading, setIsFading] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Check if mobile on mount and resize
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Preload images
   useEffect(() => {
@@ -62,8 +75,9 @@ export default function HeroSection() {
         }}
         style={{
           backgroundImage: `url('${slideshowImages[currentImageIndex]}')`,
-          backgroundSize: 'cover',
+          backgroundSize: isMobile ? 'contain' : 'cover',
           backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
         }}
       />
 
@@ -77,8 +91,9 @@ export default function HeroSection() {
         }}
         style={{
           backgroundImage: `url('${slideshowImages[nextImageIndex]}')`,
-          backgroundSize: 'cover',
+          backgroundSize: isMobile ? 'contain' : 'cover',
           backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
         }}
       />
       
