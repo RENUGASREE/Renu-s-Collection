@@ -5,10 +5,16 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import { API_BASE_URL, getAssetUrl } from "@/lib/queryClient";
 
-// Define slideshow images
+// Define slideshow images for desktop
 const slideshowImages = [
   "/assets/hero-banner-1.png",
   "/assets/hero-banner-2.png"
+];
+
+// Define slideshow images for mobile
+const slideshowImagesMobile = [
+  "/assets/hero-banner-1-mobile.png",
+  "/assets/hero-banner-2-mobile.png"
 ];
 
 export default function HeroSection() {
@@ -31,28 +37,30 @@ export default function HeroSection() {
 
   // Preload images
   useEffect(() => {
-    slideshowImages.forEach(image => {
+    const imagesToPreload = isMobile ? slideshowImagesMobile : slideshowImages;
+    imagesToPreload.forEach(image => {
       const img = new Image();
       img.src = image;
     });
-  }, []);
+  }, [isMobile]);
 
   // Handle slideshow transitions
   useEffect(() => {
-    if (slideshowImages.length === 0) return;
+    const imagesToUse = isMobile ? slideshowImagesMobile : slideshowImages;
+    if (imagesToUse.length === 0) return;
 
     const interval = setInterval(() => {
       setIsFading(true);
 
       setTimeout(() => {
-        setCurrentImageIndex(prevIndex => (prevIndex + 1) % slideshowImages.length);
-        setNextImageIndex(prevIndex => (prevIndex + 2) % slideshowImages.length);
+        setCurrentImageIndex(prevIndex => (prevIndex + 1) % imagesToUse.length);
+        setNextImageIndex(prevIndex => (prevIndex + 2) % imagesToUse.length);
         setIsFading(false);
       }, 1000);
     }, 3000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [isMobile]);
 
   const scrollToCollection = () => {
     const element = document.getElementById("collection");
@@ -61,7 +69,8 @@ export default function HeroSection() {
     }
   };
 
-  if (slideshowImages.length === 0) return null;
+  const imagesToUse = isMobile ? slideshowImagesMobile : slideshowImages;
+  if (imagesToUse.length === 0) return null;
 
   return (
     <section id="home" className="min-h-screen hero-bg flex items-center justify-center relative overflow-hidden">
@@ -74,10 +83,9 @@ export default function HeroSection() {
           transition: { duration: 1 }
         }}
         style={{
-          backgroundImage: `url('${slideshowImages[currentImageIndex]}')`,
-          backgroundSize: isMobile ? 'contain' : 'cover',
+          backgroundImage: `url('${imagesToUse[currentImageIndex]}')`,
+          backgroundSize: 'cover',
           backgroundPosition: 'center',
-          backgroundRepeat: 'no-repeat',
         }}
       />
 
@@ -90,10 +98,9 @@ export default function HeroSection() {
           transition: { duration: 1 }
         }}
         style={{
-          backgroundImage: `url('${slideshowImages[nextImageIndex]}')`,
-          backgroundSize: isMobile ? 'contain' : 'cover',
+          backgroundImage: `url('${imagesToUse[nextImageIndex]}')`,
+          backgroundSize: 'cover',
           backgroundPosition: 'center',
-          backgroundRepeat: 'no-repeat',
         }}
       />
       

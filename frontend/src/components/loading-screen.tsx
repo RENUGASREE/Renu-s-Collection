@@ -10,6 +10,18 @@ interface LoadingScreenProps {
 export function LoadingScreen({ onFinishLoading }: LoadingScreenProps) {
   const [progress, setProgress] = useState(0);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   useEffect(() => {
     const loadingInterval = setInterval(() => {
@@ -41,9 +53,9 @@ export function LoadingScreen({ onFinishLoading }: LoadingScreenProps) {
         className="absolute inset-0 w-full h-full"
       >
         <img
-          src="/assets/loading-screen.png"
+          src={isMobile ? "/assets/loading-screen-mobile.png" : "/assets/loading-screen.png"}
           alt="Renu's Collections Loading"
-          className="w-full h-full object-contain md:object-cover"
+          className="w-full h-full object-cover"
         />
       </motion.div>
 
