@@ -189,6 +189,16 @@ export default function Admin() {
               <p className="text-muted-foreground">Manage and track customer orders</p>
             </CardContent>
           </Card>
+
+          <Card
+            className="cursor-pointer hover:shadow-lg transition-shadow"
+            onClick={() => navigate("/admin/reviews")}
+          >
+            <CardContent className="p-6">
+              <h3 className="text-xl font-semibold mb-2">Reviews</h3>
+              <p className="text-muted-foreground">Approve or reject customer reviews</p>
+            </CardContent>
+          </Card>
         </div>
         <Card>
           <CardHeader><CardTitle>Account</CardTitle></CardHeader>

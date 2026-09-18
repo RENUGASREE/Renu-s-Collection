@@ -110,7 +110,7 @@ export function ReviewForm({ productId, onSuccess, onCancel }: ReviewFormProps) 
         rating,
         title,
         body,
-        images,
+        images: images.filter(img => img && img.length > 0),
       });
 
       const data = await response.json();
@@ -125,12 +125,14 @@ export function ReviewForm({ productId, onSuccess, onCancel }: ReviewFormProps) 
         setBody('');
         setImages([]);
         onSuccess?.();
+      } else {
+        throw new Error(data.message || 'Failed to submit review');
       }
     } catch (error) {
       console.error('Error submitting review:', error);
       toast({
         title: 'Error',
-        description: 'Failed to submit review',
+        description: error instanceof Error ? error.message : 'Failed to submit review',
         variant: 'destructive',
       });
     } finally {

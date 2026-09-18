@@ -90,6 +90,7 @@ export default function ProductDetail() {
             setShowCustomization(true);
           } catch (customErr) {
             console.error('Failed to fetch customization config:', customErr);
+            setShowCustomization(false);
           }
         }
       } catch (err) {

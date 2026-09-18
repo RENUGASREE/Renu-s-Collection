@@ -196,9 +196,6 @@ export default function OrderDetails() {
       />
       <main className="container mx-auto px-4 py-8">
         <div className="mb-8">
-          <Link to="/orders" className="inline-flex items-center text-sm font-medium text-muted-foreground hover:text-primary mb-4 transition-colors">
-            ← Back to Orders
-          </Link>
           <h1 className="text-4xl font-bold">Order #{order.orderNumber}</h1>
         </div>
 

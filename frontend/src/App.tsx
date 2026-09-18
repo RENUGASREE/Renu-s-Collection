@@ -29,6 +29,7 @@ import AdminCategories from "./pages/admin-categories";
 import AdminInventory from "./pages/admin-inventory";
 import AdminCustomization from "./pages/admin-customization";
 import AdminOrders from "./pages/admin-orders";
+import AdminReviews from "./pages/admin-reviews";
 import { FloatingParticles, PageTransition } from "@/components/visual-effects";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import Navbar from "./components/navbar";
@@ -255,6 +256,22 @@ function App() {
                   element={
                     <ProtectedRoute adminOnly>
                       <AdminOrders />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/reviews"
+                  element={
+                    <ProtectedRoute adminOnly>
+                      <AdminReviews />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/reviews/"
+                  element={
+                    <ProtectedRoute adminOnly>
+                      <AdminReviews />
                     </ProtectedRoute>
                   }
                 />

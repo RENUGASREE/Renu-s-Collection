@@ -92,4 +92,52 @@ router.delete(
   }
 );
 
+// Admin: Approve review
+router.post(
+  "/:reviewId/approve",
+  requireAuth,
+  validateParams(reviewIdParamSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { reviewId } = req.params;
+      if (!reviewId) throw new Error("Review ID is required");
+      const review = await reviewController.approveReview(reviewId);
+      res.json({ success: true, data: review });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Admin: Reject review
+router.post(
+  "/:reviewId/reject",
+  requireAuth,
+  validateParams(reviewIdParamSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { reviewId } = req.params;
+      if (!reviewId) throw new Error("Review ID is required");
+      const review = await reviewController.rejectReview(reviewId);
+      res.json({ success: true, data: review });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Admin: Get all reviews (including pending)
+router.get(
+  "/admin/all",
+  requireAuth,
+  async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      const reviews = await reviewController.getAllReviews();
+      res.json({ success: true, data: reviews });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 export default router;

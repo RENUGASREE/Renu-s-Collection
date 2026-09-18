@@ -66,3 +66,71 @@ export async function deleteReview(reviewId: string, userId: string) {
     reviewCount: stats[0]?.reviewCount ?? 0,
   });
 }
+
+export async function approveReview(reviewId: string) {
+  const review = await Review.findById(reviewId);
+  if (!review) throw new AppError("Review not found", 404);
+
+  review.isApproved = true;
+  await review.save();
+
+  // Recalculate product rating
+  const productId = review.productId.toString();
+  const stats = await Review.aggregate([
+    { $match: { productId: new Types.ObjectId(productId), isApproved: true } },
+    {
+      $group: {
+        _id: null,
+        averageRating: { $avg: "$rating" },
+        reviewCount: { $sum: 1 },
+      },
+    },
+  ]);
+
+  const { Product } = await import("../models/Product.js");
+  await Product.findByIdAndUpdate(productId, {
+    averageRating: stats[0]?.averageRating ?? 0,
+    reviewCount: stats[0]?.reviewCount ?? 0,
+  });
+
+  return reviewService.toLegacyReview(review as any);
+}
+
+export async function rejectReview(reviewId: string) {
+  const review = await Review.findById(reviewId);
+  if (!review) throw new AppError("Review not found", 404);
+
+  review.isApproved = false;
+  await review.save();
+
+  // Recalculate product rating
+  const productId = review.productId.toString();
+  const stats = await Review.aggregate([
+    { $match: { productId: new Types.ObjectId(productId), isApproved: true } },
+    {
+      $group: {
+        _id: null,
+        averageRating: { $avg: "$rating" },
+        reviewCount: { $sum: 1 },
+      },
+    },
+  ]);
+
+  const { Product } = await import("../models/Product.js");
+  await Product.findByIdAndUpdate(productId, {
+    averageRating: stats[0]?.averageRating ?? 0,
+    reviewCount: stats[0]?.reviewCount ?? 0,
+  });
+
+  return reviewService.toLegacyReview(review as any);
+}
+
+export async function getAllReviews() {
+  const reviews = await Review.find()
+    .populate("userId", "username email")
+    .populate("productId", "name")
+    .sort({ createdAt: -1 })
+    .lean();
+  
+  return reviews.map((review) => reviewService.toLegacyReview(review as any));
+}
