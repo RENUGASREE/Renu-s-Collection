@@ -54,7 +54,7 @@ export function LoadingScreen({ onFinishLoading }: LoadingScreenProps) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.8 }}
       >
-        <Progress value={progress} className="h-2 bg-white/30 [&>div]:bg-pink-400" />
+        <Progress value={progress} className="h-2 bg-white/30 [&>div]:bg-[#B66F72]" />
       </motion.div>
 
       {/* Enter button */}
