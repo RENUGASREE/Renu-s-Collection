@@ -12,7 +12,7 @@ interface DashboardStats {
   orders: { total: number; pending: number; last30Days: number };
   products: { total: number; active: number; lowStock: number };
   users: { total: number; customers: number; admins: number };
-  topProducts: { name: string; sku: string; reviewCount: number; averageRating: number }[];
+  topProducts: { id: string; name: string; sku: string; reviewCount: number; averageRating: number }[];
 }
 
 export default function Admin() {

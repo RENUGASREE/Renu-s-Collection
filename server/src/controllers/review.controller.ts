@@ -132,5 +132,8 @@ export async function getAllReviews() {
     .sort({ createdAt: -1 })
     .lean();
   
-  return reviews.map((review) => reviewService.toLegacyReview(review as any));
+  return reviews.map((review, index) => ({
+    ...reviewService.toLegacyReview(review as any),
+    _key: `review-${review._id}-${index}`,
+  }));
 }

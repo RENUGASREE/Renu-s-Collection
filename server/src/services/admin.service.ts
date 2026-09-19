@@ -72,6 +72,8 @@ export async function getDashboardStats() {
         admins: await User.countDocuments({ role: "admin" }),
       },
       topProducts: topProducts.map((p) => ({
+        id: p._id?.toString() || `product-${Math.random()}`,
+        _id: p._id?.toString(),
         name: p.name,
         sku: p.sku || "",
         reviewCount: 0,

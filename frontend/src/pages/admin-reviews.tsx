@@ -22,6 +22,7 @@ interface Review {
   createdAt: string;
   images: string[];
   helpfulCount: number;
+  _key?: string;
 }
 
 export default function AdminReviews() {
@@ -126,7 +127,7 @@ export default function AdminReviews() {
             <h2 className="text-2xl font-bold mb-4">Pending Reviews</h2>
             <div className="space-y-4">
               {pendingReviews.map((review) => (
-                <Card key={review.id}>
+                <Card key={review._key || review.id}>
                   <CardHeader>
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
@@ -214,7 +215,7 @@ export default function AdminReviews() {
             <h2 className="text-2xl font-bold mb-4">Approved Reviews</h2>
             <div className="space-y-4">
               {approvedReviews.map((review) => (
-                <Card key={review.id} className="opacity-75">
+                <Card key={review._key || review.id} className="opacity-75">
                   <CardHeader>
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
