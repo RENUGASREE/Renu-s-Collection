@@ -27,6 +27,10 @@ export async function createReview(
 ) {
   if (!Types.ObjectId.isValid(input.productId)) throw new AppError("Invalid product", 400);
 
+  // Check if product exists
+  const product = await Product.findById(input.productId);
+  if (!product) throw new AppError("Product not found", 404);
+
   const existing = await Review.findOne({
     userId: new Types.ObjectId(userId),
     productId: new Types.ObjectId(input.productId),

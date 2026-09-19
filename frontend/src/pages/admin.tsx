@@ -141,6 +141,7 @@ export default function Admin() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <Card
+            key="products"
             className="cursor-pointer hover:shadow-lg transition-shadow"
             onClick={() => navigate("/admin/products")}
           >
@@ -151,6 +152,7 @@ export default function Admin() {
           </Card>
 
           <Card
+            key="categories"
             className="cursor-pointer hover:shadow-lg transition-shadow"
             onClick={() => navigate("/admin/categories")}
           >
@@ -161,6 +163,7 @@ export default function Admin() {
           </Card>
 
           <Card
+            key="inventory"
             className="cursor-pointer hover:shadow-lg transition-shadow"
             onClick={() => navigate("/admin/inventory")}
           >
@@ -171,6 +174,7 @@ export default function Admin() {
           </Card>
 
           <Card
+            key="customization"
             className="cursor-pointer hover:shadow-lg transition-shadow"
             onClick={() => navigate("/admin/customization")}
           >
@@ -181,6 +185,7 @@ export default function Admin() {
           </Card>
 
           <Card
+            key="orders"
             className="cursor-pointer hover:shadow-lg transition-shadow"
             onClick={() => navigate("/admin/orders")}
           >
@@ -191,6 +196,7 @@ export default function Admin() {
           </Card>
 
           <Card
+            key="reviews"
             className="cursor-pointer hover:shadow-lg transition-shadow"
             onClick={() => navigate("/admin/reviews")}
           >
