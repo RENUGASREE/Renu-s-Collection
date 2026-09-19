@@ -120,19 +120,19 @@ export default function Admin() {
 
         {stats && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            <Card>
+            <Card key="revenue">
               <CardHeader><CardTitle>Revenue (30d)</CardTitle></CardHeader>
               <CardContent className="text-2xl font-bold">₹{stats.revenue.last30Days.toLocaleString()}</CardContent>
             </Card>
-            <Card>
+            <Card key="orders">
               <CardHeader><CardTitle>Orders</CardTitle></CardHeader>
               <CardContent className="text-2xl font-bold">{stats.orders.total} total · {stats.orders.pending} pending</CardContent>
             </Card>
-            <Card>
+            <Card key="products">
               <CardHeader><CardTitle>Products</CardTitle></CardHeader>
               <CardContent className="text-2xl font-bold">{stats.products.active} active · {stats.products.lowStock} low stock</CardContent>
             </Card>
-            <Card>
+            <Card key="users">
               <CardHeader><CardTitle>Users</CardTitle></CardHeader>
               <CardContent className="text-2xl font-bold">{stats.users.total} total</CardContent>
             </Card>

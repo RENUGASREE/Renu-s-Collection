@@ -27,37 +27,42 @@ export async function createReview(
 ) {
   if (!Types.ObjectId.isValid(input.productId)) throw new AppError("Invalid product", 400);
 
-  // Check if product exists
-  const product = await Product.findById(input.productId);
-  if (!product) throw new AppError("Product not found", 404);
+  try {
+    // Check if product exists
+    const product = await Product.findById(input.productId);
+    if (!product) throw new AppError("Product not found", 404);
 
-  const existing = await Review.findOne({
-    userId: new Types.ObjectId(userId),
-    productId: new Types.ObjectId(input.productId),
-  });
-  if (existing) throw new AppError("You already reviewed this product", 409);
+    const existing = await Review.findOne({
+      userId: new Types.ObjectId(userId),
+      productId: new Types.ObjectId(input.productId),
+    });
+    if (existing) throw new AppError("You already reviewed this product", 409);
 
-  const paidOrder = await Order.findOne({
-    userId: new Types.ObjectId(userId),
-    paymentStatus: { $in: ["paid", "pending"] },
-    status: { $ne: "cancelled" },
-    "items.productId": new Types.ObjectId(input.productId),
-  });
+    const paidOrder = await Order.findOne({
+      userId: new Types.ObjectId(userId),
+      paymentStatus: { $in: ["paid", "pending"] },
+      status: { $ne: "cancelled" },
+      "items.productId": new Types.ObjectId(input.productId),
+    });
 
-  const review = await Review.create({
-    userId: new Types.ObjectId(userId),
-    productId: new Types.ObjectId(input.productId),
-    orderId: paidOrder?._id,
-    rating: input.rating,
-    title: input.title,
-    body: input.body,
-    images: input.images ?? [],
-    isVerifiedPurchase: Boolean(paidOrder),
-    isApproved: false,
-  });
+    const review = await Review.create({
+      userId: new Types.ObjectId(userId),
+      productId: new Types.ObjectId(input.productId),
+      orderId: paidOrder?._id,
+      rating: input.rating,
+      title: input.title,
+      body: input.body,
+      images: input.images ?? [],
+      isVerifiedPurchase: Boolean(paidOrder),
+      isApproved: false,
+    });
 
-  await recalculateProductRating(input.productId);
-  return review;
+    await recalculateProductRating(input.productId);
+    return review;
+  } catch (error) {
+    console.error('Error creating review:', error);
+    throw error;
+  }
 }
 
 async function recalculateProductRating(productId: string) {

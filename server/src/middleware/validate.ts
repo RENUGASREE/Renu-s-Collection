@@ -14,8 +14,6 @@ export function sanitizeRequest(req: Request, _res: Response, next: NextFunction
     /%2e%2e/i,
   ];
 
-  console.log('Sanitizing request:', url);
-
   for (const pattern of suspiciousPatterns) {
     if (pattern.test(url)) {
       console.warn('Blocked suspicious request:', {
