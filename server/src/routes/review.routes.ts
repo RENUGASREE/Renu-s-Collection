@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from "express";
 import * as reviewController from "../controllers/review.controller.js";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
+import { AppError } from "../middleware/errorHandler.js";
 import { validateBody, validateParams, validateQuery } from "../middleware/validate.js";
 import { z } from "zod";
 
@@ -47,9 +48,9 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const userId = req.user?.id;
-      if (!userId) throw new Error("User not authenticated");
+      if (!userId) throw new AppError("Authentication required", 401);
       const review = await reviewController.createReview(userId, req.body);
-      res.json({ success: true, data: review });
+      res.status(201).json({ success: true, data: review });
     } catch (error) {
       next(error);
     }

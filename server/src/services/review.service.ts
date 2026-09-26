@@ -57,7 +57,18 @@ export async function createReview(
       isApproved: false,
     });
 
-    await recalculateProductRating(input.productId);
+    try {
+      await recalculateProductRating(input.productId);
+    } catch (ratingError) {
+      console.error("Failed to recalculate rating during review creation:", ratingError);
+    }
+
+    try {
+      await review.populate("userId", "username email");
+    } catch {
+      // ignore population error
+    }
+
     return review;
   } catch (error) {
     console.error('Error creating review:', error);
@@ -66,6 +77,7 @@ export async function createReview(
 }
 
 async function recalculateProductRating(productId: string) {
+  if (!Types.ObjectId.isValid(productId)) return;
   const stats = await Review.aggregate([
     { $match: { productId: new Types.ObjectId(productId), isApproved: true } },
     {
@@ -77,26 +89,30 @@ async function recalculateProductRating(productId: string) {
     },
   ]);
 
+  const averageRating = stats[0]?.averageRating ? Number(stats[0].averageRating.toFixed(1)) : 0;
+  const reviewCount = stats[0]?.reviewCount ?? 0;
+
   await Product.findByIdAndUpdate(productId, {
-    averageRating: stats[0]?.averageRating ?? 0,
-    reviewCount: stats[0]?.reviewCount ?? 0,
+    averageRating,
+    reviewCount,
   });
 }
 
-export function toLegacyReview(review: Record<string, unknown>) {
-  const user = review.userId as { username?: string; email?: string } | undefined;
+export function toLegacyReview(review: Record<string, unknown> | any) {
+  const doc = review && typeof review.toObject === "function" ? review.toObject() : review;
+  const user = doc?.userId as { username?: string; email?: string } | undefined;
   return {
-    id: (review._id as { toString(): string }).toString(),
-    userId: review.userId,
+    id: (doc?._id ? (doc._id.toString ? doc._id.toString() : String(doc._id)) : ""),
+    userId: doc?.userId,
     username: user?.username ?? user?.email?.split("@")[0] ?? "Customer",
-    productId: review.productId,
-    rating: review.rating,
-    title: review.title,
-    body: review.body,
-    isVerifiedPurchase: review.isVerifiedPurchase,
-    createdAt: review.createdAt,
-    isApproved: review.isApproved,
-    images: review.images ?? [],
-    helpfulCount: review.helpfulCount ?? 0,
+    productId: doc?.productId,
+    rating: doc?.rating ?? 0,
+    title: doc?.title ?? "",
+    body: doc?.body ?? "",
+    isVerifiedPurchase: Boolean(doc?.isVerifiedPurchase),
+    createdAt: doc?.createdAt ?? new Date().toISOString(),
+    isApproved: Boolean(doc?.isApproved),
+    images: doc?.images ?? [],
+    helpfulCount: doc?.helpfulCount ?? 0,
   };
 }

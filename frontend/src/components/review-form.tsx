@@ -8,7 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { StarRating } from './star-rating';
-import { Upload, X } from 'lucide-react';
+import { Upload, X, CheckCircle2 } from 'lucide-react';
 
 interface ReviewFormProps {
   productId: string;
@@ -25,6 +25,8 @@ export function ReviewForm({ productId, onSuccess, onCancel }: ReviewFormProps) 
   const [images, setImages] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  const [alreadyReviewed, setAlreadyReviewed] = useState(false);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -75,9 +77,11 @@ export function ReviewForm({ productId, onSuccess, onCancel }: ReviewFormProps) 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (submitting) return;
+
     if (!user) {
       toast({
-        title: 'Error',
+        title: 'Authentication Required',
         description: 'You must be logged in to submit a review',
         variant: 'destructive',
       });
@@ -86,8 +90,8 @@ export function ReviewForm({ productId, onSuccess, onCancel }: ReviewFormProps) 
 
     if (rating === 0) {
       toast({
-        title: 'Error',
-        description: 'Please select a rating',
+        title: 'Rating Required',
+        description: 'Please select a rating of 1 to 5 stars',
         variant: 'destructive',
       });
       return;
@@ -95,8 +99,8 @@ export function ReviewForm({ productId, onSuccess, onCancel }: ReviewFormProps) 
 
     if (!title.trim() || !body.trim()) {
       toast({
-        title: 'Error',
-        description: 'Please fill in all required fields',
+        title: 'Incomplete Review',
+        description: 'Please provide both a title and review comments',
         variant: 'destructive',
       });
       return;
@@ -108,17 +112,26 @@ export function ReviewForm({ productId, onSuccess, onCancel }: ReviewFormProps) 
       const response = await apiRequest('POST', '/api/v1/reviews', {
         productId,
         rating,
-        title,
-        body,
+        title: title.trim(),
+        body: body.trim(),
         images: images.filter(img => img && img.length > 0),
       });
 
+      if (response.status === 409) {
+        setAlreadyReviewed(true);
+        toast({
+          title: 'Review Already Submitted',
+          description: "You've already reviewed this product. Each verified customer can submit one review per piece.",
+        });
+        return;
+      }
+
       const data = await response.json();
 
-      if (data.success) {
+      if (response.ok && data.success) {
         toast({
-          title: 'Success',
-          description: 'Your review has been submitted and will be visible after approval',
+          title: 'Review Received',
+          description: 'Thank you! Your review has been submitted and will appear once verified by our team.',
         });
         setRating(0);
         setTitle('');
@@ -126,19 +139,58 @@ export function ReviewForm({ productId, onSuccess, onCancel }: ReviewFormProps) 
         setImages([]);
         onSuccess?.();
       } else {
-        throw new Error(data.message || 'Failed to submit review');
+        const errorMsg = data.message || 'Failed to submit review';
+        if (response.status === 409 || errorMsg.toLowerCase().includes('already reviewed')) {
+          setAlreadyReviewed(true);
+          toast({
+            title: 'Review Already Submitted',
+            description: "You've already reviewed this product. Each verified customer can submit one review per piece.",
+          });
+        } else {
+          throw new Error(errorMsg);
+        }
       }
-    } catch (error) {
-      console.error('Error submitting review:', error);
-      toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to submit review',
-        variant: 'destructive',
-      });
+    } catch (error: any) {
+      const errorMsg = error?.message || 'Failed to submit review';
+      if (errorMsg.includes('409') || errorMsg.toLowerCase().includes('already reviewed')) {
+        setAlreadyReviewed(true);
+        toast({
+          title: 'Review Already Submitted',
+          description: "You've already reviewed this product. Each verified customer can submit one review per piece.",
+        });
+      } else {
+        console.error('Error submitting review:', error);
+        toast({
+          title: 'Submission Issue',
+          description: errorMsg,
+          variant: 'destructive',
+        });
+      }
     } finally {
       setSubmitting(false);
     }
   };
+
+  if (alreadyReviewed) {
+    return (
+      <Card className="border border-border/50 bg-card/80 backdrop-blur-sm shadow-sm rounded-xl overflow-hidden p-6 text-center">
+        <div className="flex flex-col items-center justify-center space-y-3 py-4">
+          <div className="h-12 w-12 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+            <CheckCircle2 className="h-6 w-6" />
+          </div>
+          <h3 className="font-serif text-lg font-medium text-foreground">Review Already Submitted</h3>
+          <p className="text-sm text-muted-foreground max-w-md">
+            You've already submitted a review for this piece. Verified customer reviews ensure authentic feedback for our jewellery collectors.
+          </p>
+          {onCancel && (
+            <Button variant="outline" size="sm" onClick={onCancel} className="mt-2 text-xs">
+              Close
+            </Button>
+          )}
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <Card className="border border-border/50 bg-card/80 backdrop-blur-sm shadow-sm rounded-xl overflow-hidden">

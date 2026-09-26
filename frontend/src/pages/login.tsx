@@ -22,7 +22,6 @@ export default function Login() {
     try {
       const response = await apiRequest('POST', '/api/v1/auth/login', { email: identifier, password });
       const data = await response.json();
-      console.log("Login successful:", data);
       login(data.data.accessToken, {
         id: data.data.user.id,
         username: data.data.user.username,

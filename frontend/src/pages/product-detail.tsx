@@ -81,17 +81,30 @@ export default function ProductDetail() {
         const data = await response.json();
         setProduct(data.data);
 
-        // Fetch customization config if product is customizable
-        if (data.data.isCustomizable) {
+        // Fetch customization config only if product is customizable
+        if (data.data?.isCustomizable) {
           try {
             const customResponse = await apiRequest('GET', `/api/v1/customization/products/${productId}/customization`);
-            const customData = await customResponse.json();
-            setCustomizationConfig(customData.data);
-            setShowCustomization(true);
-          } catch (customErr) {
-            console.error('Failed to fetch customization config:', customErr);
+            if (customResponse.ok) {
+              const customData = await customResponse.json();
+              if (customData.data?.fields && customData.data.fields.length > 0) {
+                setCustomizationConfig(customData.data);
+                setShowCustomization(true);
+              } else {
+                setCustomizationConfig(null);
+                setShowCustomization(false);
+              }
+            } else {
+              setCustomizationConfig(null);
+              setShowCustomization(false);
+            }
+          } catch {
+            setCustomizationConfig(null);
             setShowCustomization(false);
           }
+        } else {
+          setCustomizationConfig(null);
+          setShowCustomization(false);
         }
       } catch (err) {
         setError("Failed to fetch product details.");

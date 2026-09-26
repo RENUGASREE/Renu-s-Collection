@@ -10,35 +10,36 @@ import { z } from "zod";
 
 const router = Router();
 
-const idParamSchema = z.object({
-  id: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid ID format"),
+const paramSchema = z.object({
+  id: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid ID format").optional(),
+  productId: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid ID format").optional(),
 });
 
 // Get customization configuration for a product
 router.get(
-  "/products/:id/customization",
-  validateParams(idParamSchema),
+  "/products/:productId/customization",
+  validateParams(paramSchema),
   getProductCustomization
 );
 
 // Calculate price for customization selections
 router.post(
-  "/products/:id/customization/calculate-price",
-  validateParams(idParamSchema),
+  "/products/:productId/customization/calculate-price",
+  validateParams(paramSchema),
   calculateCustomizationPrice
 );
 
 // Validate customization selections
 router.post(
-  "/products/:id/customization/validate",
-  validateParams(idParamSchema),
+  "/products/:productId/customization/validate",
+  validateParams(paramSchema),
   validateCustomization
 );
 
 // Generate preview for customization
 router.post(
-  "/products/:id/customization/preview",
-  validateParams(idParamSchema),
+  "/products/:productId/customization/preview",
+  validateParams(paramSchema),
   getCustomizationPreview
 );
 
