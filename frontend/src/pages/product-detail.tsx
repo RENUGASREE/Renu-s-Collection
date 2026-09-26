@@ -65,7 +65,12 @@ export default function ProductDetail() {
   const [addingToCart, setAddingToCart] = useState(false);
   const [customizationConfig, setCustomizationConfig] = useState<CustomizationConfig | null>(null);
   const [customizationSelections, setCustomizationSelections] = useState<Record<string, string | string[]>>({});
-  const [customizationPrice, setCustomizationPrice] = useState<{ basePrice: number; priceModifier: number; totalPrice: number } | null>(null);
+  const [customizationPrice, setCustomizationPrice] = useState<{
+    basePrice: number;
+    priceModifier: number;
+    totalPrice: number;
+    breakdown?: { field: string; option: string; modifier: number }[];
+  } | null>(null);
   const [showCustomization, setShowCustomization] = useState(false);
   const [isInWishlist, setIsInWishlist] = useState(false);
   const [wishlistIds, setWishlistIds] = useState<Set<string>>(new Set());
@@ -78,7 +83,17 @@ export default function ProductDetail() {
     const fetchProduct = async () => {
       try {
         const response = await apiRequest('GET', `/api/v1/products/${productId}`);
+        if (!response.ok) {
+          setError("Product not found");
+          setProduct(null);
+          return;
+        }
         const data = await response.json();
+        if (!data.data) {
+          setError("Product not found");
+          setProduct(null);
+          return;
+        }
         setProduct(data.data);
 
         // Fetch customization config only if product is customizable
@@ -209,6 +224,7 @@ export default function ProductDetail() {
           selections: customizationSelections,
           previewImageUrl: customizationConfig?.previewLayers[0]?.imageUrl || getProductImage(product),
           priceModifier: customizationPrice?.priceModifier || 0,
+          breakdown: customizationPrice?.breakdown || [],
         } : undefined,
       };
 
@@ -293,6 +309,7 @@ export default function ProductDetail() {
           selections: customizationSelections,
           previewImageUrl: customizationConfig?.previewLayers[0]?.imageUrl || getProductImage(product),
           priceModifier: customizationPrice?.priceModifier || 0,
+          breakdown: customizationPrice?.breakdown || [],
         } : undefined,
       };
 

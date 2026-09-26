@@ -195,8 +195,16 @@ export default function Orders() {
                               Qty: {item.quantity} × ₹{item.unitPrice.toFixed(2)}
                             </p>
                             {item.customization && (
-                              <div className="mt-1 text-xs text-muted-foreground">
-                                <p>Customized</p>
+                              <div className="mt-1 text-xs text-muted-foreground flex flex-wrap gap-1">
+                                {(item.customization as any).breakdown && (item.customization as any).breakdown.length > 0 ? (
+                                  (item.customization as any).breakdown.map((b: any, bIdx: number) => (
+                                    <span key={bIdx} className="inline-block text-[11px] bg-muted/60 px-1.5 py-0.5 rounded border border-border/40">
+                                      {b.field}: <strong className="text-foreground font-medium">{b.option}</strong>
+                                    </span>
+                                  ))
+                                ) : (
+                                  <span className="text-[11px] text-primary">Customized</span>
+                                )}
                               </div>
                             )}
                           </div>

@@ -5,6 +5,11 @@ export interface ICartItemCustomization {
   previewImageUrl?: string;
   priceModifier?: number;
   engraving?: string;
+  breakdown?: {
+    field: string;
+    option: string;
+    modifier?: number;
+  }[];
 }
 
 export interface ICartItem {
@@ -40,6 +45,7 @@ const cartItemSchema = new Schema<ICartItem>(
       previewImageUrl: String,
       priceModifier: { type: Number, default: 0 },
       engraving: String,
+      breakdown: { type: Schema.Types.Mixed, default: [] },
     },
     savedForLater: { type: Boolean, default: false },
   },

@@ -6,6 +6,7 @@ import { AppError } from "../middleware/errorHandler.js";
 import { generateOrderNumber } from "../utils/helpers.js";
 import { getCartItems, clearCart, toLegacyCartItem } from "./cart.service.js";
 import { deductStockForOrder } from "./inventory.service.js";
+import { customizationService } from "./customization.service.js";
 import type { IAddress } from "../models/User.js";
 import type { ICartItem } from "../models/Cart.js";
 import type { OrderStatus } from "../types/index.js";
@@ -77,7 +78,26 @@ export async function createOrderFromCart(
       throw new AppError(`Insufficient stock for ${item.name}`, 400);
     }
 
-    const unitPrice = item.unitPrice + (item.customization?.priceModifier ?? 0);
+    let priceModifier = 0;
+    let breakdown: any[] = [];
+    if (item.customization?.selections && Object.keys(item.customization.selections).length > 0) {
+      try {
+        const pricing = await customizationService.calculatePrice(
+          item.productId.toString(),
+          item.customization.selections as Record<string, string | string[]>
+        );
+        priceModifier = pricing.priceModifier;
+        breakdown = pricing.breakdown;
+      } catch (err) {
+        priceModifier = item.customization.priceModifier ?? 0;
+        breakdown = item.customization.breakdown ?? [];
+      }
+    } else {
+      priceModifier = item.customization?.priceModifier ?? 0;
+      breakdown = item.customization?.breakdown ?? [];
+    }
+
+    const unitPrice = item.unitPrice + priceModifier;
     const lineSubtotal = unitPrice * item.quantity;
     subtotal += lineSubtotal;
 
@@ -94,6 +114,7 @@ export async function createOrderFromCart(
             selections: item.customization.selections,
             previewImageUrl: item.customization.previewImageUrl,
             engraving: item.customization.engraving,
+            breakdown,
           }
         : undefined,
     });

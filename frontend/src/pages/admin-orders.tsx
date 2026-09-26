@@ -452,7 +452,24 @@ export default function AdminOrders() {
                             Qty: {item.quantity} × ₹{item.unitPrice.toFixed(2)}
                           </p>
                           {item.customization && (
-                            <p className="text-xs text-primary">Customized</p>
+                            <div className="mt-1 text-xs space-y-0.5 bg-muted/40 p-2 rounded">
+                              <p className="font-semibold text-primary">Customization:</p>
+                              {(item.customization as any).breakdown && (item.customization as any).breakdown.length > 0 ? (
+                                (item.customization as any).breakdown.map((b: any, bIdx: number) => (
+                                  <p key={bIdx} className="text-muted-foreground">
+                                    {b.field}: <strong className="text-foreground">{b.option}</strong>
+                                    {b.modifier ? <span className="text-primary ml-1">(+₹{b.modifier})</span> : null}
+                                  </p>
+                                ))
+                              ) : item.customization.selections ? (
+                                Object.entries(item.customization.selections).map(([k, v]) => (
+                                  <p key={k} className="text-muted-foreground">
+                                    <span className="capitalize">{k.replace(/_/g, ' ')}:</span>{' '}
+                                    <strong className="text-foreground">{Array.isArray(v) ? v.join(', ') : String(v)}</strong>
+                                  </p>
+                                ))
+                              ) : null}
+                            </div>
                           )}
                         </div>
                       ))}

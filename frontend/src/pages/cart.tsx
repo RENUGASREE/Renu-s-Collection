@@ -21,8 +21,15 @@ interface CartItem {
   id: string;
   name: string;
   price: number;
+  basePrice: number;
+  priceModifier: number;
   quantity: number;
   image: string; // normalized client-side from image_url/imageUrl
+  customization?: {
+    selections?: Record<string, any>;
+    priceModifier?: number;
+    breakdown?: { field: string; option: string; modifier?: number }[];
+  };
 }
 
 export default function Cart() {
@@ -47,13 +54,20 @@ export default function Cart() {
         const data = await response.json();
         // Backend returns { success: true, data: items } where data is the items array
         const items = data.data || [];
-        const normalized: CartItem[] = items.map((item: any) => ({
-          id: String(item._id ?? item.productId ?? ''),
-          name: item.name ?? '',
-          price: Number(item.unitPrice ?? item.price ?? 0),
-          quantity: Number(item.quantity ?? 1),
-          image: item.imageUrl || item.image_url || item.image || ''
-        }));
+        const normalized: CartItem[] = items.map((item: any) => {
+          const basePrice = Number(item.unitPrice ?? item.price ?? 0);
+          const priceModifier = Number(item.customization?.priceModifier ?? 0);
+          return {
+            id: String(item._id ?? item.productId ?? ''),
+            name: item.name ?? '',
+            basePrice,
+            priceModifier,
+            price: basePrice + priceModifier,
+            quantity: Number(item.quantity ?? 1),
+            image: item.imageUrl || item.image_url || item.image || '',
+            customization: item.customization,
+          };
+        });
         setCartItems(normalized);
       } catch (err) {
         setError("Failed to fetch cart items.");
@@ -141,18 +155,47 @@ export default function Cart() {
               {cartItems.map((item) => (
                 <div
                   key={item.id}
-                  className="flex items-center border-b py-4"
+                  className="flex items-start border-b py-4"
                 >
                   <img
                     src={item.image}
                     alt={item.name}
-                    className="w-24 h-24 object-cover rounded-md mr-4"
+                    className="w-24 h-24 object-cover rounded-md mr-4 shrink-0"
                   />
                   <div className="flex-grow">
                     <h2 className="text-xl font-semibold">{item.name}</h2>
-                    <p className="text-lg text-muted-foreground">
-                      <span>₹{item.price.toLocaleString()}</span>
-                    </p>
+                    <div className="flex items-baseline gap-2 mt-1">
+                      <span className="text-lg font-medium text-foreground">
+                        ₹{item.price.toLocaleString()}
+                      </span>
+                      {item.priceModifier > 0 && (
+                        <span className="text-xs text-muted-foreground">
+                          (Base: ₹{item.basePrice.toLocaleString()} + Custom: ₹{item.priceModifier.toLocaleString()})
+                        </span>
+                      )}
+                    </div>
+                    {item.customization && (
+                      <div className="mt-2 text-xs bg-muted/40 p-2.5 rounded-md border border-border/40 max-w-md space-y-1">
+                        <p className="font-semibold text-muted-foreground uppercase text-[10px] tracking-wider">
+                          Customization:
+                        </p>
+                        {item.customization.breakdown && item.customization.breakdown.length > 0 ? (
+                          item.customization.breakdown.map((b, bIdx) => (
+                            <div key={bIdx} className="flex justify-between items-center text-foreground">
+                              <span>{b.field}: <strong className="font-medium">{b.option}</strong></span>
+                              {b.modifier ? <span className="text-primary font-semibold">+₹{b.modifier}</span> : null}
+                            </div>
+                          ))
+                        ) : item.customization.selections ? (
+                          Object.entries(item.customization.selections).map(([key, val]) => (
+                            <div key={key} className="text-foreground">
+                              <span className="capitalize text-muted-foreground">{key.replace(/_/g, ' ')}:</span>{' '}
+                              <strong className="font-medium">{Array.isArray(val) ? val.join(', ') : String(val)}</strong>
+                            </div>
+                          ))
+                        ) : null}
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <Button

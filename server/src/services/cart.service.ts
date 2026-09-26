@@ -2,6 +2,7 @@ import { Types } from "mongoose";
 import { Cart, ICartItem } from "../models/Cart.js";
 import { Product } from "../models/Product.js";
 import { AppError } from "../middleware/errorHandler.js";
+import { customizationService } from "./customization.service.js";
 
 export async function getOrCreateCart(userId: string) {
   let cart = await Cart.findOne({ userId: new Types.ObjectId(userId) });
@@ -50,7 +51,7 @@ export async function addCartItem(
       resolvedName = resolvedName || product.name;
       const primary = product.media.find((m) => m.isPrimary) ?? product.media[0];
       imageUrl = imageUrl || primary?.url;
-      unitPrice = unitPrice || (product.salePrice && product.salePrice < product.price ? product.salePrice : product.price);
+      unitPrice = (product.salePrice && product.salePrice < product.price ? product.salePrice : product.price);
     }
   }
 
@@ -64,6 +65,21 @@ export async function addCartItem(
 
   if (unitPrice === undefined || unitPrice === null) {
     throw new AppError("Product price is required", 400);
+  }
+
+  // Securely recalculate customization price modifier and breakdown from database configuration
+  if (input.customization && input.customization.selections && Object.keys(input.customization.selections).length > 0) {
+    try {
+      const priceResult = await customizationService.calculatePrice(
+        productObjectId.toString(),
+        input.customization.selections as Record<string, string | string[]>
+      );
+      input.customization.priceModifier = priceResult.priceModifier;
+      input.customization.breakdown = priceResult.breakdown;
+    } catch (err) {
+      console.warn("Could not calculate customization price modifier:", err);
+      input.customization.priceModifier = input.customization.priceModifier || 0;
+    }
   }
 
   // Check for existing item with same product and same customization
@@ -143,10 +159,11 @@ export function toLegacyCartItem(item: ICartItem & { _id?: Types.ObjectId }, ind
     product_id: item.productId.toString(),
     product_type: productType,
     name: item.name,
-    price: item.unitPrice,
+    price: item.unitPrice + (item.customization?.priceModifier ?? 0),
     quantity: item.quantity,
     image_url: item.imageUrl,
     imageUrl: item.imageUrl,
+    customization: item.customization,
     product: {
       name: item.name,
       image: item.imageUrl,

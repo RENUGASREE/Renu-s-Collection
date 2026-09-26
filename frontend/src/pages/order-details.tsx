@@ -279,14 +279,25 @@ export default function OrderDetails() {
                         {item.customization && (
                           <div className="mt-2 p-2 bg-gray-50 rounded text-sm">
                             <p className="font-medium text-xs text-muted-foreground mb-1">Customization:</p>
-                            <ul className="text-xs space-y-1">
-                              {Object.entries(item.customization.selections).map(([key, value]) => (
-                                <li key={key}>
-                                  <span className="text-muted-foreground">{key}:</span>{' '}
-                                  {Array.isArray(value) ? value.join(', ') : value}
-                                </li>
-                              ))}
-                            </ul>
+                            {(item.customization as any).breakdown && (item.customization as any).breakdown.length > 0 ? (
+                              <ul className="text-xs space-y-1">
+                                {(item.customization as any).breakdown.map((b: any, bIdx: number) => (
+                                  <li key={bIdx} className="flex justify-between">
+                                    <span>{b.field}: <strong className="font-medium text-foreground">{b.option}</strong></span>
+                                    {b.modifier ? <span className="text-primary font-medium">+₹{b.modifier}</span> : null}
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : item.customization.selections ? (
+                              <ul className="text-xs space-y-1">
+                                {Object.entries(item.customization.selections).map(([key, value]) => (
+                                  <li key={key}>
+                                    <span className="text-muted-foreground capitalize">{key.replace(/_/g, ' ')}:</span>{' '}
+                                    <strong className="font-medium text-foreground">{Array.isArray(value) ? value.join(', ') : value}</strong>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : null}
                             {item.customization.previewImageUrl && (
                               <img
                                 src={item.customization.previewImageUrl}

@@ -1,6 +1,5 @@
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
@@ -29,6 +28,14 @@ interface CustomizationControlsProps {
   disabled?: boolean;
 }
 
+const resolveColor = (val: string) => {
+  if (!val) return '#cccccc';
+  const clean = val.trim();
+  if (clean.startsWith('#')) return clean;
+  if (/^[0-9A-Fa-f]{3,8}$/.test(clean)) return `#${clean}`;
+  return clean;
+};
+
 export const CustomizationControls: React.FC<CustomizationControlsProps> = ({
   fields,
   selections,
@@ -41,41 +48,46 @@ export const CustomizationControls: React.FC<CustomizationControlsProps> = ({
     return (
       <div key={field.key} className="space-y-3">
         <div className="flex items-center gap-2">
-          <Label>{field.label}</Label>
+          <Label className="font-medium text-sm md:text-base">{field.label}</Label>
           {field.required && <span className="text-red-500">*</span>}
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {field.options?.map((option) => (
-            <Card
-              key={option.value}
-              className={`cursor-pointer transition-all ${
-                value === option.value ? 'ring-2 ring-primary' : 'hover:ring-1 hover:ring-primary/50'
-              }`}
-              onClick={() => !disabled && onChange(field.key, option.value)}
-            >
-              <CardContent className="p-3">
-                {option.imageUrl ? (
-                  <div className="space-y-2">
-                    <img
-                      src={option.imageUrl}
-                      alt={option.label}
-                      className="w-full h-20 object-cover rounded"
-                    />
-                    <p className="text-sm font-medium text-center">{option.label}</p>
-                  </div>
-                ) : (
-                  <div className="text-center">
-                    <p className="font-medium">{option.label}</p>
-                    {option.priceModifier !== undefined && option.priceModifier !== 0 && (
-                      <Badge variant="secondary" className="mt-1">
-                        {option.priceModifier > 0 ? '+' : ''}₹{option.priceModifier}
-                      </Badge>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
+          {field.options?.map((option) => {
+            const isSelected = value === option.value || value === option.label;
+            return (
+              <Card
+                key={option.value}
+                className={`cursor-pointer transition-all border ${
+                  isSelected
+                    ? 'border-primary ring-2 ring-primary/40 bg-primary/5'
+                    : 'border-border/70 hover:border-primary/50'
+                }`}
+                onClick={() => !disabled && onChange(field.key, option.value)}
+              >
+                <CardContent className="p-3">
+                  {option.imageUrl ? (
+                    <div className="space-y-2">
+                      <img
+                        src={option.imageUrl}
+                        alt={option.label}
+                        className="w-full h-20 object-cover rounded"
+                      />
+                      <p className="text-sm font-medium text-center">{option.label}</p>
+                    </div>
+                  ) : (
+                    <div className="text-center">
+                      <p className="font-medium text-sm">{option.label}</p>
+                      {option.priceModifier !== undefined && option.priceModifier !== 0 && (
+                        <Badge variant="secondary" className="mt-1 text-xs">
+                          {option.priceModifier > 0 ? '+' : ''}₹{option.priceModifier}
+                        </Badge>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       </div>
     );
@@ -87,47 +99,52 @@ export const CustomizationControls: React.FC<CustomizationControlsProps> = ({
     return (
       <div key={field.key} className="space-y-3">
         <div className="flex items-center gap-2">
-          <Label>{field.label}</Label>
+          <Label className="font-medium text-sm md:text-base">{field.label}</Label>
           {field.required && values.length === 0 && <span className="text-red-500">*</span>}
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {field.options?.map((option) => (
-            <Card
-              key={option.value}
-              className={`cursor-pointer transition-all ${
-                values.includes(option.value) ? 'ring-2 ring-primary' : 'hover:ring-1 hover:ring-primary/50'
-              }`}
-              onClick={() => {
-                if (disabled) return;
-                const newValues = values.includes(option.value)
-                  ? values.filter((v) => v !== option.value)
-                  : [...values, option.value];
-                onChange(field.key, newValues);
-              }}
-            >
-              <CardContent className="p-3">
-                {option.imageUrl ? (
-                  <div className="space-y-2">
-                    <img
-                      src={option.imageUrl}
-                      alt={option.label}
-                      className="w-full h-20 object-cover rounded"
-                    />
-                    <p className="text-sm font-medium text-center">{option.label}</p>
-                  </div>
-                ) : (
-                  <div className="text-center">
-                    <p className="font-medium">{option.label}</p>
-                    {option.priceModifier !== undefined && option.priceModifier !== 0 && (
-                      <Badge variant="secondary" className="mt-1">
-                        {option.priceModifier > 0 ? '+' : ''}₹{option.priceModifier}
-                      </Badge>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
+          {field.options?.map((option) => {
+            const isSelected = values.includes(option.value) || values.includes(option.label);
+            return (
+              <Card
+                key={option.value}
+                className={`cursor-pointer transition-all border ${
+                  isSelected
+                    ? 'border-primary ring-2 ring-primary/40 bg-primary/5'
+                    : 'border-border/70 hover:border-primary/50'
+                }`}
+                onClick={() => {
+                  if (disabled) return;
+                  const newValues = isSelected
+                    ? values.filter((v) => v !== option.value && v !== option.label)
+                    : [...values, option.value];
+                  onChange(field.key, newValues);
+                }}
+              >
+                <CardContent className="p-3">
+                  {option.imageUrl ? (
+                    <div className="space-y-2">
+                      <img
+                        src={option.imageUrl}
+                        alt={option.label}
+                        className="w-full h-20 object-cover rounded"
+                      />
+                      <p className="text-sm font-medium text-center">{option.label}</p>
+                    </div>
+                  ) : (
+                    <div className="text-center">
+                      <p className="font-medium text-sm">{option.label}</p>
+                      {option.priceModifier !== undefined && option.priceModifier !== 0 && (
+                        <Badge variant="secondary" className="mt-1 text-xs">
+                          {option.priceModifier > 0 ? '+' : ''}₹{option.priceModifier}
+                        </Badge>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       </div>
     );
@@ -135,44 +152,73 @@ export const CustomizationControls: React.FC<CustomizationControlsProps> = ({
 
   const renderColorField = (field: CustomizationField) => {
     const value = selections[field.key] as string | undefined;
-    
+    const selectedOption = field.options?.find(
+      (o) => o.value === value || o.label === value
+    );
+
     return (
       <div key={field.key} className="space-y-3">
-        <div className="flex items-center gap-2">
-          <Label>{field.label}</Label>
-          {field.required && <span className="text-red-500">*</span>}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Label className="font-medium text-sm md:text-base">{field.label}</Label>
+            {field.required && <span className="text-red-500">*</span>}
+          </div>
+          {selectedOption && (
+            <span className="text-xs md:text-sm font-medium text-primary">
+              Selected: {selectedOption.label}
+              {selectedOption.priceModifier ? ` (+₹${selectedOption.priceModifier})` : ''}
+            </span>
+          )}
         </div>
-        <div className="flex flex-wrap gap-3">
-          {field.options?.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              disabled={disabled}
-              className={`w-12 h-12 rounded-full border-4 transition-all ${
-                value === option.value ? 'border-primary scale-110' : 'border-transparent hover:scale-105'
-              }`}
-              style={{ backgroundColor: option.value.startsWith('#') ? option.value : `#${option.value}` }}
-              onClick={() => onChange(field.key, option.value)}
-              title={option.label}
-            />
-          ))}
+        <div className="flex flex-wrap gap-4 items-center pt-1">
+          {field.options?.map((option) => {
+            const isSelected = value === option.value || value === option.label;
+            const bg = resolveColor(option.value);
+
+            return (
+              <div key={option.value} className="flex flex-col items-center gap-1.5">
+                <button
+                  type="button"
+                  disabled={disabled}
+                  className={`w-11 h-11 rounded-full border-2 border-slate-300 dark:border-slate-600 transition-all shadow-sm relative flex items-center justify-center focus:outline-none ${
+                    isSelected
+                      ? 'ring-2 ring-offset-2 ring-primary scale-110 border-primary'
+                      : 'hover:scale-105 hover:border-slate-400'
+                  }`}
+                  style={{ backgroundColor: bg }}
+                  onClick={() => onChange(field.key, option.value)}
+                  title={`${option.label}${option.priceModifier ? ` (+₹${option.priceModifier})` : ''}`}
+                >
+                  {isSelected && (
+                    <span
+                      className="w-2.5 h-2.5 rounded-full bg-white shadow-sm ring-1 ring-black/30"
+                      aria-hidden="true"
+                    />
+                  )}
+                </button>
+                <span className="text-xs text-muted-foreground font-medium text-center max-w-[72px] truncate leading-tight">
+                  {option.label}
+                </span>
+                {option.priceModifier !== undefined && option.priceModifier > 0 && (
+                  <span className="text-[10px] text-primary font-semibold">
+                    +₹{option.priceModifier}
+                  </span>
+                )}
+              </div>
+            );
+          })}
         </div>
-        {value && (
-          <p className="text-sm text-muted-foreground">
-            Selected: {field.options?.find((o) => o.value === value)?.label}
-          </p>
-        )}
       </div>
     );
   };
 
   const renderTextField = (field: CustomizationField) => {
-    const value = selections[field.key] as string || '';
+    const value = (selections[field.key] as string) || '';
     
     return (
-      <div key={field.key} className="space-y-3">
+      <div key={field.key} className="space-y-2">
         <div className="flex items-center gap-2">
-          <Label htmlFor={field.key}>{field.label}</Label>
+          <Label htmlFor={field.key} className="font-medium text-sm md:text-base">{field.label}</Label>
           {field.required && <span className="text-red-500">*</span>}
         </div>
         <Input
@@ -181,7 +227,7 @@ export const CustomizationControls: React.FC<CustomizationControlsProps> = ({
           value={value}
           onChange={(e) => onChange(field.key, e.target.value)}
           disabled={disabled}
-          placeholder={field.label}
+          placeholder={`Enter ${field.label.toLowerCase()}`}
           maxLength={100}
         />
         <p className="text-xs text-muted-foreground">Maximum 100 characters</p>
@@ -190,12 +236,12 @@ export const CustomizationControls: React.FC<CustomizationControlsProps> = ({
   };
 
   const renderNumberField = (field: CustomizationField) => {
-    const value = selections[field.key] as string || '';
+    const value = (selections[field.key] as string | number) ?? '';
     
     return (
-      <div key={field.key} className="space-y-3">
+      <div key={field.key} className="space-y-2">
         <div className="flex items-center gap-2">
-          <Label htmlFor={field.key}>{field.label}</Label>
+          <Label htmlFor={field.key} className="font-medium text-sm md:text-base">{field.label}</Label>
           {field.required && <span className="text-red-500">*</span>}
         </div>
         <Input
@@ -204,9 +250,9 @@ export const CustomizationControls: React.FC<CustomizationControlsProps> = ({
           value={value}
           onChange={(e) => onChange(field.key, e.target.value)}
           disabled={disabled}
-          placeholder={field.label}
+          placeholder={`Enter ${field.label.toLowerCase()}`}
           min="0"
-          step="0.1"
+          step="any"
         />
       </div>
     );

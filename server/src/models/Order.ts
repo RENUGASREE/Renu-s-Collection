@@ -14,6 +14,11 @@ export interface IOrderItem {
     selections: Record<string, string | string[] | number>;
     previewImageUrl?: string;
     engraving?: string;
+    breakdown?: {
+      field: string;
+      option: string;
+      modifier?: number;
+    }[];
   };
 }
 
@@ -66,6 +71,7 @@ const orderItemSchema = new Schema<IOrderItem>(
       selections: Schema.Types.Mixed,
       previewImageUrl: String,
       engraving: String,
+      breakdown: Schema.Types.Mixed,
     },
   },
   { _id: true }

@@ -26,6 +26,7 @@ interface CartItem {
     selections: Record<string, string | string[]>;
     previewImageUrl?: string;
     priceModifier?: number;
+    breakdown?: { field: string; option: string; modifier?: number }[];
   };
 }
 
@@ -435,18 +436,31 @@ export default function Checkout() {
                           <div className="flex-1">
                             <p className="font-medium">{item.name}</p>
                             <p className="text-sm text-muted-foreground">
-                              Qty: {item.quantity} × ₹{item.unitPrice.toFixed(2)}
+                              Qty: {item.quantity} × ₹{(item.unitPrice + customizationPrice).toFixed(2)}
                             </p>
-                            {item.customization && item.customization.selections && (
+                            {item.customization?.breakdown && item.customization.breakdown.length > 0 ? (
+                              <div className="mt-1.5 p-2 bg-muted/40 rounded text-xs space-y-1">
+                                <p className="font-semibold text-muted-foreground uppercase text-[10px] tracking-wider">Customization:</p>
+                                {item.customization.breakdown.map((b, idx) => (
+                                  <div key={idx} className="flex justify-between text-muted-foreground">
+                                    <span>{b.field}: <strong className="text-foreground">{b.option}</strong></span>
+                                    {b.modifier ? <span className="text-primary font-medium">+₹{b.modifier}</span> : null}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : item.customization?.selections && (
                               <div className="mt-1 text-sm">
-                                <p className="text-muted-foreground">Customization:</p>
-                                <ul className="text-xs text-muted-foreground ml-4">
+                                <p className="text-muted-foreground text-xs font-semibold">Customization:</p>
+                                <ul className="text-xs text-muted-foreground ml-3 space-y-0.5">
                                   {Object.entries(item.customization.selections).map(([key, value]) => (
-                                    <li key={key}>{key}: {Array.isArray(value) ? value.join(', ') : value}</li>
+                                    <li key={key}>
+                                      <span className="capitalize">{key.replace(/_/g, ' ')}:</span>{' '}
+                                      <strong>{Array.isArray(value) ? value.join(', ') : value}</strong>
+                                    </li>
                                   ))}
                                 </ul>
                                 {customizationPrice > 0 && (
-                                  <p className="text-xs text-primary">+ ₹{customizationPrice.toFixed(2)}</p>
+                                  <p className="text-xs text-primary mt-1">+ ₹{customizationPrice.toFixed(2)}</p>
                                 )}
                               </div>
                             )}

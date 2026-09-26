@@ -68,23 +68,49 @@ export async function calculatePrice(productId: string, selections: Record<strin
   }).lean();
 
   const fields = config?.fields?.length ? config.fields : category?.customizationFields ?? [];
-  const basePrice = product.salePrice ?? product.price;
+  const basePrice = product.salePrice && product.salePrice < product.price ? product.salePrice : product.price;
   let priceModifier = 0;
   const breakdown: { field: string; option: string; modifier: number }[] = [];
 
   for (const field of fields) {
     const value = selections[field.key];
-    if (!value) continue;
+    if (value === undefined || value === null || value === "") continue;
+
+    if (field.type === "text" || field.type === "number") {
+      breakdown.push({
+        field: field.label,
+        option: String(value),
+        modifier: 0,
+      });
+      continue;
+    }
 
     const values = Array.isArray(value) ? value : [value];
     for (const v of values) {
-      const option = field.options?.find((o: { value: string; label: string }) => o.value === v || o.label === v);
+      if (v === undefined || v === null || v === "") continue;
+      const option = field.options?.find((o: { value: string; label: string; priceModifier?: number }) => {
+        if (typeof v === "string") {
+          return (
+            o.value.trim().toLowerCase() === v.trim().toLowerCase() ||
+            o.label.trim().toLowerCase() === v.trim().toLowerCase()
+          );
+        }
+        return o.value === v || o.label === v;
+      });
+
       if (option) {
-        priceModifier += option.priceModifier || 0;
+        const mod = option.priceModifier || 0;
+        priceModifier += mod;
         breakdown.push({
           field: field.label,
           option: option.label,
-          modifier: option.priceModifier || 0,
+          modifier: mod,
+        });
+      } else {
+        breakdown.push({
+          field: field.label,
+          option: String(v),
+          modifier: 0,
         });
       }
     }
@@ -123,34 +149,53 @@ export async function validateCustomization(productId: string, selections: Recor
 
   // Check required fields
   for (const field of fields) {
-    if (field.required && !selections[field.key]) {
+    const rawVal = selections[field.key];
+    const hasValue =
+      rawVal !== undefined &&
+      rawVal !== null &&
+      rawVal !== "" &&
+      (!Array.isArray(rawVal) || rawVal.length > 0);
+
+    if (field.required && !hasValue) {
       errors.push(`${field.label} is required`);
     }
 
-    // Validate option values
-    if (selections[field.key]) {
-      const values = Array.isArray(selections[field.key]) ? selections[field.key] : [selections[field.key]];
-      for (const v of values) {
-        const option = field.options?.find((o: { value: string; label: string }) => o.value === v || o.label === v);
-        if (!option) {
-          errors.push(`Invalid option for ${field.label}: ${v}`);
+    if (hasValue) {
+      // Validate option values ONLY for option-based fields (select, multiselect, color)
+      if (["select", "multiselect", "color"].includes(field.type)) {
+        if (field.options && field.options.length > 0) {
+          const values = Array.isArray(rawVal) ? rawVal : [rawVal];
+          for (const v of values) {
+            const option = field.options?.find((o: { value: string; label: string }) => {
+              if (typeof v === "string") {
+                return (
+                  o.value.trim().toLowerCase() === v.trim().toLowerCase() ||
+                  o.label.trim().toLowerCase() === v.trim().toLowerCase()
+                );
+              }
+              return o.value === v || o.label === v;
+            });
+            if (!option) {
+              errors.push(`Invalid option for ${field.label}: ${v}`);
+            }
+          }
         }
       }
-    }
 
-    // Validate text input length
-    if (field.type === "text" && selections[field.key]) {
-      const value = String(selections[field.key]);
-      if (value.length > 100) {
-        warnings.push(`${field.label} is too long (max 100 characters)`);
+      // Validate text input length
+      if (field.type === "text") {
+        const value = String(rawVal);
+        if (value.length > 100) {
+          warnings.push(`${field.label} is too long (max 100 characters)`);
+        }
       }
-    }
 
-    // Validate number input range
-    if (field.type === "number" && selections[field.key]) {
-      const value = Number(selections[field.key]);
-      if (isNaN(value) || value < 0) {
-        errors.push(`${field.label} must be a valid positive number`);
+      // Validate number input range
+      if (field.type === "number") {
+        const value = Number(rawVal);
+        if (isNaN(value) || value < 0) {
+          errors.push(`${field.label} must be a valid positive number`);
+        }
       }
     }
   }

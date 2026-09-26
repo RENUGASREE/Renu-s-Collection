@@ -305,6 +305,17 @@ function FieldForm({
 }) {
   const [formData, setFormData] = useState<CustomizationField>(field);
   const [newOption, setNewOption] = useState({ value: '', label: '', priceModifier: 0, imageUrl: '' });
+  const [colorHex, setColorHex] = useState('#EC4899');
+  const [colorLabel, setColorLabel] = useState('');
+  const [colorPrice, setColorPrice] = useState(0);
+
+  const resolveColor = (val: string) => {
+    if (!val) return '#cccccc';
+    const clean = val.trim();
+    if (clean.startsWith('#')) return clean;
+    if (/^[0-9A-Fa-f]{3,8}$/.test(clean)) return `#${clean}`;
+    return clean;
+  };
 
   const handleAddOption = () => {
     if (!newOption.value || !newOption.label) return;
@@ -313,6 +324,23 @@ function FieldForm({
       options: [...(formData.options || []), { ...newOption }],
     });
     setNewOption({ value: '', label: '', priceModifier: 0, imageUrl: '' });
+  };
+
+  const handleAddColorOption = () => {
+    if (!colorLabel.trim() || !colorHex.trim()) return;
+    setFormData({
+      ...formData,
+      options: [
+        ...(formData.options || []),
+        {
+          value: colorHex.trim(),
+          label: colorLabel.trim(),
+          priceModifier: Number(colorPrice) || 0,
+        },
+      ],
+    });
+    setColorLabel('');
+    setColorPrice(0);
   };
 
   const handleRemoveOption = (index: number) => {
@@ -325,38 +353,47 @@ function FieldForm({
   return (
     <div className="space-y-4">
       <div>
-        <Label htmlFor="key">Field Key</Label>
+        <Label htmlFor="key" className="font-medium">Internal Key</Label>
         <Input
           id="key"
           value={formData.key}
-          onChange={(e) => setFormData({ ...formData, key: e.target.value })}
-          placeholder="e.g., beadColor"
+          onChange={(e) => setFormData({ ...formData, key: e.target.value.trim() })}
+          placeholder="e.g., bead_colour"
         />
+        <p className="text-xs text-muted-foreground mt-1">
+          System identifier used in logic and database (e.g., <code>bead_colour</code>, <code>size</code>, <code>charm</code>).
+        </p>
       </div>
+
       <div>
-        <Label htmlFor="label">Field Label</Label>
+        <Label htmlFor="label" className="font-medium">Customer Label</Label>
         <Input
           id="label"
           value={formData.label}
           onChange={(e) => setFormData({ ...formData, label: e.target.value })}
-          placeholder="e.g., Bead Color"
+          placeholder="e.g., Select Bead Colour"
         />
+        <p className="text-xs text-muted-foreground mt-1">
+          The title shown to customers on the product page, cart, and checkout.
+        </p>
       </div>
+
       <div>
-        <Label htmlFor="type">Field Type</Label>
+        <Label htmlFor="type" className="font-medium">Field Type</Label>
         <select
           id="type"
           value={formData.type}
           onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
-          className="w-full p-2 border rounded"
+          className="w-full p-2 border rounded bg-background text-foreground"
         >
-          <option value="select">Select (Single)</option>
-          <option value="multiselect">Multi-select</option>
-          <option value="color">Color</option>
-          <option value="text">Text</option>
-          <option value="number">Number</option>
+          <option value="select">Select (Single selection)</option>
+          <option value="multiselect">Multi-select (Multiple selections)</option>
+          <option value="color">Color (Visual swatches)</option>
+          <option value="text">Text (Custom text input)</option>
+          <option value="number">Number (Numeric input)</option>
         </select>
       </div>
+
       <div className="flex items-center gap-2">
         <input
           type="checkbox"
@@ -364,10 +401,11 @@ function FieldForm({
           checked={formData.required}
           onChange={(e) => setFormData({ ...formData, required: e.target.checked })}
         />
-        <Label htmlFor="required">Required</Label>
+        <Label htmlFor="required" className="cursor-pointer">Required for customer to select</Label>
       </div>
+
       <div>
-        <Label htmlFor="sortOrder">Sort Order</Label>
+        <Label htmlFor="sortOrder" className="font-medium">Sort Order</Label>
         <Input
           id="sortOrder"
           type="number"
@@ -376,60 +414,152 @@ function FieldForm({
         />
       </div>
 
-      {/* Options Management */}
-      {(formData.type === 'select' || formData.type === 'multiselect' || formData.type === 'color') && (
+      {/* Info for Text and Number Fields */}
+      {(formData.type === 'text' || formData.type === 'number') && (
+        <div className="p-3 bg-muted/40 rounded-lg border text-sm text-muted-foreground">
+          <p className="font-medium text-foreground">
+            {formData.type === 'text' ? '📝 Custom Text Field' : '🔢 Custom Number Field'}
+          </p>
+          <p className="text-xs mt-1">
+            {formData.type === 'text'
+              ? 'Customers will type their own custom text (e.g. name engraving, notes). Preset options are not required.'
+              : 'Customers will type a custom number (e.g. length in cm). Preset options are not required.'}
+          </p>
+        </div>
+      )}
+
+      {/* Color Options Management */}
+      {formData.type === 'color' && (
         <div className="space-y-4 border-t pt-4">
-          <h3 className="font-semibold">Options</h3>
-          
-          <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-sm">Color Swatch Options</h3>
+            <span className="text-xs text-muted-foreground">{formData.options?.length || 0} colors</span>
+          </div>
+
+          <div className="space-y-2 max-h-56 overflow-y-auto">
             {formData.options?.map((option, index) => (
-              <div key={index} className="flex items-center gap-2 p-2 border rounded">
-                <span className="flex-1">{option.label}</span>
-                <Badge variant="outline">{option.value}</Badge>
+              <div key={index} className="flex items-center gap-3 p-2.5 border rounded-lg bg-card">
+                <div
+                  className="w-7 h-7 rounded-full border-2 border-slate-300 dark:border-slate-600 shadow-sm shrink-0"
+                  style={{ backgroundColor: resolveColor(option.value) }}
+                />
+                <span className="flex-1 font-medium text-sm">{option.label}</span>
+                <Badge variant="outline" className="font-mono text-xs">{option.value}</Badge>
                 {option.priceModifier !== undefined && option.priceModifier !== 0 && (
-                  <Badge>₹{option.priceModifier}</Badge>
+                  <Badge variant="secondary" className="text-xs">
+                    {option.priceModifier > 0 ? '+' : ''}₹{option.priceModifier}
+                  </Badge>
                 )}
-                <Button variant="destructive" size="sm" onClick={() => handleRemoveOption(index)}>
+                <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-600 hover:bg-red-50 h-8 px-2" onClick={() => handleRemoveOption(index)}>
                   Remove
                 </Button>
               </div>
             ))}
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <Input
-              placeholder="Value"
-              value={newOption.value}
-              onChange={(e) => setNewOption({ ...newOption, value: e.target.value })}
-            />
-            <Input
-              placeholder="Label"
-              value={newOption.label}
-              onChange={(e) => setNewOption({ ...newOption, label: e.target.value })}
-            />
-            <Input
-              type="number"
-              placeholder="Price Modifier"
-              value={newOption.priceModifier}
-              onChange={(e) => setNewOption({ ...newOption, priceModifier: Number(e.target.value) })}
-            />
-            <Input
-              placeholder="Image URL (optional)"
-              value={newOption.imageUrl}
-              onChange={(e) => setNewOption({ ...newOption, imageUrl: e.target.value })}
-            />
+          <div className="p-3 bg-muted/30 rounded-lg border space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Add Color Swatch</p>
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 items-center">
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={colorHex}
+                  onChange={(e) => setColorHex(e.target.value)}
+                  className="w-10 h-10 p-0.5 rounded border cursor-pointer shrink-0"
+                  title="Pick Color"
+                />
+                <Input
+                  placeholder="#Hex"
+                  value={colorHex}
+                  onChange={(e) => setColorHex(e.target.value)}
+                  className="font-mono text-xs"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <Input
+                  placeholder="Color Name (e.g. Rose Pink, Emerald)"
+                  value={colorLabel}
+                  onChange={(e) => setColorLabel(e.target.value)}
+                />
+              </div>
+              <div>
+                <Input
+                  type="number"
+                  placeholder="+₹ Modifier"
+                  value={colorPrice || ''}
+                  onChange={(e) => setColorPrice(Number(e.target.value))}
+                />
+              </div>
+            </div>
+            <Button onClick={handleAddColorOption} variant="outline" size="sm" className="w-full">
+              Add Color Option
+            </Button>
           </div>
-          <Button onClick={handleAddOption} variant="outline" className="w-full">
-            Add Option
-          </Button>
         </div>
       )}
 
-      <div className="flex gap-2 justify-end pt-4">
+      {/* Select / Multi-Select Options Management */}
+      {(formData.type === 'select' || formData.type === 'multiselect') && (
+        <div className="space-y-4 border-t pt-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-sm">Selectable Options</h3>
+            <span className="text-xs text-muted-foreground">{formData.options?.length || 0} options</span>
+          </div>
+
+          <div className="space-y-2 max-h-56 overflow-y-auto">
+            {formData.options?.map((option, index) => (
+              <div key={index} className="flex items-center gap-2 p-2.5 border rounded-lg bg-card">
+                <span className="flex-1 font-medium text-sm">{option.label}</span>
+                <Badge variant="outline" className="text-xs">{option.value}</Badge>
+                {option.priceModifier !== undefined && option.priceModifier !== 0 && (
+                  <Badge variant="secondary" className="text-xs">
+                    {option.priceModifier > 0 ? '+' : ''}₹{option.priceModifier}
+                  </Badge>
+                )}
+                <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-600 hover:bg-red-50 h-8 px-2" onClick={() => handleRemoveOption(index)}>
+                  Remove
+                </Button>
+              </div>
+            ))}
+          </div>
+
+          <div className="p-3 bg-muted/30 rounded-lg border space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Add Option</p>
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                placeholder="Value (e.g. 18cm, heart)"
+                value={newOption.value}
+                onChange={(e) => setNewOption({ ...newOption, value: e.target.value })}
+              />
+              <Input
+                placeholder="Customer Label (e.g. 18 cm, Heart Charm)"
+                value={newOption.label}
+                onChange={(e) => setNewOption({ ...newOption, label: e.target.value })}
+              />
+              <Input
+                type="number"
+                placeholder="Price Modifier (+₹)"
+                value={newOption.priceModifier || ''}
+                onChange={(e) => setNewOption({ ...newOption, priceModifier: Number(e.target.value) })}
+              />
+              <Input
+                placeholder="Image URL (optional)"
+                value={newOption.imageUrl}
+                onChange={(e) => setNewOption({ ...newOption, imageUrl: e.target.value })}
+              />
+            </div>
+            <Button onClick={handleAddOption} variant="outline" size="sm" className="w-full">
+              Add Option
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <div className="flex gap-2 justify-end pt-4 border-t">
         <Button variant="outline" onClick={onCancel}>
           Cancel
         </Button>
-        <Button onClick={() => onSave(formData)}>
+        <Button onClick={() => onSave(formData)} disabled={!formData.key.trim() || !formData.label.trim()}>
           Save Field
         </Button>
       </div>
