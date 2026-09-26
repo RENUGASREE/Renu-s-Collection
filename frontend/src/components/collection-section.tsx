@@ -56,16 +56,14 @@ export default function CollectionSection() {
           params: { isSignaturePiece: true, isActive: true }
         });
 
-        console.log('Signature pieces API response:', response.data);
-
         // Map the data
         let products = response.data.data?.map((item: any) => ({
           ...item,
           id: item._id,
-          product_type: 'product'
+          product_type: 'product',
+          isSignaturePiece: Boolean(item.isSignaturePiece ?? item.is_signature_piece),
+          signatureCategory: item.signatureCategory || item.signature_category || 'none'
         })) || [];
-
-        console.log('Mapped products:', products);
 
         // If no signature pieces, fetch regular products as fallback
         if (products.length === 0) {
@@ -76,8 +74,8 @@ export default function CollectionSection() {
             ...item,
             id: item._id,
             product_type: 'product',
-            is_signature_piece: false,
-            signature_category: 'none'
+            isSignaturePiece: false,
+            signatureCategory: 'none'
           })) || [];
         }
 
@@ -86,14 +84,11 @@ export default function CollectionSection() {
         // Extract unique signature categories from products
         const signatureCategories = new Set<string>();
         products.forEach((p: any) => {
-          console.log('Product signature_category:', p.signature_category, 'signatureCategory:', p.signatureCategory);
-          const sigCat = p.signature_category || p.signatureCategory;
+          const sigCat = p.signatureCategory || p.signature_category;
           if (sigCat && sigCat !== 'none') {
             signatureCategories.add(sigCat);
           }
         });
-
-        console.log('Signature categories found:', signatureCategories);
 
         // Build dynamic filters - only show "all" and actual signature categories
         const filters = ["all"];
@@ -102,12 +97,9 @@ export default function CollectionSection() {
         });
         setDynamicFilters(filters);
 
-        console.log('Dynamic filters:', filters);
-
         setLoading(false);
       } catch (err) {
         setError("Failed to fetch signature pieces.");
-        console.error(err);
         setLoading(false);
       }
     };
@@ -117,16 +109,12 @@ export default function CollectionSection() {
 
   const filteredBracelets = bracelets.filter((bracelet) => {
     if (activeFilter === "all") return true; // Show all products when no signature pieces exist
+    const sigCat = bracelet.signatureCategory || bracelet.signature_category || "";
+    const isSig = Boolean(bracelet.isSignaturePiece ?? bracelet.is_signature_piece);
     if (activeFilter === "signature_none") {
-      const sigCat = bracelet.signature_category || bracelet.signatureCategory;
-      const isSig = bracelet.is_signature_piece || bracelet.isSignaturePiece;
-      console.log('Filtering signature_none:', { sigCat, isSig, bracelet });
-      return isSig === true && (sigCat === null || sigCat === "" || sigCat === "none");
+      return isSig === true && (!sigCat || sigCat === "none");
     }
-    const sigCat = bracelet.signature_category || bracelet.signatureCategory;
-    const isSig = bracelet.is_signature_piece || bracelet.isSignaturePiece;
     const filterValue = activeFilter.replace("signature_", "");
-    console.log('Filtering category:', { activeFilter, filterValue, sigCat, isSig, bracelet });
     return isSig === true && sigCat === filterValue;
   });
 

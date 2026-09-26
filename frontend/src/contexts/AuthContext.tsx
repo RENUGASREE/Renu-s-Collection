@@ -45,9 +45,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const login = (newToken: string, newUser: AuthUser) => {
-    console.log('AuthContext login called');
-    console.log('New user:', newUser);
-    console.log('New user role:', newUser.role);
     persistAuth(newToken, newUser);
   };
 
@@ -71,13 +68,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const logout = async () => {
     try {
-      if (token) {
-        await fetch(`${API_BASE_URL}/api/v1/auth/logout`, {
-          method: 'POST',
-          credentials: 'include',
-          headers: { Authorization: `Bearer ${token}` },
-        });
-      }
+      await fetch(`${API_BASE_URL}/api/v1/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
     } catch {
       // ignore network errors on logout
     }

@@ -70,7 +70,6 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   const handleFinishLoading = () => {
-    console.log("onFinishLoading called");
     setLoading(false);
   };
 

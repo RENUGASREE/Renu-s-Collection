@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from "express";
 import * as reviewController from "../controllers/review.controller.js";
-import { requireAuth } from "../middleware/auth.js";
+import { requireAuth, requireAdmin } from "../middleware/auth.js";
 import { validateBody, validateParams, validateQuery } from "../middleware/validate.js";
 import { z } from "zod";
 
@@ -73,6 +73,21 @@ router.post(
   }
 );
 
+// Admin: Get all reviews (including pending)
+router.get(
+  "/admin/all",
+  requireAuth,
+  requireAdmin,
+  async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      const reviews = await reviewController.getAllReviews();
+      res.json({ success: true, data: reviews });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // Delete own review
 router.delete(
   "/:reviewId",
@@ -96,6 +111,7 @@ router.delete(
 router.post(
   "/:reviewId/approve",
   requireAuth,
+  requireAdmin,
   validateParams(reviewIdParamSchema),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -113,6 +129,7 @@ router.post(
 router.post(
   "/:reviewId/reject",
   requireAuth,
+  requireAdmin,
   validateParams(reviewIdParamSchema),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -120,20 +137,6 @@ router.post(
       if (!reviewId) throw new Error("Review ID is required");
       const review = await reviewController.rejectReview(reviewId);
       res.json({ success: true, data: review });
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
-// Admin: Get all reviews (including pending)
-router.get(
-  "/admin/all",
-  requireAuth,
-  async (_req: Request, res: Response, next: NextFunction) => {
-    try {
-      const reviews = await reviewController.getAllReviews();
-      res.json({ success: true, data: reviews });
     } catch (error) {
       next(error);
     }

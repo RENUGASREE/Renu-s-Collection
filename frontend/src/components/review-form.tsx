@@ -141,58 +141,71 @@ export function ReviewForm({ productId, onSuccess, onCancel }: ReviewFormProps) 
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Write a Review</CardTitle>
+    <Card className="border border-border/50 bg-card/80 backdrop-blur-sm shadow-sm rounded-xl overflow-hidden">
+      <CardHeader className="border-b border-border/30 pb-4">
+        <CardTitle className="font-serif text-xl tracking-tight text-foreground">Write a Review</CardTitle>
+        <p className="text-xs text-muted-foreground mt-0.5">Share your feedback on craftsmanship, quality, and style.</p>
       </CardHeader>
-      <CardContent>
+      <CardContent className="pt-5">
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Rating */}
           <div className="space-y-2">
-            <Label>Rating *</Label>
-            <StarRating
-              rating={rating}
-              maxRating={5}
-              readonly={false}
-              onRatingChange={setRating}
-              size={24}
-            />
+            <Label className="text-xs font-semibold uppercase tracking-wider text-foreground/80">Rating *</Label>
+            <div className="flex items-center gap-3">
+              <StarRating
+                rating={rating}
+                maxRating={5}
+                readonly={false}
+                onRatingChange={setRating}
+                size={24}
+              />
+              <span className="text-xs text-muted-foreground">
+                {rating === 1 && "Poor"}
+                {rating === 2 && "Fair"}
+                {rating === 3 && "Good"}
+                {rating === 4 && "Very Good"}
+                {rating === 5 && "Excellent"}
+                {rating === 0 && "Select a rating"}
+              </span>
+            </div>
           </div>
 
           {/* Title */}
-          <div className="space-y-2">
-            <Label htmlFor="title">Review Title *</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="title" className="text-xs font-semibold uppercase tracking-wider text-foreground/80">Review Title *</Label>
             <Input
               id="title"
-              placeholder="Summarize your review"
+              placeholder="e.g., Stunning craftsmanship and sparkle"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               maxLength={200}
               required
+              className="rounded-lg border-border/60 focus-visible:ring-primary/40 text-sm"
             />
           </div>
 
           {/* Body */}
-          <div className="space-y-2">
-            <Label htmlFor="body">Your Review *</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="body" className="text-xs font-semibold uppercase tracking-wider text-foreground/80">Your Review *</Label>
             <Textarea
               id="body"
-              placeholder="Share your experience with this product"
+              placeholder="Tell others what you loved about this piece..."
               value={body}
               onChange={(e) => setBody(e.target.value)}
               maxLength={2000}
-              rows={5}
+              rows={4}
               required
+              className="rounded-lg border-border/60 focus-visible:ring-primary/40 text-sm leading-relaxed"
             />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-[11px] text-muted-foreground/75 text-right">
               {body.length}/2000 characters
             </p>
           </div>
 
           {/* Image Upload */}
           <div className="space-y-2">
-            <Label htmlFor="images">Photos/Videos (Optional)</Label>
-            <div className="flex items-center gap-2">
+            <Label htmlFor="images" className="text-xs font-semibold uppercase tracking-wider text-foreground/80">Photos / Videos (Optional)</Label>
+            <div className="flex items-center gap-2.5">
               <Input
                 id="images"
                 type="file"
@@ -205,35 +218,37 @@ export function ReviewForm({ productId, onSuccess, onCancel }: ReviewFormProps) 
               <Button
                 type="button"
                 variant="outline"
+                size="sm"
                 onClick={() => document.getElementById('images')?.click()}
                 disabled={uploading}
+                className="rounded-lg border-border/60 hover:border-primary/50 text-xs"
               >
-                <Upload className="h-4 w-4 mr-2" />
+                <Upload className="h-3.5 w-3.5 mr-1.5" />
                 {uploading ? 'Uploading...' : 'Upload Media'}
               </Button>
-              <span className="text-sm text-muted-foreground">
-                {images.length} file(s) selected
+              <span className="text-xs text-muted-foreground">
+                {images.length > 0 ? `${images.length} file(s) selected` : 'Max file size: 5MB'}
               </span>
             </div>
 
             {/* Image Preview */}
             {images.length > 0 && (
-              <div className="grid grid-cols-4 gap-2 mt-2">
+              <div className="flex flex-wrap gap-2.5 mt-2">
                 {images.map((image, index) => (
-                  <div key={index} className="relative group">
+                  <div key={index} className="relative group overflow-hidden rounded-lg border border-border/50 shadow-sm">
                     <img
                       src={image}
-                      alt={`Review image ${index + 1}`}
-                      className="w-full h-20 object-cover rounded"
+                      alt={`Review preview ${index + 1}`}
+                      className="w-20 h-20 object-cover"
                     />
                     <Button
                       type="button"
                       variant="destructive"
                       size="sm"
-                      className="absolute top-1 right-1 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="absolute top-1 right-1 h-5 w-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity rounded-full shadow"
                       onClick={() => removeImage(index)}
                     >
-                      <X className="h-4 w-4" />
+                      <X className="h-3 w-3" />
                     </Button>
                   </div>
                 ))}
@@ -242,12 +257,21 @@ export function ReviewForm({ productId, onSuccess, onCancel }: ReviewFormProps) 
           </div>
 
           {/* Actions */}
-          <div className="flex gap-2 pt-4">
-            <Button type="submit" disabled={submitting || uploading}>
+          <div className="flex items-center gap-2.5 pt-3 border-t border-border/30">
+            <Button
+              type="submit"
+              disabled={submitting || uploading}
+              className="rounded-lg text-xs font-medium px-5 h-9"
+            >
               {submitting ? 'Submitting...' : 'Submit Review'}
             </Button>
             {onCancel && (
-              <Button type="button" variant="outline" onClick={onCancel}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onCancel}
+                className="rounded-lg text-xs h-9"
+              >
                 Cancel
               </Button>
             )}

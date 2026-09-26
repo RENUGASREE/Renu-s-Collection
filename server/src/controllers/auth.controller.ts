@@ -1,4 +1,5 @@
 import { Response, NextFunction, Request } from "express";
+import jwt from "jsonwebtoken";
 import * as authService from "../services/auth.service.js";
 import { env } from "../config/env.js";
 
@@ -82,6 +83,18 @@ export async function logout(req: Request, res: Response, next: NextFunction) {
   try {
     if (req.user?.id) {
       await authService.logoutUser(req.user.id);
+    } else {
+      const refreshToken = req.cookies?.[REFRESH_COOKIE];
+      if (refreshToken) {
+        try {
+          const payload = jwt.verify(refreshToken, env.JWT_REFRESH_SECRET) as { sub: string };
+          if (payload?.sub) {
+            await authService.logoutUser(payload.sub);
+          }
+        } catch {
+          // Token expired or invalid, continue clearing cookie
+        }
+      }
     }
     clearRefreshCookie(res);
     res.json({ success: true, message: "Logged out" });

@@ -4,7 +4,7 @@ import Footer from "@/components/footer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
-import { API_BASE_URL } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import { SEO } from "@/components/SEO";
 
 interface DashboardStats {
@@ -37,10 +37,7 @@ export default function Admin() {
 
     const fetchDashboard = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/v1/admin/dashboard`, {
-          headers: { Authorization: `Bearer ${token}` },
-          credentials: "include",
-        });
+        const response = await apiRequest("GET", "/api/v1/admin/dashboard");
         
         if (!response.ok) {
           const errorText = await response.text();

@@ -13,7 +13,7 @@ interface Review {
   id: string;
   userId: any;
   username: string;
-  productId: string;
+  productId: string | { _id: string; name: string };
   rating: number;
   title: string;
   body: string;
@@ -23,6 +23,14 @@ interface Review {
   images: string[];
   helpfulCount: number;
   _key?: string;
+}
+
+function getProductName(productId: Review['productId']): string {
+  if (!productId) return '';
+  if (typeof productId === 'object') {
+    return productId.name || productId._id || '';
+  }
+  return String(productId);
 }
 
 export default function AdminReviews() {
@@ -155,7 +163,7 @@ export default function AdminReviews() {
                           </div>
                           <div className="flex items-center gap-1">
                             <Package className="h-4 w-4" />
-                            Product ID: {review.productId}
+                            Product: {getProductName(review.productId)}
                           </div>
                           <div className="flex items-center gap-1">
                             <Calendar className="h-4 w-4" />
