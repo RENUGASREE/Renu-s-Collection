@@ -97,11 +97,11 @@ router.delete(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { reviewId } = req.params;
-      if (!reviewId) throw new Error("Review ID is required");
+      if (!reviewId) throw new AppError("Review ID is required", 400);
       const userId = req.user?.id;
-      if (!userId) throw new Error("User not authenticated");
-      await reviewController.deleteReview(reviewId, userId);
-      res.json({ success: true, message: "Review deleted" });
+      if (!userId) throw new AppError("User not authenticated", 401);
+      await reviewController.deleteReview(reviewId, userId, req.user?.role);
+      res.json({ success: true, message: "Review deleted successfully" });
     } catch (error) {
       next(error);
     }

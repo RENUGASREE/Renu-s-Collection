@@ -10,15 +10,12 @@
   </head>
   <body>
     <div id="root"></div>
-    <!-- Handle GitHub Pages SPA redirects from 404.html -->
     <script>
       (function() {
         var l = window.location;
-        if (l.search && l.search.startsWith("?/")) {
-          var path = l.search.slice(2).split("&").map(function(s) {
-            return s.replace(/~and~/g, "&");
-          }).join("?");
-          window.history.replaceState(null, null, l.pathname.replace(/\/$/, "") + "/" + path + l.hash);
+        if (l.pathname.includes('/~and~/') || l.search.includes('~and~') || l.search.startsWith('?/')) {
+          var cleanPath = l.pathname.replace(/\/\?\/.*$/, '').replace(/~and~.*/, '').replace(/\/+$/, '');
+          window.history.replaceState(null, null, cleanPath || '/');
         }
       })();
     </script>

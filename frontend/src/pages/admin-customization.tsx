@@ -57,7 +57,8 @@ export default function AdminCustomization() {
     if (!selectedCategory) return;
 
     try {
-      const updatedFields = [...selectedCategory.customizationFields];
+      const currentFields = selectedCategory.customizationFields || [];
+      const updatedFields = [...currentFields];
       const existingIndex = updatedFields.findIndex((f) => f.key === field.key);
       
       if (existingIndex >= 0) {
@@ -70,23 +71,24 @@ export default function AdminCustomization() {
         customizationFields: updatedFields,
       });
 
-      if (response.ok) {
+      const data = await response.json();
+
+      if (response.ok && data.success) {
         toast({
-          title: 'Success',
-          description: 'Customization field saved',
+          title: 'Customization Saved',
+          description: `Customization options successfully updated for ${selectedCategory.name}.`,
         });
         setShowFieldForm(false);
         setEditingField(null);
-        fetchCategories();
-        setSelectedCategory({
-          ...selectedCategory,
-          customizationFields: updatedFields,
-        });
+        setSelectedCategory(data.data);
+        await fetchCategories();
+      } else {
+        throw new Error(data.message || 'Failed to save customization field');
       }
-    } catch (error) {
+    } catch (error: any) {
       toast({
-        title: 'Error',
-        description: 'Failed to save field',
+        title: 'Save Failed',
+        description: error.message || 'Failed to save customization field',
         variant: 'destructive',
       });
     }
@@ -96,27 +98,29 @@ export default function AdminCustomization() {
     if (!selectedCategory) return;
 
     try {
-      const updatedFields = selectedCategory.customizationFields.filter((f) => f.key !== fieldKey);
+      const currentFields = selectedCategory.customizationFields || [];
+      const updatedFields = currentFields.filter((f) => f.key !== fieldKey);
       
       const response = await apiRequest('PATCH', `/api/v1/categories/${selectedCategory._id}`, {
         customizationFields: updatedFields,
       });
 
-      if (response.ok) {
+      const data = await response.json();
+
+      if (response.ok && data.success) {
         toast({
-          title: 'Success',
-          description: 'Field deleted',
+          title: 'Field Removed',
+          description: `Customization field "${fieldKey}" removed.`,
         });
-        fetchCategories();
-        setSelectedCategory({
-          ...selectedCategory,
-          customizationFields: updatedFields,
-        });
+        setSelectedCategory(data.data);
+        await fetchCategories();
+      } else {
+        throw new Error(data.message || 'Failed to delete field');
       }
-    } catch (error) {
+    } catch (error: any) {
       toast({
-        title: 'Error',
-        description: 'Failed to delete field',
+        title: 'Delete Failed',
+        description: error.message || 'Failed to delete customization field',
         variant: 'destructive',
       });
     }
@@ -142,15 +146,27 @@ export default function AdminCustomization() {
                 <button
                   key={category._id}
                   onClick={() => setSelectedCategory(category)}
-                  className={`w-full text-left p-3 rounded border transition-all ${
+                  className={`w-full text-left p-3 rounded-lg border transition-all ${
                     selectedCategory?._id === category._id
-                      ? 'border-primary bg-primary/5'
-                      : 'border-gray-200 hover:border-gray-300'
+                      ? 'border-primary bg-primary/5 ring-1 ring-primary/20'
+                      : 'border-border/60 hover:border-primary/40'
                   }`}
                 >
-                  <div className="font-medium">{category.name}</div>
-                  <div className="text-sm text-muted-foreground">
-                    {category.customizationFields.length} fields
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-sm text-foreground">{category.name}</span>
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] uppercase tracking-wider px-2 py-0.5 ${
+                        category.customizationFields && category.customizationFields.length > 0
+                          ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                          : 'bg-muted text-muted-foreground border-border/40'
+                      }`}
+                    >
+                      {category.customizationFields && category.customizationFields.length > 0 ? 'Enabled' : 'Disabled'}
+                    </Badge>
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {category.customizationFields?.length || 0} customization options
                   </div>
                 </button>
               ))}
@@ -163,7 +179,26 @@ export default function AdminCustomization() {
           <Card className="lg:col-span-2">
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle>{selectedCategory.name} - Customization Fields</CardTitle>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <CardTitle>{selectedCategory.name}</CardTitle>
+                    <Badge
+                      variant="outline"
+                      className={`text-xs ${
+                        selectedCategory.customizationFields && selectedCategory.customizationFields.length > 0
+                          ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                          : 'bg-muted text-muted-foreground border-border/40'
+                      }`}
+                    >
+                      {selectedCategory.customizationFields && selectedCategory.customizationFields.length > 0
+                        ? 'Customization Active'
+                        : 'Customization Inactive'}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Configure customer-selectable options (colors, charms, sizes) for all {selectedCategory.name} pieces.
+                  </p>
+                </div>
                 <Button onClick={() => {
                   setEditingField({
                     key: '',
@@ -171,7 +206,7 @@ export default function AdminCustomization() {
                     type: 'select',
                     options: [],
                     required: false,
-                    sortOrder: selectedCategory.customizationFields.length,
+                    sortOrder: (selectedCategory.customizationFields || []).length,
                   });
                   setShowFieldForm(true);
                 }}>

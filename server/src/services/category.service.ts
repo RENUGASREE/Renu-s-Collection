@@ -74,6 +74,33 @@ export async function updateCategory(id: string, input: UpdateCategoryInput): Pr
   }).lean();
 
   if (!category) throw new AppError("Category not found", 404);
+
+  // If customization fields were updated, synchronize CustomizationConfig and Product isCustomizable flag
+  if (input.customizationFields !== undefined) {
+    const hasFields = Boolean(input.customizationFields && input.customizationFields.length > 0);
+    const { Product } = await import("../models/Product.js");
+    const { CustomizationConfig } = await import("../models/CustomizationConfig.js");
+
+    // Synchronize isCustomizable flag across all products in this category
+    await Product.updateMany(
+      { categoryId: new Types.ObjectId(id) },
+      { isCustomizable: hasFields }
+    );
+
+    // Keep CustomizationConfig in sync
+    await CustomizationConfig.findOneAndUpdate(
+      { categoryId: new Types.ObjectId(id) },
+      {
+        name: `${category.name} Configurator`,
+        productType: category.productType,
+        categoryId: category._id,
+        fields: input.customizationFields as any,
+        isActive: hasFields,
+      },
+      { upsert: true, new: true }
+    );
+  }
+
   return category;
 }
 

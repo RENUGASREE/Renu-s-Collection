@@ -5,15 +5,15 @@
     <title>Renu's Collections - Redirecting…</title>
     <meta name="robots" content="noindex" />
     <script>
-      // SPA GitHub Pages redirect (rafgraph/spa-github-pages)
       (function() {
+        // Clean single-page application redirect
         var l = window.location;
-        var repoBaseSegments = 2; // for /RENUGASREE/Renu_Collections set to 2
-        var pathSegments = l.pathname.split('/').slice(0, 1 + repoBaseSegments).join('/');
-        var target = l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') + pathSegments + '/?/' +
-          l.pathname.slice(1).split('/').slice(repoBaseSegments).join('/') +
-          (l.search ? '&' + l.search.slice(1).replace(/&/g, '~and~') : '') + l.hash;
-        l.replace(target);
+        // If query parameters or path are malformed with ~and~ or ?/, redirect cleanly
+        if (l.search && (l.search.includes('~and~') || l.search.startsWith('?/'))) {
+          window.location.replace('/');
+          return;
+        }
+        window.location.replace('/');
       })();
     </script>
   </head>

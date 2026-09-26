@@ -37,13 +37,20 @@ import { MobileBottomNav } from "./components/mobile-bottom-nav";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { HelmetProvider } from 'react-helmet-async';
 
-// Component to check for malicious URLs
+// Component to check for malicious URLs and normalize legacy malformed URLs
 function UrlSanitizer() {
   const location = useLocation();
   const navigate = useNavigate();
 
   useEffect(() => {
-    const url = location.pathname + location.search;
+    const rawPath = location.pathname + location.search;
+
+    // Gracefully handle malformed admin/customization URLs (e.g. /admin/customization/?/&/~and~/...)
+    if (location.pathname.startsWith('/admin/customization') && (rawPath.includes('~and~') || rawPath.includes('?/') || location.pathname.endsWith('/'))) {
+      navigate('/admin/customization', { replace: true });
+      return;
+    }
+
     const suspiciousPatterns = [
       /~and~/i,
       /\/\.\.\/|\/\.\.\\/,
@@ -55,8 +62,8 @@ function UrlSanitizer() {
     ];
 
     for (const pattern of suspiciousPatterns) {
-      if (pattern.test(url)) {
-        console.warn('Blocked malicious URL:', url);
+      if (pattern.test(rawPath)) {
+        console.warn('Blocked malicious URL:', rawPath);
         navigate('/', { replace: true });
         return;
       }

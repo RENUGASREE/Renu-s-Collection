@@ -58,6 +58,14 @@ export function errorHandler(
     return;
   }
 
+  if ((err as { type?: string }).type === "entity.too.large") {
+    res.status(413).json({
+      success: false,
+      message: "Uploaded payload is too large. Image attachments are limited to 1MB or require external cloud storage.",
+    });
+    return;
+  }
+
   console.error(err);
   res.status(500).json({
     success: false,

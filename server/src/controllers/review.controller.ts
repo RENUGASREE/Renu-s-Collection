@@ -37,34 +37,46 @@ export async function markReviewHelpful(reviewId: string) {
   return reviewService.toLegacyReview(review as any);
 }
 
-export async function deleteReview(reviewId: string, userId: string) {
+export async function deleteReview(reviewId: string, userId: string, userRole?: string) {
   const review = await Review.findById(reviewId);
   if (!review) throw new AppError("Review not found", 404);
 
-  if (review.userId.toString() !== userId) {
-    throw new AppError("You can only delete your own review", 403);
+  const isOwner = review.userId.toString() === userId;
+  const isAdmin = userRole === "admin";
+
+  if (!isOwner && !isAdmin) {
+    throw new AppError("You do not have permission to delete this review", 403);
   }
 
   const productId = review.productId.toString();
   await Review.findByIdAndDelete(reviewId);
 
-  // Recalculate product rating
-  const stats = await Review.aggregate([
-    { $match: { productId: new Types.ObjectId(productId), isApproved: true } },
-    {
-      $group: {
-        _id: null,
-        averageRating: { $avg: "$rating" },
-        reviewCount: { $sum: 1 },
-      },
-    },
-  ]);
+  // Recalculate product rating safely
+  try {
+    if (Types.ObjectId.isValid(productId)) {
+      const stats = await Review.aggregate([
+        { $match: { productId: new Types.ObjectId(productId), isApproved: true } },
+        {
+          $group: {
+            _id: null,
+            averageRating: { $avg: "$rating" },
+            reviewCount: { $sum: 1 },
+          },
+        },
+      ]);
 
-  const { Product } = await import("../models/Product.js");
-  await Product.findByIdAndUpdate(productId, {
-    averageRating: stats[0]?.averageRating ?? 0,
-    reviewCount: stats[0]?.reviewCount ?? 0,
-  });
+      const averageRating = stats[0]?.averageRating ? Number(stats[0].averageRating.toFixed(1)) : 0;
+      const reviewCount = stats[0]?.reviewCount ?? 0;
+
+      const { Product } = await import("../models/Product.js");
+      await Product.findByIdAndUpdate(productId, {
+        averageRating,
+        reviewCount,
+      });
+    }
+  } catch (ratingError) {
+    console.error("Failed to recalculate rating after review deletion:", ratingError);
+  }
 }
 
 export async function approveReview(reviewId: string) {

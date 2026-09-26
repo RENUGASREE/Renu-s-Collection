@@ -9,6 +9,22 @@ const mediaSchema = z.object({
   sortOrder: z.number().int().optional(),
 });
 
+const customizationOptionSchema = z.object({
+  value: z.string(),
+  label: z.string(),
+  priceModifier: z.number().optional().default(0),
+  imageUrl: z.string().optional(),
+});
+
+const customizationFieldValidationSchema = z.object({
+  key: z.string().min(1),
+  label: z.string().min(1),
+  type: z.enum(["select", "multiselect", "color", "text", "number"]),
+  options: z.array(customizationOptionSchema).optional(),
+  required: z.boolean().optional(),
+  sortOrder: z.number().int().optional(),
+});
+
 export const createCategorySchema = z.object({
   name: z.string().min(1).max(120),
   slug: z.string().min(1).max(120).optional(),
@@ -21,6 +37,7 @@ export const createCategorySchema = z.object({
   sortOrder: z.number().int().optional(),
   seoTitle: z.string().max(160).optional(),
   seoDescription: z.string().max(320).optional(),
+  customizationFields: z.array(customizationFieldValidationSchema).optional(),
 });
 
 export const updateCategorySchema = createCategorySchema.partial();

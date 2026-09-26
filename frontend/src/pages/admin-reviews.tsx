@@ -7,7 +7,18 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiRequest } from "@/lib/queryClient";
 import { SEO } from "@/components/SEO";
-import { Check, X, Star, Calendar, User, Package } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Check, X, Star, Calendar, User, Package, Trash2 } from "lucide-react";
 
 interface Review {
   id: string;
@@ -35,9 +46,12 @@ function getProductName(productId: Review['productId']): string {
 
 export default function AdminReviews() {
   const { token, user } = useAuth();
+  const { toast } = useToast();
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deletingReviewId, setDeletingReviewId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (!token || user?.role !== 'admin') {
@@ -72,9 +86,18 @@ export default function AdminReviews() {
       const data = await response.json();
       if (data.success) {
         setReviews(reviews.map(r => r.id === reviewId ? { ...r, isApproved: true } : r));
+        toast({
+          title: "Review Approved",
+          description: "Review is now published and visible to customers.",
+        });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error approving review:', err);
+      toast({
+        title: "Error",
+        description: err.message || "Failed to approve review",
+        variant: "destructive",
+      });
     }
   };
 
@@ -84,9 +107,48 @@ export default function AdminReviews() {
       const data = await response.json();
       if (data.success) {
         setReviews(reviews.map(r => r.id === reviewId ? { ...r, isApproved: false } : r));
+        toast({
+          title: "Review Rejected",
+          description: "Review status updated to unapproved.",
+        });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error rejecting review:', err);
+      toast({
+        title: "Error",
+        description: err.message || "Failed to reject review",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deletingReviewId) return;
+    setIsDeleting(true);
+
+    try {
+      const response = await apiRequest('DELETE', `/api/v1/reviews/${deletingReviewId}`);
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setReviews((prev) => prev.filter((r) => r.id !== deletingReviewId));
+        toast({
+          title: "Review Deleted",
+          description: "Review removed and product rating statistics recalculated.",
+        });
+        setDeletingReviewId(null);
+      } else {
+        throw new Error(data.message || "Failed to delete review");
+      }
+    } catch (err: any) {
+      console.error('Error deleting review:', err);
+      toast({
+        title: "Deletion Failed",
+        description: err.message || "Could not delete review. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -197,22 +259,34 @@ export default function AdminReviews() {
                         ))}
                       </div>
                     )}
-                    <div className="flex gap-2">
+                    <div className="flex items-center justify-between pt-2 border-t border-border/40">
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => handleApprove(review.id)}
+                          className="bg-green-600 hover:bg-green-700 h-8 text-xs"
+                        >
+                          <Check className="h-3.5 w-3.5 mr-1.5" />
+                          Approve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleReject(review.id)}
+                          className="h-8 text-xs"
+                        >
+                          <X className="h-3.5 w-3.5 mr-1.5" />
+                          Reject
+                        </Button>
+                      </div>
                       <Button
                         size="sm"
-                        onClick={() => handleApprove(review.id)}
-                        className="bg-green-600 hover:bg-green-700"
+                        variant="ghost"
+                        onClick={() => setDeletingReviewId(review.id)}
+                        className="text-destructive hover:bg-destructive/10 h-8 text-xs"
                       >
-                        <Check className="h-4 w-4 mr-2" />
-                        Approve
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => handleReject(review.id)}
-                      >
-                        <X className="h-4 w-4 mr-2" />
-                        Reject
+                        <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                        Delete
                       </Button>
                     </div>
                   </CardContent>
@@ -228,7 +302,7 @@ export default function AdminReviews() {
             <h2 className="text-2xl font-bold mb-4">Approved Reviews</h2>
             <div className="space-y-4">
               {approvedReviews.map((review) => (
-                <Card key={review._key || review.id} className="opacity-75">
+                <Card key={review._key || review.id} className="opacity-90">
                   <CardHeader>
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
@@ -271,7 +345,27 @@ export default function AdminReviews() {
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-sm">{review.body}</p>
+                    <p className="text-sm mb-4">{review.body}</p>
+                    <div className="flex items-center justify-between pt-2 border-t border-border/40">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleReject(review.id)}
+                        className="h-8 text-xs"
+                      >
+                        <X className="h-3.5 w-3.5 mr-1.5" />
+                        Unapprove
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setDeletingReviewId(review.id)}
+                        className="text-destructive hover:bg-destructive/10 h-8 text-xs"
+                      >
+                        <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                        Delete
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               ))}
@@ -287,6 +381,31 @@ export default function AdminReviews() {
           </Card>
         )}
       </main>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deletingReviewId} onOpenChange={(open) => !open && setDeletingReviewId(null)}>
+        <AlertDialogContent className="rounded-xl border border-border/60 bg-background/95 backdrop-blur-md shadow-xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-serif text-lg tracking-tight">Delete Customer Review?</AlertDialogTitle>
+            <AlertDialogDescription className="text-sm text-muted-foreground">
+              This action cannot be undone. The review will be permanently deleted and the piece's average rating and total review counts will automatically recalculate.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-4 flex gap-2">
+            <AlertDialogCancel disabled={isDeleting} className="rounded-lg text-xs h-9">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isDeleting}
+              onClick={handleDelete}
+              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground rounded-lg text-xs h-9 px-4"
+            >
+              {isDeleting ? "Deleting..." : "Permanently Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <Footer />
     </div>
   );

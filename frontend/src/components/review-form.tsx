@@ -32,41 +32,64 @@ export function ReviewForm({ productId, onSuccess, onCancel }: ReviewFormProps) 
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
+    // Cloud storage infrastructure is pending integration.
+    // Client-side image attachment is limited to small preview images (< 500KB total) until cloud storage is provisioned.
     setUploading(true);
     const uploadedImages: string[] = [];
 
     try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('upload_preset', 'reviews_preset'); // You'll need to configure this in Cloudinary
 
-        // For now, we'll use a placeholder. In production, integrate with Cloudinary or similar
+        if (!file.type.startsWith('image/')) {
+          toast({
+            title: 'Invalid File Type',
+            description: 'Only image files (JPG, PNG, WebP) are supported for reviews.',
+            variant: 'destructive',
+          });
+          continue;
+        }
+
+        // Limit individual image size to 250KB to respect JSON payload limits
+        if (file.size > 250 * 1024) {
+          toast({
+            title: 'Image Too Large',
+            description: `"${file.name}" exceeds the 250KB limit. Please choose a smaller image.`,
+            variant: 'destructive',
+          });
+          continue;
+        }
+
         const reader = new FileReader();
         reader.readAsDataURL(file);
         await new Promise((resolve) => {
           reader.onload = () => {
-            uploadedImages.push(reader.result as string);
+            if (reader.result) {
+              uploadedImages.push(reader.result as string);
+            }
             resolve(null);
           };
         });
       }
 
-      setImages([...images, ...uploadedImages]);
-      toast({
-        title: 'Success',
-        description: 'Images uploaded successfully',
-      });
+      if (uploadedImages.length > 0) {
+        setImages((prev) => [...prev, ...uploadedImages].slice(0, 3));
+        toast({
+          title: 'Photo Added',
+          description: 'Image attached to your review.',
+        });
+      }
     } catch (error) {
-      console.error('Error uploading images:', error);
+      console.error('Error reading image:', error);
       toast({
-        title: 'Error',
-        description: 'Failed to upload images',
+        title: 'Upload Issue',
+        description: 'Failed to process the selected image.',
         variant: 'destructive',
       });
     } finally {
       setUploading(false);
+      // Reset input value so same file can be re-selected if removed
+      e.target.value = '';
     }
   };
 
@@ -256,12 +279,12 @@ export function ReviewForm({ productId, onSuccess, onCancel }: ReviewFormProps) 
 
           {/* Image Upload */}
           <div className="space-y-2">
-            <Label htmlFor="images" className="text-xs font-semibold uppercase tracking-wider text-foreground/80">Photos / Videos (Optional)</Label>
+            <Label htmlFor="images" className="text-xs font-semibold uppercase tracking-wider text-foreground/80">Photos (Optional)</Label>
             <div className="flex items-center gap-2.5">
               <Input
                 id="images"
                 type="file"
-                accept="image/*,video/*"
+                accept="image/jpeg,image/png,image/webp"
                 multiple
                 onChange={handleImageUpload}
                 disabled={uploading}
@@ -276,10 +299,10 @@ export function ReviewForm({ productId, onSuccess, onCancel }: ReviewFormProps) 
                 className="rounded-lg border-border/60 hover:border-primary/50 text-xs"
               >
                 <Upload className="h-3.5 w-3.5 mr-1.5" />
-                {uploading ? 'Uploading...' : 'Upload Media'}
+                {uploading ? 'Attaching...' : 'Attach Photos'}
               </Button>
               <span className="text-xs text-muted-foreground">
-                {images.length > 0 ? `${images.length} file(s) selected` : 'Max file size: 5MB'}
+                {images.length > 0 ? `${images.length}/3 photo(s) selected` : 'Max 3 photos, up to 250KB each'}
               </span>
             </div>
 
