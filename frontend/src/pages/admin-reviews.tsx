@@ -42,7 +42,12 @@ export default function AdminReviews() {
       try {
         const response = await apiRequest('GET', '/api/v1/reviews/admin/all');
         const data = await response.json();
-        setReviews(data.data);
+        // Ensure each review has a unique key
+        const reviewsWithKeys = (data.data || []).map((review: any, idx: number) => ({
+          ...review,
+          _key: review._key || review.id || `review-${idx}`,
+        }));
+        setReviews(reviewsWithKeys);
       } catch (err: any) {
         setError(err.message || 'Failed to load reviews');
       } finally {

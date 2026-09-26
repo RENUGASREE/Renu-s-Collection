@@ -109,8 +109,8 @@ export default function AdminInventory() {
             <CardContent>
               <p className="mb-2">The following products are running low on stock:</p>
               <ul className="list-disc list-inside">
-                {lowStockProducts.map(p => (
-                  <li key={p._id}>{p.name} (SKU: {p.sku}) - {p.stock} units</li>
+                {lowStockProducts.map((p, idx) => (
+                  <li key={p._id || `product-${idx}`}>{p.name} (SKU: {p.sku}) - {p.stock} units</li>
                 ))}
               </ul>
             </CardContent>

@@ -130,8 +130,8 @@ export default function AdminProducts() {
             className="px-3 py-2 border rounded-md"
           >
             <option value="all">All Categories</option>
-            {categories.map(cat => (
-              <option key={cat._id} value={cat._id}>{cat.name}</option>
+            {categories.map((cat, idx) => (
+              <option key={cat._id || `cat-${idx}`} value={cat._id}>{cat.name}</option>
             ))}
           </select>
         </div>
@@ -140,8 +140,8 @@ export default function AdminProducts() {
           <p>Loading products...</p>
         ) : (
           <div className="grid gap-4">
-            {filteredProducts.map(product => (
-              <Card key={product._id}>
+            {filteredProducts.map((product, idx) => (
+              <Card key={product._id || `product-${idx}`}>
                 <CardHeader>
                   <div className="flex justify-between items-start">
                     <div>

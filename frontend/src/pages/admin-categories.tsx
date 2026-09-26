@@ -209,8 +209,8 @@ export default function AdminCategories() {
                       className="w-full px-3 py-2 border rounded-md"
                     >
                       <option value="">None (Main Category)</option>
-                      {categories.filter(c => !c.parentId).map(cat => (
-                        <option key={cat._id} value={cat._id}>{cat.name}</option>
+                      {categories.filter(c => !c.parentId).map((cat, idx) => (
+                        <option key={cat._id || `cat-${idx}`} value={cat._id}>{cat.name}</option>
                       ))}
                     </select>
                   </div>
@@ -271,8 +271,8 @@ export default function AdminCategories() {
           <p>Loading categories...</p>
         ) : (
           <div className="grid gap-4">
-            {filteredCategories.map(category => (
-              <Card key={category._id}>
+            {filteredCategories.map((category, idx) => (
+              <Card key={category._id || `category-${idx}`}>
                 <CardHeader>
                   <div className="flex justify-between items-start">
                     <div>

@@ -22,55 +22,44 @@ export default function Admin() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  console.log('Admin component mounted');
-  console.log('Token:', token ? 'present' : 'missing');
-  console.log('User:', user);
-  console.log('User role:', user?.role);
-
   useEffect(() => {
-    console.log('Admin useEffect triggered');
-    
     if (!token) {
-      console.log('No token found, setting error');
       setError('Please login to access admin dashboard');
       setLoading(false);
       return;
     }
     
     if (user?.role !== 'admin') {
-      console.log('User role is not admin:', user?.role);
       setError('Admin access required');
       setLoading(false);
       return;
     }
 
-    console.log('User is admin, fetching dashboard');
-
     const fetchDashboard = async () => {
       try {
-        console.log('Fetching admin dashboard with token:', token ? 'present' : 'missing');
-        console.log('User role:', user?.role);
-        console.log('API_BASE_URL:', API_BASE_URL);
-        
         const response = await fetch(`${API_BASE_URL}/api/v1/admin/dashboard`, {
           headers: { Authorization: `Bearer ${token}` },
           credentials: "include",
         });
         
-        console.log('Dashboard response status:', response.status);
-        console.log('Dashboard response ok:', response.ok);
-        
         if (!response.ok) {
           const errorText = await response.text();
-          console.error('Dashboard error response:', errorText);
           throw new Error(`Failed to load admin dashboard: ${response.status} - ${errorText}`);
         }
         
         const json = await response.json();
-        console.log('Dashboard data:', json);
+        
+        // Ensure topProducts has proper keys
+        if (json.data?.topProducts) {
+          json.data.topProducts = json.data.topProducts.map((p: any, idx: number) => ({
+            ...p,
+            id: p.id || p._id || `product-${idx}`,
+            _id: p._id || p.id,
+          }));
+        }
+        
         setStats(json.data);
       } catch (err: any) {
-        console.error('Admin dashboard error:', err);
         setError(err.message || 'Failed to load admin dashboard');
       } finally {
         setLoading(false);
@@ -206,7 +195,7 @@ export default function Admin() {
             </CardContent>
           </Card>
         </div>
-        <Card>
+        <Card key="account">
           <CardHeader><CardTitle>Account</CardTitle></CardHeader>
           <CardContent>
             <Link to="/account"><Button variant="secondary" className="w-full">My Account</Button></Link>

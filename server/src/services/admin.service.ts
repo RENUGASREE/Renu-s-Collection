@@ -71,8 +71,8 @@ export async function getDashboardStats() {
         customers: await User.countDocuments({ role: "customer" }),
         admins: await User.countDocuments({ role: "admin" }),
       },
-      topProducts: topProducts.map((p) => ({
-        id: p._id?.toString() || `product-${Math.random()}`,
+      topProducts: topProducts.map((p, index) => ({
+        id: p._id?.toString() || `product-${index}`,
         _id: p._id?.toString(),
         name: p.name,
         sku: p.sku || "",
