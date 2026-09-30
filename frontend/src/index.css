@@ -5,18 +5,18 @@
 @tailwind utilities;
 
 :root {
-  --background: hsl(0, 0%, 100%); /* Full white */
-  --foreground: hsl(0, 0%, 0%);   /* Full black */
+  --background: #FFF9F5; /* Warm Ivory */
+  --foreground: #332724;   /* Dark Espresso Text */
   --card: hsl(0, 0%, 100%);  --card-foreground: hsl(0, 0%, 0%);
-  --primary: hsl(330, 100%, 50%); /* Primary color set to #FF0066 */
+  --primary: #B66F72; /* Dusty Rose */
   --primary-foreground: hsl(0, 0%, 100%);
-  --secondary: hsl(0, 0%, 95%);
+  --secondary: #FAF4F1; /* Very Light Blush */
   --secondary-foreground: hsl(0, 0%, 5%);
-  --muted: hsl(330, 100%, 75%); /* Muted color based on #FF0066 */
-  --muted-foreground: hsl(0, 0%, 30%);
-  --accent: hsl(330, 100%, 75%); /* Accent color based on #FF0066 */
+  --muted: #F4E4E1; /* Soft Rose Background */
+  --muted-foreground: #74635E; /* Muted Warm Text */
+  --accent: #FAF4F1; /* Soft Rose for accent */
   --accent-foreground: hsl(0, 0%, 0%);
-  --border: hsl(330, 100%, 50%); /* Border color set to #FF0066 */
+  --border: #E5D2CC; /* Soft Border */
   --input: hsl(0, 0%, 90%);
   --ring: hsl(330, 100%, 50%); /* Ring color set to #FF0066 */
   --destructive: hsl(356, 90%, 54%);
@@ -40,19 +40,19 @@
 }
 
 .dark {
-  --background: hsl(0, 0%, 0%);   /* Full black */
-  --foreground: hsl(0, 0%, 100%); /* Full white */
+  --background: #1A1413;   /* Deep Warm Espresso Black */
+  --foreground: #FAF4F1; /* Light text for dark mode */
   --card: hsl(0, 0%, 4%);
   --card-foreground: hsl(0, 0%, 100%);
-  --primary: hsl(330, 100%, 50%); /* Primary color set to #FF0066 */
-  --primary-foreground: hsl(0, 0%, 0%);
-  --secondary: hsl(0, 0%, 10%);
+  --primary: #C88285; /* Primary (dark mode) Dusty Rose */
+  --primary-foreground: #FFFFFF; /* Primary foreground for dark mode */
+  --secondary: #2C2220; /* Dark mode secondary background */
   --secondary-foreground: hsl(0, 0%, 100%);
-  --muted: hsl(330, 100%, 35%); /* Muted color based on #FF0066 */
-  --muted-foreground: hsl(0, 0%, 70%);
-  --accent: hsl(330, 100%, 35%); /* Accent color based on #FF0066 */
+  --muted: #2C2220; /* Dark mode muted background */
+  --muted-foreground: #A89893; /* Muted warm text for dark mode */
+  --accent: #FAF4F1; /* Soft Rose for dark mode */
   --accent-foreground: hsl(0, 0%, 100%);
-  --border: hsl(330, 100%, 35%); /* Border color based on #FF0066 */
+  --border: #3D302D; /* Soft Border for dark mode */
   --input: hsl(0, 0%, 15%);
   --ring: hsl(330, 100%, 50%); /* Ring color set to #FF0066 */
   --popover: hsl(0, 0%, 5%);

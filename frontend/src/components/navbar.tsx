@@ -46,7 +46,7 @@ export default function Navbar() {
 
   const isHomePage = location.pathname === "/";
   const navbarBgClass =
-    theme === "light" && !isHomePage ? "bg-[hsla(330,100%,50%,0.35)]" : "";
+    theme === "light" && !isHomePage ? "bg-primary/35" : "";
 
   return (
     <>
