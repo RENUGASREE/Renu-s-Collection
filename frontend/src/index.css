@@ -5,139 +5,122 @@
 @tailwind utilities;
 
 :root {
-  --background: #FFF9F5; /* Warm Ivory */
-  --foreground: #332724;   /* Dark Espresso Text */
-  --card: hsl(0, 0%, 100%);  --card-foreground: hsl(0, 0%, 0%);
-  --primary: #B66F72; /* Dusty Rose */
-  --primary-foreground: hsl(0, 0%, 100%);
-  --secondary: #FAF4F1; /* Very Light Blush */
-  --secondary-foreground: hsl(0, 0%, 5%);
-  --muted: #F4E4E1; /* Soft Rose Background */
-  --muted-foreground: #74635E; /* Muted Warm Text */
-  --accent: #FAF4F1; /* Soft Rose for accent */
-  --accent-foreground: hsl(0, 0%, 0%);
-  --border: #E5D2CC; /* Soft Border */
-  --input: hsl(0, 0%, 90%);
-  --ring: hsl(330, 100%, 50%); /* Ring color set to #FF0066 */
-  --destructive: hsl(356, 90%, 54%);
-  --destructive-foreground: hsl(0, 0%, 100%);
-  --popover: hsl(0, 0%, 100%);
-  --popover-foreground: hsl(0, 0%, 0%);
+  /* Approved Palette: Ivory, Champagne & Antique Rose — Elegant Jewellery Boutique */
+  /* Main background: Warm Ivory #FBF7F3 */
+  --background: 30 50% 97%;
+  /* Primary text: Espresso #342824 */
+  --foreground: 15 18% 17%;
+
+  /* Cards and surfaces: Pearl White #FFFFFF */
+  --card: 0 0% 100%;
+  --card-foreground: 15 18% 17%;
+
+  /* Popover surfaces */
+  --popover: 0 0% 100%;
+  --popover-foreground: 15 18% 17%;
+
+  /* Brand accent: Antique Rose #B66F72 */
+  --primary: 357 33% 57%;
+  --primary-foreground: 0 0% 100%;
+
+  /* Secondary backgrounds & muted surfaces: Blush Cream #F1E6DF */
+  --secondary: 23 39% 91%;
+  --secondary-foreground: 15 18% 17%;
+
+  --muted: 23 39% 91%;
+  /* Secondary text: Warm Taupe #756861 */
+  --muted-foreground: 21 9% 42%;
+
+  --accent: 23 39% 91%;
+  --accent-foreground: 15 18% 17%;
+
+  /* Destructive states */
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 98%;
+
+  /* Borders & Inputs: Soft Sand #E6D8D0 */
+  --border: 22 31% 86%;
+  --input: 22 31% 86%;
+
+  /* Focus ring: Antique Rose #B66F72 */
+  --ring: 357 33% 57%;
   --radius: 0.75rem;
-  
-  /* Custom Renu's Collections Brand Colors */
-  --rose-gold: hsl(330, 100%, 50%); /* Rose gold set to #FF0066 */
-  --matte-black: hsl(0, 0%, 0%); /* Full black */
-  --cream: hsl(0, 0%, 100%); /* Full white */
-  --rose-glow: hsl(330, 100%, 75%); /* Rose glow based on #FF0066 */
-  --heading-glow: rgba(0, 0, 0, 0.7); /* Light theme black glow */
-  --renu-color: hsl(330, 100%, 50%); /* Set to primary color */
-  --collections-color: hsl(330, 100%, 50%); /* Set to primary color */
-  
+
+  /* Dedicated Boutique Palette Tokens (space-separated HSL channels for opacity utility support) */
+  --warm-ivory: 30 50% 97%;      /* #FBF7F3 */
+  --pearl-white: 0 0% 100%;      /* #FFFFFF */
+  --blush-cream: 23 39% 91%;     /* #F1E6DF */
+  --antique-rose: 357 33% 57%;   /* #B66F72 */
+  --deep-rose: 356 27% 46%;      /* #95565A */
+  --champagne-gold: 34 34% 59%;  /* #B99A72 */
+  --espresso: 15 18% 17%;        /* #342824 */
+  --warm-taupe: 21 9% 42%;       /* #756861 */
+  --soft-sand: 22 31% 86%;       /* #E6D8D0 */
+
+  /* Legacy brand aliases mapped to approved palette */
+  --cream: 0 0% 100%;            /* Pearl White */
+  --rose-gold: 34 34% 59%;       /* Champagne Gold */
+  --matte-black: 15 18% 17%;     /* Espresso */
+  --rose-glow: 357 33% 57%;      /* Antique Rose */
+  --renu-color: 357 33% 57%;
+  --collections-color: 357 33% 57%;
+
   /* Typography */
   --font-playfair: 'Playfair Display', serif;
   --font-inter: 'Inter', sans-serif;
+  --font-sans: 'Inter', sans-serif;
+  --font-serif: 'Playfair Display', serif;
 }
 
 .dark {
-  --background: #1A1413;   /* Deep Warm Espresso Black */
-  --foreground: #FAF4F1; /* Light text for dark mode */
-  --card: hsl(0, 0%, 4%);
-  --card-foreground: hsl(0, 0%, 100%);
-  --primary: #C88285; /* Primary (dark mode) Dusty Rose */
-  --primary-foreground: #FFFFFF; /* Primary foreground for dark mode */
-  --secondary: #2C2220; /* Dark mode secondary background */
-  --secondary-foreground: hsl(0, 0%, 100%);
-  --muted: #2C2220; /* Dark mode muted background */
-  --muted-foreground: #A89893; /* Muted warm text for dark mode */
-  --accent: #FAF4F1; /* Soft Rose for dark mode */
-  --accent-foreground: hsl(0, 0%, 100%);
-  --border: #3D302D; /* Soft Border for dark mode */
-  --input: hsl(0, 0%, 15%);
-  --ring: hsl(330, 100%, 50%); /* Ring color set to #FF0066 */
-  --popover: hsl(0, 0%, 5%);
-  --popover-foreground: hsl(0, 0%, 100%);
-  --heading-glow: rgba(255, 255, 255, 0.7); /* Dark theme white glow */
-  
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 330 100% 50%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 330 100% 50%;
-    --rose-gold: 330 100% 50%; /* Light theme rose gold */
-    --matte-black: 240 10% 3.9%; /* Light theme matte black */
-    --cream: 60 30% 96%; /* Light theme cream */
-    --heading-glow: rgba(0, 0, 0, 0.7);
-    --heading-outline-color: rgba(0, 0, 0, 0.7);
-  }
+  /* Dark Mode: Deep Warm Espresso Black #1A1413 */
+  --background: 10 14% 9%;       /* #1A1413 */
+  --foreground: 20 40% 96%;      /* Light Cream #FAF4F1 */
 
-  .dark {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 330 100% 50%;
-    --primary-foreground: 240 5.9% 10%;
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 330 100% 50%;
-    --rose-gold: hsl(330, 100%, 50%); /* Light theme rose gold */
-    --matte-black: 240 10% 3.9%; /* Dark theme matte black */
-    --cream: 60 30% 96%; /* Dark theme cream */
-    --heading-glow: rgba(255, 255, 255, 0.7);
-    --heading-outline-color: rgba(255, 255, 255, 0.7);
-  }
-  /* Dark Mode */
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --background: hsl(0, 0%, 98%);   /* Almost white for better contrast */
-      --foreground: hsl(210, 40%, 98%);
-      --card: hsl(222.2 84% 4.9%);
-      --card-foreground: hsl(210, 40%, 98%);
-      --popover: hsl(222.2 84% 4.9%);
-      --popover-foreground: hsl(210, 40%, 98%);
-      --primary: hsl(330, 100%, 50%); /* Primary color set to #FF0066 */
-      --primary-foreground: hsl(0, 0%, 0%);
-      --secondary: hsl(217.2 32.6% 17.5%);
-      --secondary-foreground: hsl(210, 40%, 98%);
-      --muted: hsl(217.2 32.6% 17.5%);
-      --muted-foreground: hsl(215 20.2% 65.1%);
-      --accent: hsl(217.2 32.6% 17.5%);
-      --accent-foreground: hsl(210, 40%, 98%);
-      --destructive: hsl(0 62.8% 30.6%);
-      --destructive-foreground: hsl(210, 40%, 98%);
-      --border: hsl(217.2 32.6% 17.5%);
-      --input: hsl(217.2 32.6% 17.5%);
-      --ring: hsl(212.7 26.8% 83.9%);
-      --heading-outline-color: rgba(0, 0, 0, 0.7); /* Dark shadow for light text */
-      --heading-primary-shadow: rgba(255, 255, 255, 0.7); /* White shadow for primary text */
-    }
-  }
+  --card: 12 16% 12%;            /* Charcoal Surface #241C1A */
+  --card-foreground: 20 40% 96%;
+
+  --popover: 12 16% 12%;
+  --popover-foreground: 20 40% 96%;
+
+  /* Primary accent: Muted Rose #C88285 */
+  --primary: 357 39% 65%;
+  --primary-foreground: 10 14% 9%;
+
+  --secondary: 11 15% 15%;       /* Deep Warm Surface #2C2220 */
+  --secondary-foreground: 20 40% 96%;
+
+  --muted: 11 15% 15%;
+  --muted-foreground: 14 11% 62%; /* Light Warm Taupe #A89893 */
+
+  --accent: 11 15% 15%;
+  --accent-foreground: 20 40% 96%;
+
+  --destructive: 0 62% 30%;
+  --destructive-foreground: 0 0% 98%;
+
+  --border: 11 14% 21%;          /* Muted Dark Sand #3D302D */
+  --input: 11 14% 21%;
+
+  --ring: 357 39% 65%;
+
+  /* Dedicated Boutique Palette Tokens (Dark Mode) */
+  --warm-ivory: 10 14% 9%;
+  --pearl-white: 12 16% 12%;
+  --blush-cream: 11 15% 15%;
+  --antique-rose: 357 39% 65%;
+  --deep-rose: 356 27% 46%;
+  --champagne-gold: 34 34% 59%;
+  --espresso: 20 40% 96%;
+  --warm-taupe: 14 11% 62%;
+  --soft-sand: 11 14% 21%;
+
+  --cream: 20 40% 96%;
+  --rose-gold: 34 34% 59%;
+  --matte-black: 10 14% 9%;
+  --rose-glow: 357 39% 65%;
+  --renu-color: 357 39% 65%;
+  --collections-color: 357 39% 65%;
 }
 
 @layer base {
@@ -147,107 +130,70 @@
 
   body {
     @apply bg-background text-foreground;
-    font-family: var(--font-raleway);
+    font-family: var(--font-inter), sans-serif;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-playfair);
-    text-shadow: 0 0 1px var(--heading-outline-color);
+    font-family: var(--font-playfair), serif;
   }
 }
 
-/* Custom Animations */
-@keyframes pulse-glow {
-  0%, 100% {
-    box-shadow: 0 0 0px rgba(255, 255, 255, 0);
-  }
-  50% {
-    box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
-  }
+/* Boutique Navigation & Blur Effects */
+.navbar-blur {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  background-color: hsl(var(--background) / 0.94);
+  border-bottom: 1px solid hsl(var(--border));
 }
 
-.pulse-glow {
-  animation: pulse-glow 2s infinite ease-in-out;
-}
-
-@keyframes glow-hover {
-  from {
-    box-shadow: 0 0 0px var(--primary);
-  }
-  to {
-    box-shadow: 0 0 15px var(--primary);
-  }
-}
-
+/* Boutique Hover & Animation Styles */
 .glow-hover {
   transition: all 0.3s ease-in-out;
 }
 
 .glow-hover:hover {
-    box-shadow: 0 0 20px hsl(330, 100%, 50%, 0.4), 0 0 40px hsl(330, 100%, 50%, 0.2);
-    transform: translateY(-2px);
-  }
-  
-  .card-hover {
-    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-  
-  .card-hover:hover {
-    transform: translateY(-8px) scale(1.02);
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3), 0 0 20px hsl(330, 100%, 50%, 0.3);
-  }
-  
-  .navbar-blur {
-    backdrop-filter: blur(10px);
-    background-color: hsl(0, 0%, 5%, 0.9);
-  }
-  
-  .pulse-glow {
-    animation: pulseGlow 2s infinite;
-  }
-  
-  @keyframes pulseGlow {
-    0%, 100% {
-      box-shadow: 0 0 5px hsl(330, 100%, 50%, 0.5);
-    }
-    50% {
-      box-shadow: 0 0 20px hsl(330, 100%, 50%, 0.8), 0 0 30px hsl(330, 100%, 50%, 0.4);
-    }
-  }
-  
-  .rotate-charm {
-    transition: transform 0.6s ease;
-  }
-  
-  .card-hover:hover .rotate-charm {
-    transform: rotate(360deg);
-  }
-  
+  box-shadow: 0 0 15px hsl(var(--primary) / 0.35);
+  transform: translateY(-2px);
+}
+
+.card-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px -10px hsl(var(--foreground) / 0.08), 0 0 0 1px hsl(var(--primary) / 0.25);
+}
+
+.rotate-charm {
+  transition: transform 0.6s ease;
+}
+
+.card-hover:hover .rotate-charm {
+  transform: rotate(360deg);
+}
+
+.parallax-bg {
+  background-attachment: fixed;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  position: relative;
+}
+
+.parallax-bg::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.45);
+  z-index: 1;
+}
+
+@media (max-width: 768px) {
   .parallax-bg {
-    background-attachment: fixed;
-    background-position: center;
-    background-repeat: no-repeat;
-    background-size: cover;
-    position: relative;
+    background-attachment: scroll;
   }
-  
-  .parallax-bg::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.75); /* 75% opaque overlay for 25% image transparency */
-    z-index: 1;
-  }
-  
-  @media (max-width: 768px) {
-    .parallax-bg {
-      background-attachment: scroll;
-    }
-  }
-  
-  .neon-glow {
-    filter: drop-shadow(0 0 5px #FF69B4) drop-shadow(0 0 15px #FF69B4);
-  }
+}

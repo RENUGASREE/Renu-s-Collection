@@ -107,20 +107,20 @@ export default function HeroSection() {
       <div className="relative z-10 text-center px-6 max-w-4xl mx-auto">
         {/* Logo */}
         <motion.h1
-          className="text-6xl md:text-8xl font-playfair font-bold mb-6"
+          className="text-6xl md:text-8xl font-playfair font-bold mb-6 tracking-tight"
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 1.2, ease: "easeOut" }}
           data-testid="hero-logo"
         >
-          <span className="text-primary" style={{ textShadow: '0 0 1px var(--heading-outline-color)' }}>Renu's</span>
+          <span className="text-primary font-bold">Renu's</span>
           <br />
-          <span className="text-primary" style={{ textShadow: '0 0 1px var(--heading-primary-shadow)' }}>Collections</span>
+          <span className="text-primary font-bold">Collections</span>
         </motion.h1>
 
-        {/* Tagline */}
+        {/* Tagline - Refined dark warm taupe/espresso contrast over light hero background */}
         <motion.p
-          className="text-xl md:text-2xl text-cream mb-8 font-light tracking-wide"
+          className="text-xl md:text-2xl text-foreground/85 dark:text-foreground mb-8 font-light tracking-wide font-sans"
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 1.2, ease: "easeOut", delay: 0.3 }}
@@ -140,7 +140,7 @@ export default function HeroSection() {
         >
           <Button
             onClick={scrollToCollection}
-            className="glow-hover px-8 py-4 border-2 border-primary bg-transparent text-primary font-medium tracking-wider hover:bg-primary hover:text-white transition-all duration-300"
+            className="glow-hover px-8 py-4 border-2 border-primary bg-primary/10 text-primary font-medium tracking-wider hover:bg-primary hover:text-white transition-all duration-300 rounded-sm"
             data-testid="hero-cta-button"
           >
             SHOP THE COLLECTION

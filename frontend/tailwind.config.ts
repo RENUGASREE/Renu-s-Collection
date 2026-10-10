@@ -11,39 +11,39 @@ export default {
         sm: "calc(var(--radius) - 4px)",
       },
       colors: {
-        background: "var(--background)",
-        foreground: "var(--foreground)",
+        background: "hsl(var(--background) / <alpha-value>)",
+        foreground: "hsl(var(--foreground) / <alpha-value>)",
         card: {
-          DEFAULT: "var(--card)",
-          foreground: "var(--card-foreground)",
+          DEFAULT: "hsl(var(--card) / <alpha-value>)",
+          foreground: "hsl(var(--card-foreground) / <alpha-value>)",
         },
         popover: {
-          DEFAULT: "var(--popover)",
-          foreground: "var(--popover-foreground)",
+          DEFAULT: "hsl(var(--popover) / <alpha-value>)",
+          foreground: "hsl(var(--popover-foreground) / <alpha-value>)",
         },
         primary: {
-          DEFAULT: "var(--primary)",
-          foreground: "var(--primary-foreground)",
+          DEFAULT: "hsl(var(--primary) / <alpha-value>)",
+          foreground: "hsl(var(--primary-foreground) / <alpha-value>)",
         },
         secondary: {
-          DEFAULT: "var(--secondary)",
-          foreground: "var(--secondary-foreground)",
+          DEFAULT: "hsl(var(--secondary) / <alpha-value>)",
+          foreground: "hsl(var(--secondary-foreground) / <alpha-value>)",
         },
         muted: {
-          DEFAULT: "var(--muted)",
-          foreground: "var(--muted-foreground)",
+          DEFAULT: "hsl(var(--muted) / <alpha-value>)",
+          foreground: "hsl(var(--muted-foreground) / <alpha-value>)",
         },
         accent: {
-          DEFAULT: "var(--accent)",
-          foreground: "var(--accent-foreground)",
+          DEFAULT: "hsl(var(--accent) / <alpha-value>)",
+          foreground: "hsl(var(--accent-foreground) / <alpha-value>)",
         },
         destructive: {
-          DEFAULT: "var(--destructive)",
-          foreground: "var(--destructive-foreground)",
+          DEFAULT: "hsl(var(--destructive) / <alpha-value>)",
+          foreground: "hsl(var(--destructive-foreground) / <alpha-value>)",
         },
-        border: "var(--border)",
-        input: "var(--input)",
-        ring: "var(--ring)",
+        border: "hsl(var(--border) / <alpha-value>)",
+        input: "hsl(var(--input) / <alpha-value>)",
+        ring: "hsl(var(--ring) / <alpha-value>)",
         chart: {
           "1": "var(--chart-1)",
           "2": "var(--chart-2)",
@@ -61,13 +61,24 @@ export default {
           border: "var(--sidebar-border)",
           ring: "var(--sidebar-ring)",
         },
-        // Custom Renu's Collections brand colors
-        "rose-gold": "var(--rose-gold)",
-        "matte-black": "var(--matte-black)",
-        "cream": "var(--cream)",
-        "rose-glow": "var(--rose-glow)",
-        "renu-color": "var(--renu-color)",
-        "collections-color": "var(--collections-color)",
+        // Approved Boutique Brand Colors
+        "warm-ivory": "hsl(var(--warm-ivory) / <alpha-value>)",
+        "pearl-white": "hsl(var(--pearl-white) / <alpha-value>)",
+        "blush-cream": "hsl(var(--blush-cream) / <alpha-value>)",
+        "antique-rose": "hsl(var(--antique-rose) / <alpha-value>)",
+        "deep-rose": "hsl(var(--deep-rose) / <alpha-value>)",
+        "champagne-gold": "hsl(var(--champagne-gold) / <alpha-value>)",
+        "espresso": "hsl(var(--espresso) / <alpha-value>)",
+        "warm-taupe": "hsl(var(--warm-taupe) / <alpha-value>)",
+        "soft-sand": "hsl(var(--soft-sand) / <alpha-value>)",
+
+        // Legacy brand aliases
+        "rose-gold": "hsl(var(--rose-gold) / <alpha-value>)",
+        "matte-black": "hsl(var(--matte-black) / <alpha-value>)",
+        "cream": "hsl(var(--cream) / <alpha-value>)",
+        "rose-glow": "hsl(var(--rose-glow) / <alpha-value>)",
+        "renu-color": "hsl(var(--renu-color) / <alpha-value>)",
+        "collections-color": "hsl(var(--collections-color) / <alpha-value>)",
       },
       fontFamily: {
         sans: ["var(--font-sans)"],
@@ -105,10 +116,10 @@ export default {
         },
         pulseGlow: {
           "0%, 100%": {
-            boxShadow: "0 0 5px hsl(347 24% 59% / 0.5)",
+            boxShadow: "0 0 5px hsl(357 33% 57% / 0.4)",
           },
           "50%": {
-            boxShadow: "0 0 20px hsl(347 24% 59% / 0.8), 0 0 30px hsl(347 24% 59% / 0.4)",
+            boxShadow: "0 0 20px hsl(357 33% 57% / 0.7), 0 0 30px hsl(357 33% 57% / 0.3)",
           },
         },
       },

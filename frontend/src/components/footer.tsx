@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 
 export default function Footer() {
   return (
-    <footer className="bg-secondary border-t border-primary/20 py-8">
+    <footer className="bg-secondary border-t border-border py-8">
       <motion.div
         className="max-w-6xl mx-auto px-6 text-center"
         initial={{ opacity: 0, y: 20 }}
@@ -15,7 +15,7 @@ export default function Footer() {
           <span className="text-foreground">Renu's</span>
           <span className="text-primary"> Collections</span>
         </div>
-        <p className="text-background/70 mb-4" data-testid="footer-tagline">
+        <p className="text-muted-foreground mb-4" data-testid="footer-tagline">
           Refined Adornment. Uncompromising Elegance.
         </p>
         <div className="flex flex-wrap justify-center gap-4 mb-4 text-sm">
@@ -29,7 +29,7 @@ export default function Footer() {
           <Link to="/register" className="text-primary hover:underline">Register</Link>
           <Link to="/admin" className="text-primary hover:underline">Admin</Link>
         </div>
-        <p className="text-background/50 text-sm" data-testid="footer-copyright">
+        <p className="text-muted-foreground/80 text-sm" data-testid="footer-copyright">
           © 2026 Renu's Collections. All rights reserved.
         </p>
       </motion.div>
