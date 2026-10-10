@@ -415,7 +415,7 @@ export default function ProductDetail() {
           canonicalUrl={`http://localhost:5173/Renu_Collections/product/${productId}`}
         />
         <div className="min-h-screen bg-background flex flex-col">
-          <main className="flex-grow container mx-auto px-4 py-8 text-center">
+          <main className="flex-grow container mx-auto px-4 py-8 pt-20 text-center">
             <h1 className="text-4xl font-bold mb-4">Loading Product...</h1>
           </main>
           <Footer />
@@ -427,7 +427,7 @@ export default function ProductDetail() {
   if (error) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
-        <main className="flex-grow container mx-auto px-4 py-8 text-center">
+        <main className="flex-grow container mx-auto px-4 py-8 pt-20 text-center">
           <h1 className="text-4xl font-bold mb-4">Error</h1>
           <p>{error}</p>
         </main>
@@ -439,7 +439,7 @@ export default function ProductDetail() {
   if (!product) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
-        <main className="flex-grow container mx-auto px-4 py-8 text-center">
+        <main className="flex-grow container mx-auto px-4 py-8 pt-20 text-center">
           <h1 className="text-4xl font-bold mb-4">Product Not Found</h1>
           <p>The product you are looking for does not exist.</p>
         </main>
@@ -450,7 +450,7 @@ export default function ProductDetail() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <main className="flex-grow container mx-auto px-4 py-8">
+      <main className="flex-grow container mx-auto px-4 py-8 pt-20">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Left: Product Image / Preview */}
           <div>

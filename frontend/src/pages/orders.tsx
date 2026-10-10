@@ -115,7 +115,7 @@ export default function Orders() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
-        <main className="flex-grow container mx-auto px-4 py-8 text-center">
+        <main className="flex-grow container mx-auto px-4 py-8 pt-20 text-center">
           <h1 className="text-4xl font-bold mb-4">Loading Orders...</h1>
         </main>
         <Footer />
@@ -131,7 +131,7 @@ export default function Orders() {
         keywords="my orders, order history, track order, renu's collections orders, jewelry orders"
         url="https://renucollections.com/orders"
       />
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-8 pt-20">
         <h1 className="text-5xl font-bold text-center mb-12">My Orders</h1>
 
         {orders.length === 0 ? (

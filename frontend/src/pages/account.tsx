@@ -211,7 +211,7 @@ const AccountPage: React.FC = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
-        <main className="flex-grow container mx-auto px-4 py-8 text-center">
+        <main className="flex-grow container mx-auto px-4 py-8 pt-20 text-center">
           <h1 className="text-4xl font-bold mb-4">Loading Account...</h1>
         </main>
       </div>
@@ -221,7 +221,7 @@ const AccountPage: React.FC = () => {
   if (!user) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
-        <main className="flex-grow container mx-auto px-4 py-8 text-center">
+        <main className="flex-grow container mx-auto px-4 py-8 pt-20 text-center">
           <h1 className="text-4xl font-bold mb-4">Please Login</h1>
           <Button onClick={() => navigate('/login')} className="mt-4">
             Login
@@ -239,7 +239,7 @@ const AccountPage: React.FC = () => {
         keywords="my account, order history, account management, renu's collections account, jewelry orders"
         url="https://renucollections.com/account"
       />
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-8 pt-20">
         <div className="max-w-6xl mx-auto">
           <h1 className="text-4xl font-bold mb-8">My Account</h1>
           

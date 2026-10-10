@@ -164,7 +164,7 @@ export default function OrderDetails() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
-        <main className="flex-grow container mx-auto px-4 py-8 text-center">
+        <main className="flex-grow container mx-auto px-4 py-8 pt-20 text-center">
           <h1 className="text-4xl font-bold mb-4">Loading Order Details...</h1>
         </main>
         <Footer />
@@ -175,7 +175,7 @@ export default function OrderDetails() {
   if (!order) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
-        <main className="flex-grow container mx-auto px-4 py-8 text-center">
+        <main className="flex-grow container mx-auto px-4 py-8 pt-20 text-center">
           <h1 className="text-4xl font-bold mb-4">Order not found</h1>
           <Button asChild>
             <Link to="/orders">Back to Orders</Link>
@@ -194,7 +194,7 @@ export default function OrderDetails() {
         keywords={`order ${order.orderNumber}, order details, renu's collections`}
         url={`https://renucollections.com/orders/${order._id}`}
       />
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-8 pt-20">
         <div className="mb-8">
           <h1 className="text-4xl font-bold">Order #{order.orderNumber}</h1>
         </div>

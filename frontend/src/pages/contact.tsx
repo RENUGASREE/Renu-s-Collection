@@ -32,7 +32,7 @@ export default function Contact() {
   };
 
   return (
-    <div className="min-h-screen pt-24 pb-16 px-4">
+    <div className="min-h-screen bg-background pt-24 pb-16 px-4">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -53,7 +53,7 @@ export default function Contact() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="text-lg text-cream/80 max-w-2xl mx-auto"
+            className="text-lg text-muted-foreground max-w-2xl mx-auto"
           >
             Have questions about our luxury jewelry? We'd love to hear from you.
           </motion.p>
@@ -66,42 +66,42 @@ export default function Contact() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.4 }}
           >
-            <Card className="bg-primary/10 border-primary/20 backdrop-blur-sm">
+            <Card className="bg-secondary/40 border-border">
               <CardHeader>
-                <CardTitle className="text-2xl font-playfair text-primary">Contact Information</CardTitle>
-                <CardDescription className="text-cream/70">
+                <CardTitle className="text-2xl font-playfair text-foreground">Contact Information</CardTitle>
+                <CardDescription className="text-muted-foreground">
                   Reach out to us through any of these channels
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="flex items-start space-x-4">
-                  <div className="p-3 bg-primary/20 rounded-lg">
+                  <div className="p-3 bg-primary/15 rounded-lg flex-shrink-0">
                     <Mail className="h-6 w-6 text-primary" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-cream mb-1">Email</h3>
-                    <p className="text-cream/70">renuscollection05@gmail.com</p>
+                    <h3 className="font-semibold text-foreground mb-1">Email</h3>
+                    <p className="text-muted-foreground">renuscollection05@gmail.com</p>
                   </div>
                 </div>
 
                 <div className="flex items-start space-x-4">
-                  <div className="p-3 bg-primary/20 rounded-lg">
+                  <div className="p-3 bg-primary/15 rounded-lg flex-shrink-0">
                     <Phone className="h-6 w-6 text-primary" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-cream mb-1">Phone</h3>
-                    <p className="text-cream/70">+91 98765 43210</p>
-                    <p className="text-cream/70">Mon-Sat, 10am-7pm IST</p>
+                    <h3 className="font-semibold text-foreground mb-1">Phone</h3>
+                    <p className="text-muted-foreground">+91 98765 43210</p>
+                    <p className="text-muted-foreground">Mon-Sat, 10am-7pm IST</p>
                   </div>
                 </div>
 
                 <div className="flex items-start space-x-4">
-                  <div className="p-3 bg-primary/20 rounded-lg">
+                  <div className="p-3 bg-primary/15 rounded-lg flex-shrink-0">
                     <MapPin className="h-6 w-6 text-primary" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-cream mb-1">Address</h3>
-                    <p className="text-cream/70">
+                    <h3 className="font-semibold text-foreground mb-1">Address</h3>
+                    <p className="text-muted-foreground">
                       Renu's Collections
                       <br />
                       MG Road
@@ -124,30 +124,30 @@ export default function Contact() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.5 }}
           >
-            <Card className="bg-primary/10 border-primary/20 backdrop-blur-sm">
+            <Card className="bg-card border-border shadow-sm">
               <CardHeader>
-                <CardTitle className="text-2xl font-playfair text-primary">Send us a Message</CardTitle>
-                <CardDescription className="text-cream/70">
+                <CardTitle className="text-2xl font-playfair text-foreground">Send us a Message</CardTitle>
+                <CardDescription className="text-muted-foreground">
                   Fill out the form below and we'll get back to you shortly
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="name" className="text-cream">Name</Label>
+                    <Label htmlFor="name" className="text-foreground font-medium">Name</Label>
                     <Input
                       id="name"
                       name="name"
                       value={formData.name}
                       onChange={handleChange}
                       required
-                      className="bg-background border-primary/20 text-foreground placeholder:text-muted-foreground"
+                      className="bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:ring-primary"
                       placeholder="Your name"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="email" className="text-cream">Email</Label>
+                    <Label htmlFor="email" className="text-foreground font-medium">Email</Label>
                     <Input
                       id="email"
                       name="email"
@@ -155,26 +155,26 @@ export default function Contact() {
                       value={formData.email}
                       onChange={handleChange}
                       required
-                      className="bg-background border-primary/20 text-foreground placeholder:text-muted-foreground"
+                      className="bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:ring-primary"
                       placeholder="your@email.com"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="subject" className="text-cream">Subject</Label>
+                    <Label htmlFor="subject" className="text-foreground font-medium">Subject</Label>
                     <Input
                       id="subject"
                       name="subject"
                       value={formData.subject}
                       onChange={handleChange}
                       required
-                      className="bg-background border-primary/20 text-foreground placeholder:text-muted-foreground"
+                      className="bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:ring-primary"
                       placeholder="How can we help?"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="message" className="text-cream">Message</Label>
+                    <Label htmlFor="message" className="text-foreground font-medium">Message</Label>
                     <Textarea
                       id="message"
                       name="message"
@@ -182,14 +182,14 @@ export default function Contact() {
                       onChange={handleChange}
                       required
                       rows={5}
-                      className="bg-background border-primary/20 text-foreground placeholder:text-muted-foreground resize-none"
+                      className="bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:ring-primary resize-none"
                       placeholder="Tell us more about your inquiry..."
                     />
                   </div>
 
                   <Button
                     type="submit"
-                    className="w-full bg-primary hover:bg-primary/90 text-white"
+                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium"
                     size="lg"
                   >
                     <Send className="h-4 w-4 mr-2" />

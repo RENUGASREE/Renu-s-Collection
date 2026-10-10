@@ -210,7 +210,7 @@ export default function Checkout() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
-        <main className="flex-grow container mx-auto px-4 py-8 text-center">
+        <main className="flex-grow container mx-auto px-4 py-8 pt-20 text-center">
           <h1 className="text-4xl font-bold mb-4">Loading Checkout...</h1>
         </main>
         <Footer />
@@ -221,7 +221,7 @@ export default function Checkout() {
   if (cartItems.length === 0) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
-        <main className="flex-grow container mx-auto px-4 py-8 text-center">
+        <main className="flex-grow container mx-auto px-4 py-8 pt-20 text-center">
           <h1 className="text-4xl font-bold mb-4">Your cart is empty</h1>
           <Button onClick={() => navigate('/products')} className="mt-4">
             Continue Shopping
@@ -240,7 +240,7 @@ export default function Checkout() {
         keywords="checkout, secure payment, jewelry purchase, custom jewelry checkout, renu's collections payment"
         url="https://renucollections.com/checkout"
       />
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-8 pt-20">
         <h1 className="text-5xl font-bold text-center mb-12">Checkout</h1>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
