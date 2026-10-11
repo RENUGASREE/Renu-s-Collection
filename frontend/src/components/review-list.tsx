@@ -25,9 +25,10 @@ interface Review {
 
 interface ReviewListProps {
   productId: string;
+  refreshTrigger?: number;
 }
 
-export function ReviewList({ productId }: ReviewListProps) {
+export function ReviewList({ productId, refreshTrigger }: ReviewListProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -37,7 +38,7 @@ export function ReviewList({ productId }: ReviewListProps) {
 
   useEffect(() => {
     fetchReviews();
-  }, [productId, page]);
+  }, [productId, page, refreshTrigger]);
 
   const fetchReviews = async () => {
     if (!productId) {

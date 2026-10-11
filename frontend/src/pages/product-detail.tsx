@@ -1,8 +1,8 @@
 import Footer from "@/components/footer";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { useState, useEffect } from "react";
-import { apiRequest, API_BASE_URL } from "@/lib/queryClient";
+import { useState, useEffect, useCallback } from "react";
+import { apiRequest, getAssetUrl } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { SEO } from "@/components/SEO";
@@ -12,6 +12,19 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ReviewList } from "@/components/review-list";
 import { ReviewForm } from "@/components/review-form";
 import { StarRating } from "@/components/star-rating";
+import {
+  Heart,
+  Gem,
+  AlertCircle,
+  Sparkles,
+  ShieldCheck,
+  Minus,
+  Plus,
+  ShoppingBag,
+  CreditCard,
+  PackageX,
+  Check,
+} from "lucide-react";
 
 interface Product {
   _id: string;
@@ -41,7 +54,7 @@ interface Product {
 interface CustomizationField {
   key: string;
   label: string;
-  type: 'select' | 'multiselect' | 'color' | 'text' | 'number';
+  type: "select" | "multiselect" | "color" | "text" | "number";
   options?: { value: string; label: string; priceModifier?: number; imageUrl?: string }[];
   required?: boolean;
   sortOrder?: number;
@@ -63,6 +76,9 @@ export default function ProductDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [addingToCart, setAddingToCart] = useState(false);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [imageHasError, setImageHasError] = useState<Record<number, boolean>>({});
+
   const [customizationConfig, setCustomizationConfig] = useState<CustomizationConfig | null>(null);
   const [customizationSelections, setCustomizationSelections] = useState<Record<string, string | string[]>>({});
   const [customizationPrice, setCustomizationPrice] = useState<{
@@ -73,93 +89,107 @@ export default function ProductDetail() {
   } | null>(null);
   const [showCustomization, setShowCustomization] = useState(false);
   const [isInWishlist, setIsInWishlist] = useState(false);
-  const [wishlistIds, setWishlistIds] = useState<Set<string>>(new Set());
+  const [, setWishlistIds] = useState<Set<string>>(new Set());
   const [showReviewForm, setShowReviewForm] = useState(false);
+  const [reviewRefreshKey, setReviewRefreshKey] = useState(0);
+
   const { toast } = useToast();
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const fetchProduct = async () => {
-      try {
-        const response = await apiRequest('GET', `/api/v1/products/${productId}`);
-        if (!response.ok) {
-          setError("Product not found");
-          setProduct(null);
-          return;
-        }
-        const data = await response.json();
-        if (!data.data) {
-          setError("Product not found");
-          setProduct(null);
-          return;
-        }
-        setProduct(data.data);
+  const fetchProduct = useCallback(async () => {
+    if (!productId) return;
+    try {
+      const response = await apiRequest("GET", `/api/v1/products/${productId}`);
+      if (!response.ok) {
+        setError("Product not found");
+        setProduct(null);
+        return;
+      }
+      const data = await response.json();
+      if (!data.data) {
+        setError("Product not found");
+        setProduct(null);
+        return;
+      }
+      setProduct(data.data);
 
-        // Fetch customization config only if product is customizable
-        if (data.data?.isCustomizable) {
-          try {
-            const customResponse = await apiRequest('GET', `/api/v1/customization/products/${productId}/customization`);
-            if (customResponse.ok) {
-              const customData = await customResponse.json();
-              if (customData.data?.fields && customData.data.fields.length > 0) {
-                setCustomizationConfig(customData.data);
-                setShowCustomization(true);
-              } else {
-                setCustomizationConfig(null);
-                setShowCustomization(false);
-              }
+      // Select primary image index initially
+      if (data.data?.media && data.data.media.length > 0) {
+        const primaryIdx = data.data.media.findIndex((m: any) => m.isPrimary);
+        setSelectedImageIndex(primaryIdx >= 0 ? primaryIdx : 0);
+      }
+
+      // Fetch customization config only if product is customizable
+      if (data.data?.isCustomizable) {
+        try {
+          const customResponse = await apiRequest(
+            "GET",
+            `/api/v1/customization/products/${productId}/customization`
+          );
+          if (customResponse.ok) {
+            const customData = await customResponse.json();
+            if (customData.data?.fields && customData.data.fields.length > 0) {
+              setCustomizationConfig(customData.data);
+              setShowCustomization(true);
             } else {
               setCustomizationConfig(null);
               setShowCustomization(false);
             }
-          } catch {
+          } else {
             setCustomizationConfig(null);
             setShowCustomization(false);
           }
-        } else {
+        } catch {
           setCustomizationConfig(null);
           setShowCustomization(false);
         }
-      } catch (err) {
-        setError("Failed to fetch product details.");
-        console.error(err);
-      } finally {
-        setLoading(false);
+      } else {
+        setCustomizationConfig(null);
+        setShowCustomization(false);
       }
-    };
-
-    const fetchWishlist = async () => {
-      if (user) {
-        try {
-          const response = await apiRequest('GET', '/api/v1/users/wishlist');
-          const data = await response.json();
-          const ids: Set<string> = new Set((data.data?.productIds || []).map((id: any) => String(id)));
-          setWishlistIds(ids);
-          setIsInWishlist(ids.has(productId!));
-        } catch (err) {
-          console.error('Failed to fetch wishlist:', err);
-        }
-      }
-    };
-
-    if (productId) {
-      fetchProduct();
-      fetchWishlist();
+    } catch (err) {
+      setError("Failed to fetch product details.");
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
-  }, [productId, user]);
+  }, [productId]);
+
+  const fetchWishlist = useCallback(async () => {
+    if (user && productId) {
+      try {
+        const response = await apiRequest("GET", "/api/v1/users/wishlist");
+        const data = await response.json();
+        const ids: Set<string> = new Set((data.data?.productIds || []).map((id: any) => String(id)));
+        setWishlistIds(ids);
+        setIsInWishlist(ids.has(productId));
+      } catch (err) {
+        console.error("Failed to fetch wishlist:", err);
+      }
+    }
+  }, [user, productId]);
+
+  useEffect(() => {
+    fetchProduct();
+    fetchWishlist();
+  }, [fetchProduct, fetchWishlist]);
 
   useEffect(() => {
     if (product && Object.keys(customizationSelections).length > 0) {
       const calculatePrice = async () => {
         try {
-          const response = await apiRequest('POST', `/api/v1/customization/products/${productId}/customization/calculate-price`, {
-            selections: customizationSelections,
-          });
+          const response = await apiRequest(
+            "POST",
+            `/api/v1/customization/products/${productId}/customization/calculate-price`,
+            {
+              selections: customizationSelections,
+            }
+          );
           const data = await response.json();
           setCustomizationPrice(data.data);
         } catch (err) {
-          console.error('Failed to calculate price:', err);
+          console.error("Failed to calculate price:", err);
         }
       };
       calculatePrice();
@@ -167,12 +197,15 @@ export default function ProductDetail() {
   }, [customizationSelections, productId, product]);
 
   const handleCustomizationChange = (key: string, value: string | string[]) => {
-    setCustomizationSelections(prev => ({ ...prev, [key]: value }));
+    setCustomizationSelections((prev) => ({ ...prev, [key]: value }));
   };
 
-  const getProductImage = (product: Product) => {
-    const primaryMedia = product.media.find(m => m.isPrimary);
-    return primaryMedia?.url || product.media[0]?.url || '';
+  const getProductImage = (prod: Product, index = selectedImageIndex) => {
+    if (!prod.media || prod.media.length === 0) return "";
+    const selected = prod.media[index];
+    if (selected?.url) return selected.url;
+    const primaryMedia = prod.media.find((m) => m.isPrimary);
+    return primaryMedia?.url || prod.media[0]?.url || "";
   };
 
   const addToCart = async () => {
@@ -198,20 +231,24 @@ export default function ProductDetail() {
     // Validate customization if product is customizable
     if (product.isCustomizable && showCustomization) {
       try {
-        const validateResponse = await apiRequest('POST', `/api/v1/customization/products/${productId}/customization/validate`, {
-          selections: customizationSelections,
-        });
+        const validateResponse = await apiRequest(
+          "POST",
+          `/api/v1/customization/products/${productId}/customization/validate`,
+          {
+            selections: customizationSelections,
+          }
+        );
         const validateData = await validateResponse.json();
         if (!validateData.data.valid) {
           toast({
             title: "Invalid Customization",
-            description: validateData.data.errors.join(', '),
+            description: validateData.data.errors.join(", "),
             variant: "destructive",
           });
           return;
         }
       } catch (err) {
-        console.error('Validation error:', err);
+        console.error("Validation error:", err);
       }
     }
 
@@ -220,36 +257,36 @@ export default function ProductDetail() {
       const cartItem = {
         productId: product._id,
         quantity: quantity,
-        customization: product.isCustomizable && Object.keys(customizationSelections).length > 0 ? {
-          selections: customizationSelections,
-          previewImageUrl: customizationConfig?.previewLayers[0]?.imageUrl || getProductImage(product),
-          priceModifier: customizationPrice?.priceModifier || 0,
-          breakdown: customizationPrice?.breakdown || [],
-        } : undefined,
+        customization:
+          product.isCustomizable && Object.keys(customizationSelections).length > 0
+            ? {
+                selections: customizationSelections,
+                previewImageUrl:
+                  customizationConfig?.previewLayers[0]?.imageUrl || getProductImage(product, 0),
+                priceModifier: customizationPrice?.priceModifier || 0,
+                breakdown: customizationPrice?.breakdown || [],
+              }
+            : undefined,
       };
 
-      console.log('Adding to cart:', cartItem);
-      const response = await apiRequest('POST', '/api/v1/cart', cartItem);
-      console.log('Cart response status:', response.status, response.ok);
+      const response = await apiRequest("POST", "/api/v1/cart", cartItem);
 
       if (response.ok) {
         toast({
-          title: "Success!",
-          description: "Product added to cart successfully",
+          title: "Added to Shopping Bag",
+          description: `"${product.name}" has been added to your bag.`,
         });
-        console.log('Navigating to cart...');
         navigate("/cart");
       } else {
         const errorData = await response.json();
-        console.error('Cart error:', errorData);
         toast({
           title: "Error",
           description: errorData.message || "Failed to add product to cart",
           variant: "destructive",
         });
       }
-    } catch (error) {
-      console.error('Add to cart error:', error);
+    } catch (err) {
+      console.error("Add to cart error:", err);
       toast({
         title: "Error",
         description: "Failed to add product to cart",
@@ -283,20 +320,24 @@ export default function ProductDetail() {
     // Validate customization if product is customizable
     if (product.isCustomizable && showCustomization) {
       try {
-        const validateResponse = await apiRequest('POST', `/api/v1/customization/products/${productId}/customization/validate`, {
-          selections: customizationSelections,
-        });
+        const validateResponse = await apiRequest(
+          "POST",
+          `/api/v1/customization/products/${productId}/customization/validate`,
+          {
+            selections: customizationSelections,
+          }
+        );
         const validateData = await validateResponse.json();
         if (!validateData.data.valid) {
           toast({
             title: "Invalid Customization",
-            description: validateData.data.errors.join(', '),
+            description: validateData.data.errors.join(", "),
             variant: "destructive",
           });
           return;
         }
       } catch (err) {
-        console.error('Validation error:', err);
+        console.error("Validation error:", err);
       }
     }
 
@@ -305,39 +346,39 @@ export default function ProductDetail() {
       const cartItem = {
         productId: product._id,
         quantity: quantity,
-        customization: product.isCustomizable && Object.keys(customizationSelections).length > 0 ? {
-          selections: customizationSelections,
-          previewImageUrl: customizationConfig?.previewLayers[0]?.imageUrl || getProductImage(product),
-          priceModifier: customizationPrice?.priceModifier || 0,
-          breakdown: customizationPrice?.breakdown || [],
-        } : undefined,
+        customization:
+          product.isCustomizable && Object.keys(customizationSelections).length > 0
+            ? {
+                selections: customizationSelections,
+                previewImageUrl:
+                  customizationConfig?.previewLayers[0]?.imageUrl || getProductImage(product, 0),
+                priceModifier: customizationPrice?.priceModifier || 0,
+                breakdown: customizationPrice?.breakdown || [],
+              }
+            : undefined,
       };
 
-      console.log('Buy Now - Adding to cart:', cartItem);
-      const response = await apiRequest('POST', '/api/v1/cart', cartItem);
-      console.log('Buy Now - Cart response status:', response.status, response.ok);
+      const response = await apiRequest("POST", "/api/v1/cart", cartItem);
 
       if (response.ok) {
         toast({
-          title: "Success!",
-          description: "Product added to cart successfully",
+          title: "Proceeding to Checkout",
+          description: `"${product.name}" ready for purchase.`,
         });
-        console.log('Navigating to checkout...');
         navigate("/checkout");
       } else {
         const errorData = await response.json();
-        console.error('Buy Now - Cart error:', errorData);
         toast({
           title: "Error",
-          description: errorData.message || "Failed to add product to cart",
+          description: errorData.message || "Failed to proceed to checkout",
           variant: "destructive",
         });
       }
-    } catch (error) {
-      console.error('Buy Now - Add to cart error:', error);
+    } catch (err) {
+      console.error("Buy Now error:", err);
       toast({
         title: "Error",
-        description: "Failed to add product to cart",
+        description: "Failed to proceed to checkout",
         variant: "destructive",
       });
     } finally {
@@ -349,25 +390,25 @@ export default function ProductDetail() {
     if (!user) {
       toast({
         title: "Login Required",
-        description: "Please login to add items to wishlist",
+        description: "Please login to save items to your wishlist",
         variant: "destructive",
       });
       navigate("/login");
       return;
     }
     try {
-      const response = await apiRequest('POST', '/api/v1/users/wishlist', {
+      const response = await apiRequest("POST", "/api/v1/users/wishlist", {
         productId: product!._id,
       });
       if (response.ok) {
         setIsInWishlist(true);
-        setWishlistIds(prev => new Set(prev).add(product!._id));
+        setWishlistIds((prev) => new Set(prev).add(product!._id));
         toast({
-          title: "Added to Wishlist",
-          description: "Product added to your wishlist",
+          title: "Saved to Wishlist",
+          description: `"${product?.name}" saved to your personal collection.`,
         });
       }
-    } catch (error) {
+    } catch {
       toast({ title: "Error", description: "Failed to add to wishlist", variant: "destructive" });
     }
   };
@@ -376,139 +417,280 @@ export default function ProductDetail() {
     if (!user) {
       toast({
         title: "Login Required",
-        description: "Please login to manage wishlist",
+        description: "Please login to manage your wishlist",
         variant: "destructive",
       });
       navigate("/login");
       return;
     }
     try {
-      const response = await apiRequest('POST', '/api/v1/users/wishlist/remove', {
+      const response = await apiRequest("POST", "/api/v1/users/wishlist/remove", {
         productId: product!._id,
       });
       if (response.ok) {
         setIsInWishlist(false);
-        setWishlistIds(prev => {
+        setWishlistIds((prev) => {
           const newSet = new Set(prev);
           newSet.delete(product!._id);
           return newSet;
         });
         toast({
           title: "Removed from Wishlist",
-          description: "Product removed from your wishlist",
+          description: `"${product?.name}" removed from your saved pieces.`,
         });
       }
-    } catch (error) {
+    } catch {
       toast({ title: "Error", description: "Failed to remove from wishlist", variant: "destructive" });
     }
   };
 
   if (loading) {
     return (
-      <>
+      <div className="min-h-screen bg-background flex flex-col">
         <SEO
-          title="Loading Product - Renu's Collections"
-          description="Loading product details..."
+          title="Loading Product — Renu's Collections"
+          description="Loading handcrafted jewellery piece details..."
           image="/logo.png"
           type="product"
-          keywords="loading, product, Renu's Collections"
-          canonicalUrl={`http://localhost:5173/Renu_Collections/product/${productId}`}
+          keywords="jewelry, boutique, renu's collections"
+          canonicalUrl={`https://renucollections.com/product/${productId}`}
         />
-        <div className="min-h-screen bg-background flex flex-col">
-          <main className="flex-grow container mx-auto px-4 py-8 pt-20 text-center">
-            <h1 className="text-4xl font-bold mb-4">Loading Product...</h1>
-          </main>
-          <Footer />
-        </div>
-      </>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-background flex flex-col">
-        <main className="flex-grow container mx-auto px-4 py-8 pt-20 text-center">
-          <h1 className="text-4xl font-bold mb-4">Error</h1>
-          <p>{error}</p>
+        <main className="flex-grow container mx-auto px-4 py-8 pt-20 flex flex-col items-center justify-center text-center">
+          <div className="w-12 h-12 rounded-full border-2 border-primary/20 border-t-primary animate-spin mb-4" />
+          <h1 className="text-2xl font-playfair font-bold text-foreground mb-2">Loading Piece...</h1>
+          <p className="text-muted-foreground text-sm">Retrieving bespoke craftsmanship details.</p>
         </main>
         <Footer />
       </div>
     );
   }
 
-  if (!product) {
+  if (error || !product) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
-        <main className="flex-grow container mx-auto px-4 py-8 pt-20 text-center">
-          <h1 className="text-4xl font-bold mb-4">Product Not Found</h1>
-          <p>The product you are looking for does not exist.</p>
+        <SEO
+          title="Piece Not Found — Renu's Collections"
+          description="The requested jewellery piece could not be found."
+          canonicalUrl={`https://renucollections.com/product/${productId}`}
+        />
+        <main className="flex-grow container mx-auto px-4 py-8 pt-20 flex flex-col items-center justify-center text-center">
+          <div className="p-8 bg-card border border-border/70 rounded-2xl max-w-md w-full shadow-sm">
+            <PackageX className="h-12 w-12 text-destructive mx-auto mb-3" />
+            <h1 className="text-2xl font-playfair font-bold text-foreground mb-2">
+              {error || "Piece Not Found"}
+            </h1>
+            <p className="text-muted-foreground text-sm mb-6">
+              The jewellery piece you are looking for may have been archived or is temporarily unavailable.
+            </p>
+            <Button
+              onClick={() => navigate("/products")}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium"
+            >
+              Browse Catalogue
+            </Button>
+          </div>
         </main>
         <Footer />
       </div>
     );
   }
+
+  const currentMediaUrl = getProductImage(product, selectedImageIndex);
+  const isSelectedImageBroken = !currentMediaUrl || !!imageHasError[selectedImageIndex];
+  const placeholderUrl = getAssetUrl("/placeholders/placeholder.png");
+  const mainImageSrc = isSelectedImageBroken ? placeholderUrl : getAssetUrl(currentMediaUrl);
+
+  const displayPrice = customizationPrice
+    ? customizationPrice.totalPrice
+    : product.salePrice && product.salePrice < product.price
+    ? product.salePrice
+    : product.price;
+
+  const originalPrice = product.price;
+  const hasDiscount = !customizationPrice && product.salePrice && product.salePrice < originalPrice;
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
+      <SEO
+        title={`${product.name} — Renu's Collections`}
+        description={product.shortDescription || product.description}
+        image={getProductImage(product, 0) || "/logo.png"}
+        type="product"
+        keywords={`${product.name}, jewelry, luxury jewelry, handcrafted jewelry, renu's collections`}
+        canonicalUrl={`https://renucollections.com/product/${productId}`}
+      />
+
       <main className="flex-grow container mx-auto px-4 py-8 pt-20">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Left: Product Image / Preview */}
-          <div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-start">
+          {/* Left: Product Image Gallery / Preview */}
+          <div className="space-y-4">
             {showCustomization && customizationConfig ? (
-              <div className="aspect-square bg-gray-100 rounded-lg shadow-lg overflow-hidden max-w-full">
+              <div className="aspect-square bg-[#FAF4F1]/60 dark:bg-[#241C1A] rounded-2xl border border-border/70 shadow-sm overflow-hidden flex items-center justify-center relative">
                 <CustomizationPreview
-                  baseImage={getProductImage(product)}
+                  baseImage={getProductImage(product, 0)}
                   layers={customizationConfig.previewLayers}
                   selections={customizationSelections}
                   className="w-full h-full"
                 />
               </div>
             ) : (
-              <img
-                src={getProductImage(product)}
-                alt={product.name}
-                className="w-full h-auto rounded-lg shadow-lg object-cover max-w-full"
-              />
+              <div className="relative aspect-square bg-[#FAF4F1]/60 dark:bg-[#241C1A] rounded-2xl border border-border/70 shadow-sm overflow-hidden flex items-center justify-center group">
+                {/* Fallback preview indicator */}
+                {isSelectedImageBroken && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground/60 p-4 text-center select-none z-0">
+                    <Gem className="h-12 w-12 text-primary/30 mb-2" />
+                    <span className="text-xs font-medium tracking-wider uppercase">Jewellery Preview</span>
+                  </div>
+                )}
+                <img
+                  src={mainImageSrc}
+                  alt={product.name}
+                  loading="eager"
+                  onError={() => {
+                    setImageHasError((prev) => ({ ...prev, [selectedImageIndex]: true }));
+                  }}
+                  className={`w-full h-full object-contain p-4 transition-transform duration-500 ease-out group-hover:scale-105 ${
+                    isSelectedImageBroken ? "opacity-0" : "opacity-100"
+                  }`}
+                />
+
+                {/* Badge Overlay */}
+                {product.badge && (
+                  <span className="absolute top-4 left-4 bg-primary text-primary-foreground text-[11px] font-semibold tracking-wider uppercase px-3 py-1 rounded-full shadow-sm z-10 pointer-events-none">
+                    {product.badge}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Selectable Thumbnails Gallery */}
+            {product.media && product.media.length > 1 && !showCustomization && (
+              <div className="flex gap-3 overflow-x-auto pb-2 pt-1 scrollbar-thin">
+                {product.media.map((med, idx) => {
+                  const isThumbBroken = !med.url || !!imageHasError[idx];
+                  const thumbSrc = isThumbBroken ? placeholderUrl : getAssetUrl(med.url);
+                  const isSelected = idx === selectedImageIndex;
+
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setSelectedImageIndex(idx)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setSelectedImageIndex(idx);
+                        }
+                      }}
+                      aria-label={`View image ${idx + 1} of ${product.name}`}
+                      className={`relative w-20 h-20 rounded-lg overflow-hidden border-2 transition-all flex-shrink-0 bg-[#FAF4F1]/60 dark:bg-[#241C1A] flex items-center justify-center ${
+                        isSelected
+                          ? "border-primary ring-2 ring-primary/30 scale-105"
+                          : "border-border/70 hover:border-primary/50 opacity-80 hover:opacity-100"
+                      }`}
+                    >
+                      <img
+                        src={thumbSrc}
+                        alt={`${product.name} thumbnail ${idx + 1}`}
+                        onError={() => setImageHasError((prev) => ({ ...prev, [idx]: true }))}
+                        className="w-full h-full object-contain p-1"
+                      />
+                    </button>
+                  );
+                })}
+              </div>
             )}
           </div>
 
-          {/* Right: Product Details & Customization */}
-          <div>
-            <h1 className="text-4xl font-bold mb-4">{product.name}</h1>
-            
-            {/* Price Display */}
-            <div className="mb-4">
-              {customizationPrice ? (
-                <>
-                  <p className="text-2xl font-semibold">₹{customizationPrice.totalPrice}</p>
-                  <p className="text-sm text-muted-foreground">
-                    Base: ₹{customizationPrice.basePrice} + Customization: ₹{customizationPrice.priceModifier}
-                  </p>
-                </>
-              ) : (
-                <>
-                  {product.salePrice && product.salePrice < product.price ? (
-                    <>
-                      <p className="text-2xl text-red-600 font-semibold">₹{product.salePrice}</p>
-                      <p className="text-lg text-muted-foreground line-through">₹{product.price}</p>
-                    </>
-                  ) : (
-                    <p className="text-2xl font-semibold">₹{product.price}</p>
-                  )}
-                </>
+          {/* Right: Product Details & Controls */}
+          <div className="space-y-6">
+            <div>
+              {/* Category / Signature pill */}
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                {product.isSignaturePiece && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold tracking-wider uppercase text-primary bg-primary/10 px-2.5 py-0.5 rounded-full">
+                    <Sparkles className="h-3 w-3" />
+                    Signature Piece
+                  </span>
+                )}
+                <span className="text-xs text-muted-foreground uppercase tracking-widest font-medium">
+                  Refined Collection
+                </span>
+              </div>
+
+              {/* Heading */}
+              <h1 className="text-3xl sm:text-4xl font-playfair font-bold text-foreground mb-3">
+                {product.name}
+              </h1>
+
+              {/* Rating Summary */}
+              {product.averageRating ? (
+                <div className="flex items-center gap-2.5 mb-3">
+                  <StarRating rating={product.averageRating} size={18} showValue />
+                  <span className="text-xs text-muted-foreground">
+                    ({product.reviewCount} {product.reviewCount === 1 ? "review" : "reviews"})
+                  </span>
+                </div>
+              ) : null}
+
+              {/* Price Display */}
+              <div className="mt-2">
+                {customizationPrice ? (
+                  <div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-3xl sm:text-4xl font-bold font-serif text-primary">
+                        ₹{customizationPrice.totalPrice.toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Base Piece: ₹{customizationPrice.basePrice.toLocaleString("en-IN")} + Customization: ₹
+                      {customizationPrice.priceModifier.toLocaleString("en-IN")}
+                    </p>
+                  </div>
+                ) : hasDiscount ? (
+                  <div className="flex items-baseline gap-3">
+                    <span className="text-3xl sm:text-4xl font-bold font-serif text-primary">
+                      ₹{displayPrice.toLocaleString("en-IN")}
+                    </span>
+                    <span className="text-lg text-muted-foreground line-through">
+                      ₹{originalPrice.toLocaleString("en-IN")}
+                    </span>
+                    <span className="text-xs font-semibold uppercase tracking-wider text-primary bg-primary/10 px-2 py-0.5 rounded">
+                      Special Value
+                    </span>
+                  </div>
+                ) : (
+                  <span className="text-3xl sm:text-4xl font-bold font-serif text-primary">
+                    ₹{displayPrice.toLocaleString("en-IN")}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Description */}
+            <div className="text-muted-foreground space-y-2 text-sm sm:text-base leading-relaxed">
+              <p>{product.description}</p>
+              {product.shortDescription && (
+                <p className="text-xs sm:text-sm text-muted-foreground/80 italic">
+                  {product.shortDescription}
+                </p>
               )}
             </div>
 
-            <p className="text-lg mb-6">{product.description}</p>
-            {product.shortDescription && (
-              <p className="text-sm text-muted-foreground mb-6">{product.shortDescription}</p>
-            )}
-
             {/* Customization Section */}
             {showCustomization && customizationConfig && (
-              <Card className="mb-6">
-                <CardContent className="p-6">
-                  <h2 className="text-xl font-semibold mb-4">Customize Your {product.name}</h2>
+              <Card className="border border-border/70 bg-card shadow-sm rounded-xl overflow-hidden">
+                <CardContent className="p-5 sm:p-6 space-y-4">
+                  <div className="border-b border-border/50 pb-3">
+                    <h2 className="text-lg font-playfair font-semibold text-foreground">
+                      Bespoke Personalization
+                    </h2>
+                    <p className="text-xs text-muted-foreground">
+                      Customize options to craft your signature jewellery piece.
+                    </p>
+                  </div>
                   <CustomizationControls
                     fields={customizationConfig.fields}
                     selections={customizationSelections}
@@ -519,109 +701,178 @@ export default function ProductDetail() {
               </Card>
             )}
 
-            {/* Product Details */}
-            <div className="mb-6">
-              <h2 className="text-xl font-semibold mb-2">Details:</h2>
-              <ul className="list-disc list-inside ml-4">
-                <li>Stock: {product.isInStock ? `${product.stock} available` : "Out of Stock"}</li>
-                {product.badge && <li>Badge: {product.badge}</li>}
-                <li>Signature Piece: {product.isSignaturePiece ? "Yes" : "No"}</li>
-                {product.materials.length > 0 && <li>Materials: {product.materials.join(", ")}</li>}
-                {product.colors.length > 0 && <li>Colors: {product.colors.join(", ")}</li>}
-                {product.careInstructions && <li>Care: {product.careInstructions}</li>}
-                {product.isCustomizable && <li>✓ Customizable</li>}
-              </ul>
+            {/* Out of Stock Notice */}
+            {!product.isInStock && (
+              <div className="bg-destructive/10 border border-destructive/20 text-destructive text-sm font-medium px-4 py-3 rounded-lg flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>This exclusive piece is currently out of stock.</span>
+              </div>
+            )}
+
+            {/* Shopping Controls */}
+            <div className="space-y-3 pt-2">
+              {/* Row 1: Quantity selector & Wishlist button */}
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-1.5 border border-border rounded-lg p-1 bg-background">
+                  <span className="text-xs text-muted-foreground px-2 font-medium">Qty</span>
+                  <Button
+                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-foreground hover:bg-muted"
+                    disabled={!product.isInStock || quantity <= 1}
+                    aria-label="Decrease quantity"
+                  >
+                    <Minus className="h-3.5 w-3.5" />
+                  </Button>
+                  <span className="w-8 text-center text-sm font-semibold">{quantity}</span>
+                  <Button
+                    onClick={() => setQuantity(quantity + 1)}
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-foreground hover:bg-muted"
+                    disabled={!product.isInStock || quantity >= product.stock}
+                    aria-label="Increase quantity"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+
+                {/* Wishlist Button */}
+                <Button
+                  variant="outline"
+                  onClick={isInWishlist ? removeFromWishlist : addToWishlist}
+                  className="gap-2 border-border/80 hover:border-primary text-xs sm:text-sm h-10 px-4 rounded-lg"
+                >
+                  <Heart
+                    className={`h-4 w-4 transition-colors ${
+                      isInWishlist ? "fill-primary text-primary" : "text-muted-foreground"
+                    }`}
+                  />
+                  <span>{isInWishlist ? "In Wishlist" : "Save Piece"}</span>
+                </Button>
+              </div>
+
+              {/* Row 2: Add to Cart & Buy Now Actions (Responsive Grid) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <Button
+                  onClick={addToCart}
+                  disabled={!product.isInStock || addingToCart}
+                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium h-11 rounded-lg gap-2 text-sm shadow-sm transition-all"
+                >
+                  <ShoppingBag className="h-4 w-4" />
+                  <span>{addingToCart ? "Adding to Bag..." : "Add to Shopping Bag"}</span>
+                </Button>
+
+                <Button
+                  onClick={buyNow}
+                  disabled={!product.isInStock || addingToCart}
+                  variant="secondary"
+                  className="w-full bg-secondary hover:bg-secondary/80 text-secondary-foreground font-medium h-11 rounded-lg gap-2 text-sm border border-border/60 transition-all"
+                >
+                  <CreditCard className="h-4 w-4" />
+                  <span>{addingToCart ? "Processing..." : "Buy Now"}</span>
+                </Button>
+              </div>
             </div>
 
-            <div className="flex gap-3 mt-4">
-              <Button
-                variant="outline"
-                onClick={isInWishlist ? removeFromWishlist : addToWishlist}
-                className="flex-1"
-              >
-                {isInWishlist ? "Remove from Wishlist" : "Add to Wishlist"}
-              </Button>
-            </div>
-
-            {/* Rating Display */}
-            {product.averageRating && (
-              <div className="mt-6 p-4 bg-muted/50 rounded-lg">
-                <div className="flex items-center gap-4">
-                  <StarRating rating={product.averageRating} size={20} showValue />
-                  <span className="text-sm text-muted-foreground">
-                    {product.reviewCount} {product.reviewCount === 1 ? 'review' : 'reviews'}
+            {/* Specifications Card */}
+            <div className="pt-4 border-t border-border/60">
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground mb-3">
+                Piece Specifications
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-sm">
+                <div className="flex items-center justify-between p-2.5 rounded-lg bg-card/60 border border-border/40">
+                  <span className="text-muted-foreground">Availability</span>
+                  <span className="font-medium text-foreground">
+                    {product.isInStock ? `${product.stock} available` : "Out of stock"}
                   </span>
                 </div>
+
+                {product.materials.length > 0 && (
+                  <div className="flex items-center justify-between p-2.5 rounded-lg bg-card/60 border border-border/40">
+                    <span className="text-muted-foreground">Materials</span>
+                    <span className="font-medium text-foreground">{product.materials.join(", ")}</span>
+                  </div>
+                )}
+
+                {product.colors.length > 0 && (
+                  <div className="flex items-center justify-between p-2.5 rounded-lg bg-card/60 border border-border/40">
+                    <span className="text-muted-foreground">Tones & Finishes</span>
+                    <span className="font-medium text-foreground">{product.colors.join(", ")}</span>
+                  </div>
+                )}
+
+                {product.isCustomizable && (
+                  <div className="flex items-center justify-between p-2.5 rounded-lg bg-card/60 border border-border/40">
+                    <span className="text-muted-foreground">Customization</span>
+                    <span className="font-medium text-primary inline-flex items-center gap-1">
+                      <Check className="h-3.5 w-3.5" /> Bespoke Supported
+                    </span>
+                  </div>
+                )}
+
+                {product.careInstructions && (
+                  <div className="sm:col-span-2 flex items-start justify-between p-2.5 rounded-lg bg-card/60 border border-border/40 gap-2">
+                    <span className="text-muted-foreground shrink-0">Care Advice</span>
+                    <span className="font-medium text-foreground text-right">
+                      {product.careInstructions}
+                    </span>
+                  </div>
+                )}
               </div>
-            )}
-            <div className="flex items-center gap-4 mb-6">
-              <Button
-                onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                variant="outline"
-                disabled={!product.isInStock}
-              >
-                -
-              </Button>
-              <span className="text-xl">{quantity}</span>
-              <Button
-                onClick={() => setQuantity(quantity + 1)}
-                variant="outline"
-                disabled={!product.isInStock || quantity >= product.stock}
-              >
-                +
-              </Button>
-              <Button
-                className="ml-4"
-                onClick={addToCart}
-                disabled={!product.isInStock || addingToCart}
-              >
-                {addingToCart ? "Adding..." : "Add to Cart"}
-              </Button>
-              <Button
-                className="ml-2"
-                onClick={buyNow}
-                disabled={!product.isInStock || addingToCart}
-                variant="default"
-              >
-                {addingToCart ? "Processing..." : "Buy Now"}
-              </Button>
+
+              {/* Boutique Assurance Note */}
+              <div className="mt-4 p-3 rounded-xl bg-secondary/30 border border-border/40 flex items-center gap-2.5 text-xs text-muted-foreground">
+                <ShieldCheck className="h-4 w-4 text-primary shrink-0" />
+                <span>
+                  Every piece is individually handcrafted and verified for supreme gemstone integrity.
+                </span>
+              </div>
             </div>
-            {!product.isInStock && (
-              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-                This product is currently out of stock
-              </div>
-            )}
           </div>
         </div>
 
-        {/* Reviews Section */}
-        <div className="mt-12">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-3xl font-bold">Customer Reviews</h2>
+        {/* Customer Reviews Section */}
+        <div className="mt-16 pt-10 border-t border-border/60">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+            <div>
+              <h2 className="text-2xl sm:text-3xl font-playfair font-bold text-foreground">
+                Customer Reviews
+              </h2>
+              <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+                Authentic thoughts and impressions from our patrons.
+              </p>
+            </div>
             {user && (
-              <Button onClick={() => setShowReviewForm(!showReviewForm)}>
-                {showReviewForm ? 'Cancel' : 'Write a Review'}
+              <Button
+                variant={showReviewForm ? "outline" : "default"}
+                onClick={() => setShowReviewForm(!showReviewForm)}
+                className="text-xs sm:text-sm rounded-lg"
+              >
+                {showReviewForm ? "Cancel Review" : "Write a Review"}
               </Button>
             )}
           </div>
 
           {showReviewForm && (
-            <div className="mb-8">
+            <div className="mb-10 max-w-2xl">
               <ReviewForm
                 productId={productId!}
                 onSuccess={() => {
                   setShowReviewForm(false);
-                  window.location.reload();
+                  setReviewRefreshKey((prev) => prev + 1);
+                  fetchProduct();
                 }}
-
                 onCancel={() => setShowReviewForm(false)}
               />
             </div>
           )}
 
-          <ReviewList productId={productId!} />
+          <ReviewList productId={productId!} refreshTrigger={reviewRefreshKey} />
         </div>
       </main>
+
       <Footer />
     </div>
   );

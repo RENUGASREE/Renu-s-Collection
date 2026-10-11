@@ -51,7 +51,7 @@ export function StarRating({
           <StarHalf
             key={i}
             size={size}
-            className="text-yellow-400 fill-yellow-400"
+            className="text-[#B99A72] fill-[#B99A72]"
             onMouseEnter={() => handleMouseEnter(i)}
             onMouseLeave={handleMouseLeave}
             onClick={() => handleClick(i)}
@@ -63,7 +63,7 @@ export function StarRating({
           <Star
             key={i}
             size={size}
-            className={isFilled ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}
+            className={isFilled ? 'text-[#B99A72] fill-[#B99A72]' : 'text-muted-foreground/30 dark:text-muted-foreground/25'}
             onMouseEnter={() => handleMouseEnter(i)}
             onMouseLeave={handleMouseLeave}
             onClick={() => handleClick(i)}
