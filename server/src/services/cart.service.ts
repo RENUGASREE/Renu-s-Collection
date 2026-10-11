@@ -67,8 +67,17 @@ export async function addCartItem(
     throw new AppError("Product price is required", 400);
   }
 
-  // Securely recalculate customization price modifier and breakdown from database configuration
+  // Securely validate and recalculate customization price modifier and breakdown from database configuration
   if (input.customization && input.customization.selections && Object.keys(input.customization.selections).length > 0) {
+    // Validate customization against product configuration
+    const validation = await customizationService.validateCustomization(
+      productObjectId.toString(),
+      input.customization.selections as Record<string, string | string[]>
+    );
+    if (!validation.valid) {
+      throw new AppError(validation.errors.join(", "), 400);
+    }
+
     try {
       const priceResult = await customizationService.calculatePrice(
         productObjectId.toString(),

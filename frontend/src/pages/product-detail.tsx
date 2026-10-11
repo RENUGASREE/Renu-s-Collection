@@ -24,6 +24,7 @@ import {
   CreditCard,
   PackageX,
   Check,
+  Palette,
 } from "lucide-react";
 
 interface Product {
@@ -87,7 +88,9 @@ export default function ProductDetail() {
     totalPrice: number;
     breakdown?: { field: string; option: string; modifier: number }[];
   } | null>(null);
-  const [showCustomization, setShowCustomization] = useState(false);
+  const [hasCustomizationAvailable, setHasCustomizationAvailable] = useState(false);
+  const [customizationMode, setCustomizationMode] = useState<'standard' | 'customized'>('standard');
+  const showCustomization = customizationMode === 'customized';
   const [isInWishlist, setIsInWishlist] = useState(false);
   const [, setWishlistIds] = useState<Set<string>>(new Set());
   const [showReviewForm, setShowReviewForm] = useState(false);
@@ -131,22 +134,22 @@ export default function ProductDetail() {
             const customData = await customResponse.json();
             if (customData.data?.fields && customData.data.fields.length > 0) {
               setCustomizationConfig(customData.data);
-              setShowCustomization(true);
+              setHasCustomizationAvailable(true);
             } else {
               setCustomizationConfig(null);
-              setShowCustomization(false);
+              setHasCustomizationAvailable(false);
             }
           } else {
             setCustomizationConfig(null);
-            setShowCustomization(false);
+            setHasCustomizationAvailable(false);
           }
         } catch {
           setCustomizationConfig(null);
-          setShowCustomization(false);
+          setHasCustomizationAvailable(false);
         }
       } else {
         setCustomizationConfig(null);
-        setShowCustomization(false);
+        setHasCustomizationAvailable(false);
       }
     } catch (err) {
       setError("Failed to fetch product details.");
@@ -176,7 +179,7 @@ export default function ProductDetail() {
   }, [fetchProduct, fetchWishlist]);
 
   useEffect(() => {
-    if (product && Object.keys(customizationSelections).length > 0) {
+    if (product && customizationMode === 'customized' && Object.keys(customizationSelections).length > 0) {
       const calculatePrice = async () => {
         try {
           const response = await apiRequest(
@@ -193,8 +196,10 @@ export default function ProductDetail() {
         }
       };
       calculatePrice();
+    } else if (customizationMode === 'standard') {
+      setCustomizationPrice(null);
     }
-  }, [customizationSelections, productId, product]);
+  }, [customizationSelections, productId, product, customizationMode]);
 
   const handleCustomizationChange = (key: string, value: string | string[]) => {
     setCustomizationSelections((prev) => ({ ...prev, [key]: value }));
@@ -258,7 +263,7 @@ export default function ProductDetail() {
         productId: product._id,
         quantity: quantity,
         customization:
-          product.isCustomizable && Object.keys(customizationSelections).length > 0
+          product.isCustomizable && customizationMode === 'customized' && Object.keys(customizationSelections).length > 0
             ? {
                 selections: customizationSelections,
                 previewImageUrl:
@@ -347,7 +352,7 @@ export default function ProductDetail() {
         productId: product._id,
         quantity: quantity,
         customization:
-          product.isCustomizable && Object.keys(customizationSelections).length > 0
+          product.isCustomizable && customizationMode === 'customized' && Object.keys(customizationSelections).length > 0
             ? {
                 selections: customizationSelections,
                 previewImageUrl:
@@ -564,7 +569,7 @@ export default function ProductDetail() {
             )}
 
             {/* Selectable Thumbnails Gallery */}
-            {product.media && product.media.length > 1 && !showCustomization && (
+            {product.media && product.media.length > 1 && (
               <div className="flex gap-3 overflow-x-auto pb-2 pt-1 scrollbar-thin">
                 {product.media.map((med, idx) => {
                   const isThumbBroken = !med.url || !!imageHasError[idx];
@@ -680,6 +685,28 @@ export default function ProductDetail() {
             </div>
 
             {/* Customization Section */}
+            {/* Customization Mode Toggle */}
+            {hasCustomizationAvailable && (
+              <div className="flex gap-2 mb-4">
+                <button
+                  className={`px-4 py-2 rounded ${customizationMode === 'standard' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
+                  onClick={() => {
+                    setCustomizationMode('standard');
+                    setCustomizationSelections({});
+                    setCustomizationPrice(null);
+                  }}
+                >
+                  Buy as Shown
+                </button>
+                <button
+                  className={`px-4 py-2 rounded ${customizationMode === 'customized' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
+                  onClick={() => setCustomizationMode('customized')}
+                >
+                  Personalize This Piece
+                </button>
+              </div>
+            )}
+
             {showCustomization && customizationConfig && (
               <Card className="border border-border/70 bg-card shadow-sm rounded-xl overflow-hidden">
                 <CardContent className="p-5 sm:p-6 space-y-4">
