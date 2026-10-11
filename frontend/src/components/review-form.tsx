@@ -28,12 +28,63 @@ export function ReviewForm({ productId, onSuccess, onCancel }: ReviewFormProps) 
 
   const [alreadyReviewed, setAlreadyReviewed] = useState(false);
 
+  const optimizeImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error('Failed to read image file'));
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onerror = () => reject(new Error('Failed to decode image'));
+        img.onload = () => {
+          const maxDimension = 1000;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > maxDimension || height > maxDimension) {
+            if (width > height) {
+              height = Math.round((height * maxDimension) / width);
+              width = maxDimension;
+            } else {
+              width = Math.round((width * maxDimension) / height);
+              height = maxDimension;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            // Fallback to original data URL if canvas 2D is unavailable
+            resolve(e.target?.result as string);
+            return;
+          }
+
+          ctx.drawImage(img, 0, 0, width, height);
+          // Compress to JPEG with 0.75 quality (~60KB-120KB per image)
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.75);
+          resolve(compressedDataUrl);
+        };
+        img.src = e.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    // Cloud storage infrastructure is pending integration.
-    // Client-side image attachment is limited to small preview images (< 500KB total) until cloud storage is provisioned.
+    if (images.length + files.length > 3) {
+      toast({
+        title: 'Limit Exceeded',
+        description: 'You can attach up to 3 photos per review.',
+        variant: 'destructive',
+      });
+      e.target.value = '';
+      return;
+    }
+
     setUploading(true);
     const uploadedImages: string[] = [];
 
@@ -50,33 +101,57 @@ export function ReviewForm({ productId, onSuccess, onCancel }: ReviewFormProps) 
           continue;
         }
 
-        // Limit individual image size to 250KB to respect JSON payload limits
-        if (file.size > 250 * 1024) {
+        // Allow photos up to 10MB to be selected; client-side compression will optimize them down
+        if (file.size > 10 * 1024 * 1024) {
           toast({
             title: 'Image Too Large',
-            description: `"${file.name}" exceeds the 250KB limit. Please choose a smaller image.`,
+            description: `"${file.name}" exceeds 10MB. Please select an image under 10MB.`,
             variant: 'destructive',
           });
           continue;
         }
 
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        await new Promise((resolve) => {
-          reader.onload = () => {
-            if (reader.result) {
-              uploadedImages.push(reader.result as string);
-            }
-            resolve(null);
-          };
-        });
+        try {
+          const compressedDataUrl = await optimizeImage(file);
+          // Check compressed base64 size (250KB in characters is ~340,000 chars)
+          const approximateSizeKB = Math.round((compressedDataUrl.length * 3) / 4 / 1024);
+          if (approximateSizeKB > 250) {
+            toast({
+              title: 'Image Could Not Be Compressed',
+              description: `"${file.name}" remains too large (${approximateSizeKB}KB) after compression. Please choose another image.`,
+              variant: 'destructive',
+            });
+            continue;
+          }
+
+          // Check cumulative payload size with already attached images
+          const currentTotalChars = [...images, ...uploadedImages].reduce((acc, img) => acc + img.length, 0);
+          const totalAfterAddingKB = Math.round(((currentTotalChars + compressedDataUrl.length) * 3) / 4 / 1024);
+          if (totalAfterAddingKB > 700) {
+            toast({
+              title: 'Payload Budget Exceeded',
+              description: `Total review attachments would exceed server capacity (${totalAfterAddingKB}KB). Please attach fewer or smaller photos.`,
+              variant: 'destructive',
+            });
+            continue;
+          }
+
+          uploadedImages.push(compressedDataUrl);
+        } catch (compressionError) {
+          console.error('Error optimizing image:', compressionError);
+          toast({
+            title: 'Image Error',
+            description: `Could not process "${file.name}". File may be corrupt or unreadable.`,
+            variant: 'destructive',
+          });
+        }
       }
 
       if (uploadedImages.length > 0) {
         setImages((prev) => [...prev, ...uploadedImages].slice(0, 3));
         toast({
           title: 'Photo Added',
-          description: 'Image attached to your review.',
+          description: `${uploadedImages.length} photo(s) optimized and attached to your review.`,
         });
       }
     } catch (error) {
@@ -302,7 +377,7 @@ export function ReviewForm({ productId, onSuccess, onCancel }: ReviewFormProps) 
                 {uploading ? 'Attaching...' : 'Attach Photos'}
               </Button>
               <span className="text-xs text-muted-foreground">
-                {images.length > 0 ? `${images.length}/3 photo(s) selected` : 'Max 3 photos, up to 250KB each'}
+                {images.length > 0 ? `${images.length}/3 photo(s) attached` : 'Max 3 photos (auto-optimized)'}
               </span>
             </div>
 

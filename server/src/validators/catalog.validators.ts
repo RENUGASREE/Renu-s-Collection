@@ -1,8 +1,27 @@
 import { z } from "zod";
 import { PRODUCT_TYPES } from "../types/index.js";
 
+const mediaUrlSchema = z.string().min(1).max(2 * 1024 * 1024, "Media URL exceeds maximum length").refine(
+  (val) => {
+    const trimmed = val.trim();
+    // Disallow dangerous URI schemes like javascript:, vbscript:, etc.
+    if (/^(javascript|vbscript):/i.test(trimmed)) return false;
+    // Explicitly reject SVG data URLs due to script injection risks
+    if (/^data:image\/svg(\+xml)?/i.test(trimmed)) return false;
+    // Allow standard web URLs
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return true;
+    // Allow safe relative paths
+    if (trimmed.startsWith('/')) return true;
+    // Allow only safe raster image data URLs (jpeg, png, webp, gif)
+    if (/^data:image\/(jpeg|jpg|png|webp|gif);base64,/i.test(trimmed)) return true;
+
+    return false;
+  },
+  { message: "Must be a valid web URL, relative path (/assets/...), or safe raster data:image URI (jpeg, png, webp, gif)" }
+);
+
 const mediaSchema = z.object({
-  url: z.string().url(),
+  url: mediaUrlSchema,
   alt: z.string().optional(),
   type: z.enum(["image", "video"]).default("image"),
   isPrimary: z.boolean().optional(),
@@ -65,7 +84,7 @@ export const createProductSchema = z.object({
   materialInfo: z.string().optional(),
   careInstructions: z.string().optional(),
   media: z.array(mediaSchema).optional(),
-  imageUrl: z.string().url().optional(),
+  imageUrl: mediaUrlSchema.optional(),
   colors: z.array(z.string()).optional(),
   materials: z.array(z.string()).optional(),
   tags: z.array(z.string()).optional(),

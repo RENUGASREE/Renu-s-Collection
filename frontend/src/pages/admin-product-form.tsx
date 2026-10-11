@@ -17,6 +17,14 @@ interface Category {
   parentId: string | null;
 }
 
+interface MediaItem {
+  url: string;
+  alt?: string;
+  type: 'image' | 'video';
+  isPrimary: boolean;
+  sortOrder: number;
+}
+
 interface ProductFormData {
   name: string;
   sku: string;
@@ -26,11 +34,13 @@ interface ProductFormData {
   categoryId: string;
   subcategoryId: string | null;
   isActive: boolean;
+  isCustomizable: boolean;
   isSignaturePiece: boolean;
   signatureCategory: string;
   badge: string | null;
   description: string;
   imageUrl: string;
+  media: MediaItem[];
 }
 
 export default function AdminProductForm() {
@@ -42,6 +52,7 @@ export default function AdminProductForm() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [subcategories, setSubcategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(false);
+  const [newImageUrl, setNewImageUrl] = useState('');
   const [formData, setFormData] = useState<ProductFormData>({
     name: '',
     sku: '',
@@ -51,11 +62,13 @@ export default function AdminProductForm() {
     categoryId: '',
     subcategoryId: null,
     isActive: true,
+    isCustomizable: true,
     isSignaturePiece: false,
     signatureCategory: 'none',
     badge: null,
     description: '',
     imageUrl: '',
+    media: [],
   });
 
   useEffect(() => {
@@ -79,6 +92,32 @@ export default function AdminProductForm() {
           const data = await response.json();
           const product = data.data;
           console.log('Product data:', product);
+
+          // Normalize media items
+          let initialMedia: MediaItem[] = [];
+          if (Array.isArray(product.media) && product.media.length > 0) {
+            initialMedia = product.media.map((m: any, idx: number) => ({
+              url: m.url,
+              alt: m.alt || '',
+              type: m.type || 'image',
+              isPrimary: m.isPrimary ?? (idx === 0),
+              sortOrder: m.sortOrder ?? idx,
+            }));
+          } else if (product.imageUrl) {
+            initialMedia = [{
+              url: product.imageUrl,
+              alt: product.name || '',
+              type: 'image',
+              isPrimary: true,
+              sortOrder: 0,
+            }];
+          }
+
+          // Ensure exactly one primary image if media is not empty
+          if (initialMedia.length > 0 && !initialMedia.some(m => m.isPrimary)) {
+            initialMedia[0].isPrimary = true;
+          }
+
           setFormData({
             name: product.name || '',
             sku: product.sku || '',
@@ -88,11 +127,13 @@ export default function AdminProductForm() {
             categoryId: product.categoryId || '',
             subcategoryId: product.subcategoryId || null,
             isActive: product.isActive ?? true,
+            isCustomizable: product.isCustomizable ?? true,
             isSignaturePiece: product.isSignaturePiece ?? false,
             signatureCategory: product.signatureCategory || 'none',
             badge: product.badge || null,
             description: product.description || '',
-            imageUrl: product.imageUrl || '',
+            imageUrl: initialMedia.find(m => m.isPrimary)?.url || product.imageUrl || '',
+            media: initialMedia,
           });
         } catch (error) {
           console.error('Failed to fetch product:', error);
@@ -116,17 +157,103 @@ export default function AdminProductForm() {
     }
   }, [formData.categoryId, categories]);
 
+  const handleAddImage = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const url = newImageUrl.trim();
+    if (!url) return;
+
+    setFormData(prev => {
+      const nextMedia = [...prev.media];
+      const isFirst = nextMedia.length === 0;
+      nextMedia.push({
+        url,
+        alt: prev.name || '',
+        type: 'image',
+        isPrimary: isFirst,
+        sortOrder: nextMedia.length,
+      });
+
+      return {
+        ...prev,
+        imageUrl: isFirst ? url : prev.imageUrl,
+        media: nextMedia,
+      };
+    });
+
+    setNewImageUrl('');
+  };
+
+  const handleRemoveImage = (index: number) => {
+    setFormData(prev => {
+      const filtered = prev.media.filter((_, idx) => idx !== index);
+      // Re-assign sortOrder
+      let updated = filtered.map((item, idx) => ({ ...item, sortOrder: idx }));
+      
+      // If the removed item was primary, designate the first remaining item as primary
+      if (updated.length > 0 && !updated.some(m => m.isPrimary)) {
+        updated[0].isPrimary = true;
+      }
+      
+      const primaryUrl = updated.find(m => m.isPrimary)?.url || '';
+      return {
+        ...prev,
+        imageUrl: primaryUrl,
+        media: updated,
+      };
+    });
+  };
+
+  const handleSetPrimary = (index: number) => {
+    setFormData(prev => {
+      const updated = prev.media.map((item, idx) => ({
+        ...item,
+        isPrimary: idx === index,
+      }));
+      const primaryUrl = updated[index]?.url || prev.imageUrl;
+      return {
+        ...prev,
+        imageUrl: primaryUrl,
+        media: updated,
+      };
+    });
+  };
+
+  const handleMoveImage = (index: number, direction: 'up' | 'down') => {
+    setFormData(prev => {
+      const targetIndex = direction === 'up' ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= prev.media.length) return prev;
+
+      const items = [...prev.media];
+      const temp = items[index];
+      items[index] = items[targetIndex];
+      items[targetIndex] = temp;
+
+      const reordered = items.map((item, idx) => ({ ...item, sortOrder: idx }));
+      const primaryUrl = reordered.find(m => m.isPrimary)?.url || prev.imageUrl;
+
+      return {
+        ...prev,
+        imageUrl: primaryUrl,
+        media: reordered,
+      };
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
+      const primaryMedia = formData.media.find(m => m.isPrimary);
+      const primaryUrl = primaryMedia?.url || formData.media[0]?.url || formData.imageUrl;
+
       const payload = {
         ...formData,
+        imageUrl: primaryUrl || undefined,
+        media: formData.media.length > 0 ? formData.media : undefined,
         salePrice: formData.salePrice || undefined,
         badge: formData.badge || undefined,
         subcategoryId: formData.subcategoryId || undefined,
-        imageUrl: formData.imageUrl || undefined,
       };
 
       let response;
@@ -285,17 +412,122 @@ export default function AdminProductForm() {
                     placeholder="e.g., New, Sale, Best Seller"
                   />
                 </div>
+              </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="imageUrl">Image URL</Label>
-                  <Input
-                    id="imageUrl"
-                    name="imageUrl"
-                    value={formData.imageUrl}
-                    onChange={handleChange}
-                    placeholder="https://..."
-                  />
+              {/* Product Gallery & Multiple Images Manager */}
+              <div className="space-y-4 pt-2 border-t border-border/40">
+                <div>
+                  <h3 className="text-lg font-medium text-foreground">Product Gallery Images</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Add multiple image URLs for this product. You can preview, designate the primary photo, reorder, or remove images.
+                  </p>
                 </div>
+
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Input
+                    value={newImageUrl}
+                    onChange={(e) => setNewImageUrl(e.target.value)}
+                    placeholder="Enter image URL (e.g. /assets/... or https://...)"
+                    className="flex-1"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddImage();
+                      }
+                    }}
+                  />
+                  <Button type="button" onClick={() => handleAddImage()} variant="secondary">
+                    Add Image
+                  </Button>
+                </div>
+
+                {formData.media.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-2">
+                    {formData.media.map((item, index) => (
+                      <div
+                        key={index}
+                        className={`relative rounded-lg border p-3 flex flex-col gap-2 transition-all ${
+                          item.isPrimary
+                            ? 'border-primary ring-2 ring-primary/20 bg-primary/5'
+                            : 'border-border/60 bg-card hover:border-border'
+                        }`}
+                      >
+                        <div className="relative aspect-square w-full rounded-md overflow-hidden bg-muted/30 border border-border/40 flex items-center justify-center">
+                          <img
+                            src={item.url}
+                            alt={item.alt || `Product image ${index + 1}`}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = '/assets/placeholder-jewel.jpg';
+                            }}
+                          />
+                          {item.isPrimary && (
+                            <span className="absolute top-2 left-2 bg-primary text-primary-foreground text-xs font-semibold px-2 py-0.5 rounded-full shadow-sm">
+                              Primary
+                            </span>
+                          )}
+                        </div>
+
+                        <p className="text-xs text-muted-foreground font-mono truncate" title={item.url}>
+                          {item.url}
+                        </p>
+
+                        <div className="flex items-center justify-between gap-1 pt-1 border-t border-border/40">
+                          <div className="flex items-center gap-1">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant={item.isPrimary ? 'default' : 'outline'}
+                              className="h-7 text-xs px-2"
+                              onClick={() => handleSetPrimary(index)}
+                            >
+                              {item.isPrimary ? 'Primary' : 'Set Primary'}
+                            </Button>
+                          </div>
+
+                          <div className="flex items-center gap-1">
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7 text-xs"
+                              disabled={index === 0}
+                              onClick={() => handleMoveImage(index, 'up')}
+                              title="Move earlier"
+                            >
+                              ↑
+                            </Button>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7 text-xs"
+                              disabled={index === formData.media.length - 1}
+                              onClick={() => handleMoveImage(index, 'down')}
+                              title="Move later"
+                            >
+                              ↓
+                            </Button>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => handleRemoveImage(index)}
+                              title="Remove image"
+                            >
+                              ✕
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-dashed border-border/60 p-6 text-center text-sm text-muted-foreground">
+                    No images added yet. Enter a URL above and click "Add Image".
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -309,27 +541,38 @@ export default function AdminProductForm() {
                 />
               </div>
 
-              <div className="flex gap-4">
-                <label className="flex items-center space-x-2">
+              <div className="flex flex-wrap gap-6 pt-2">
+                <label className="flex items-center space-x-2 cursor-pointer">
                   <input
                     type="checkbox"
                     name="isActive"
                     checked={formData.isActive}
                     onChange={handleChange}
-                    className="w-4 h-4"
+                    className="w-4 h-4 rounded text-primary"
                   />
-                  <span>Active</span>
+                  <span className="text-sm font-medium">Active (Visible in Store)</span>
                 </label>
 
-                <label className="flex items-center space-x-2">
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    name="isCustomizable"
+                    checked={formData.isCustomizable}
+                    onChange={handleChange}
+                    className="w-4 h-4 rounded text-primary"
+                  />
+                  <span className="text-sm font-medium">Allow Customization</span>
+                </label>
+
+                <label className="flex items-center space-x-2 cursor-pointer">
                   <input
                     type="checkbox"
                     name="isSignaturePiece"
                     checked={formData.isSignaturePiece}
                     onChange={handleChange}
-                    className="w-4 h-4"
+                    className="w-4 h-4 rounded text-primary"
                   />
-                  <span>Signature Piece</span>
+                  <span className="text-sm font-medium">Signature Piece</span>
                 </label>
               </div>
 

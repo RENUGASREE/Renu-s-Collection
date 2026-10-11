@@ -75,17 +75,20 @@ export async function updateCategory(id: string, input: UpdateCategoryInput): Pr
 
   if (!category) throw new AppError("Category not found", 404);
 
-  // If customization fields were updated, synchronize CustomizationConfig and Product isCustomizable flag
+  // If customization fields were updated, synchronize CustomizationConfig
   if (input.customizationFields !== undefined) {
     const hasFields = Boolean(input.customizationFields && input.customizationFields.length > 0);
     const { Product } = await import("../models/Product.js");
     const { CustomizationConfig } = await import("../models/CustomizationConfig.js");
 
-    // Synchronize isCustomizable flag across all products in this category
-    await Product.updateMany(
-      { categoryId: new Types.ObjectId(id) },
-      { isCustomizable: hasFields }
-    );
+    // If a category has its customization completely removed, disable isCustomizable for its products.
+    // If fields exist, preserve existing products' explicit choices (do not force-override products marked non-customizable).
+    if (!hasFields) {
+      await Product.updateMany(
+        { categoryId: new Types.ObjectId(id) },
+        { isCustomizable: false }
+      );
+    }
 
     // Keep CustomizationConfig in sync
     await CustomizationConfig.findOneAndUpdate(

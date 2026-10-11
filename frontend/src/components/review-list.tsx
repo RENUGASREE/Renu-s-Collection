@@ -2,11 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { StarRating } from './star-rating';
 import { apiRequest } from '@/lib/queryClient';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { CheckCircle, ThumbsUp, Trash2, Image as ImageIcon, Video } from 'lucide-react';
+import { CheckCircle, ThumbsUp, Trash2, Image as ImageIcon, Video, ZoomIn } from 'lucide-react';
 
 interface Review {
   id: string;
@@ -35,6 +40,7 @@ export function ReviewList({ productId, refreshTrigger }: ReviewListProps) {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [activeLightboxImage, setActiveLightboxImage] = useState<string | null>(null);
 
   useEffect(() => {
     fetchReviews();
@@ -158,7 +164,7 @@ export function ReviewList({ productId, refreshTrigger }: ReviewListProps) {
             {review.images && review.images.length > 0 && (
               <div className="flex flex-wrap gap-2.5 mb-4">
                 {review.images.map((image, index) => (
-                  <div key={index} className="relative group overflow-hidden rounded-lg border border-border/50 shadow-sm">
+                  <div key={index} className="relative group overflow-hidden rounded-lg border border-border/50 shadow-sm bg-muted/20">
                     {image.match(/\.(mp4|webm|ogg)$/i) ? (
                       <video
                         src={image}
@@ -166,12 +172,21 @@ export function ReviewList({ productId, refreshTrigger }: ReviewListProps) {
                         className="w-20 h-20 object-cover"
                       />
                     ) : (
-                      <img
-                        src={image}
-                        alt={`Review media ${index + 1}`}
-                        className="w-20 h-20 object-cover cursor-pointer hover:scale-105 transition-transform duration-300"
-                        onClick={() => window.open(image, '_blank')}
-                      />
+                      <button
+                        type="button"
+                        className="relative w-20 h-20 block cursor-pointer overflow-hidden focus:outline-none focus:ring-2 focus:ring-primary/40 rounded-lg text-left"
+                        onClick={() => setActiveLightboxImage(image)}
+                        title="Click to view enlarged image"
+                      >
+                        <img
+                          src={image}
+                          alt={`Review media ${index + 1}`}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 flex items-center justify-center transition-colors">
+                          <ZoomIn className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow" />
+                        </div>
+                      </button>
                     )}
                   </div>
                 ))}
@@ -232,6 +247,24 @@ export function ReviewList({ productId, refreshTrigger }: ReviewListProps) {
           </Button>
         </div>
       )}
+
+      {/* Lightbox Dialog for Review Photos */}
+      <Dialog open={!!activeLightboxImage} onOpenChange={(open) => !open && setActiveLightboxImage(null)}>
+        <DialogContent className="max-w-3xl p-3 sm:p-4 bg-background/95 backdrop-blur border-border/60 overflow-hidden shadow-2xl">
+          <DialogTitle className="text-sm font-medium text-muted-foreground sr-only">
+            Enlarged Customer Review Photo
+          </DialogTitle>
+          {activeLightboxImage && (
+            <div className="flex items-center justify-center max-h-[80vh] w-full overflow-hidden rounded-md bg-black/40">
+              <img
+                src={activeLightboxImage}
+                alt="Enlarged review photo"
+                className="max-h-[75vh] w-auto max-w-full object-contain rounded"
+              />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

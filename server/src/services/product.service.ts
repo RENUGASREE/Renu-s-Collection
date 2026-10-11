@@ -136,10 +136,12 @@ export async function createProduct(input: CreateProductInput): Promise<ProductL
   const existingSku = await Product.findOne({ sku });
   if (existingSku) throw new AppError("SKU already exists", 409);
 
-  // Convert imageUrl to media array if provided
-  const media = input.imageUrl
-    ? [{ url: input.imageUrl, type: "image" as const, isPrimary: true, sortOrder: 0 }]
-    : input.media || [];
+  // Determine media array: prioritize explicit media array, fallback to imageUrl
+  const media = input.media && input.media.length > 0
+    ? input.media
+    : input.imageUrl
+      ? [{ url: input.imageUrl, type: "image" as const, isPrimary: true, sortOrder: 0 }]
+      : [];
 
   const product = await Product.create({
     ...input,
@@ -169,8 +171,10 @@ export async function updateProduct(id: string, input: UpdateProductInput): Prom
     update.subcategoryId = input.subcategoryId ? new Types.ObjectId(input.subcategoryId) : null;
   }
 
-  // Convert imageUrl to media array if provided
-  if (input.imageUrl) {
+  // Handle media updates: prioritize media array if provided; otherwise fallback to single imageUrl if specified
+  if (input.media !== undefined) {
+    update.media = input.media;
+  } else if (input.imageUrl) {
     update.media = [{ url: input.imageUrl, type: "image" as const, isPrimary: true, sortOrder: 0 }];
   }
 

@@ -30,8 +30,8 @@ export async function getProductCustomization(productId: string) {
 
   const fields = config?.fields?.length ? config.fields : category?.customizationFields ?? [];
 
-  // If product is not customizable and has no fields, return empty customization config gracefully
-  if (!product.isCustomizable && fields.length === 0) {
+  // If product is not customizable, return empty customization config immediately
+  if (!product.isCustomizable) {
     return {
       productId: product._id,
       productName: product.name,
