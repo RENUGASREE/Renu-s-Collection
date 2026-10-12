@@ -417,43 +417,6 @@ export default function OrderDetails() {
             </Card>
 
             {/* Status History Timeline */}
-            {order.statusHistory && order.statusHistory.length > 0 && (
-              <Card className="border border-[#E6D8D0] dark:border-border bg-white dark:bg-card shadow-xs rounded-xl overflow-hidden">
-                <div className="px-5 py-4 border-b border-[#E6D8D0]/60 dark:border-border/60 bg-[#FBF7F3]/60 dark:bg-muted/20 flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-[#B99A72]" />
-                  <h2 className="font-playfair text-base font-semibold text-[#342824] dark:text-foreground">
-                    Status History
-                  </h2>
-                </div>
-                <CardContent className="p-5">
-                  <div className="space-y-3">
-                    {order.statusHistory.map((history, idx) => (
-                      <div key={idx} className="flex gap-3 text-xs sm:text-sm">
-                        <div className="flex flex-col items-center">
-                          <div className="w-2 h-2 rounded-full bg-[#B66F72] mt-1.5 shrink-0" />
-                          {idx < order.statusHistory.length - 1 && (
-                            <div className="w-0.5 h-full bg-[#E6D8D0] dark:bg-border my-1" />
-                          )}
-                        </div>
-                        <div className="flex-1 pb-2">
-                          <p className="font-semibold capitalize text-[#342824] dark:text-foreground">
-                            {history.status}
-                          </p>
-                          {history.note && (
-                            <p className="text-xs text-[#756861] dark:text-muted-foreground mt-0.5">
-                              {history.note}
-                            </p>
-                          )}
-                          <p className="text-[11px] text-[#756861]/70 dark:text-muted-foreground/70 mt-0.5">
-                            {new Date(history.changedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
 
             {/* Addresses Card */}
             <Card className="border border-[#E6D8D0] dark:border-border bg-white dark:bg-card shadow-xs rounded-xl overflow-hidden">

@@ -177,6 +177,16 @@ export default function OrderProgressTracker({ status, statusHistory, createdAt 
                     {formatTimestamp(timestamp)}
                   </p>
                 )}
+                {/* Show admin/system note for this stage if present */}
+                {(isCompleted || isCurrent) && (() => {
+                  const entry = statusHistory.find(h => h.status === stageToBackendStatus[stage.key]);
+                  if (!entry?.note) return null;
+                  return (
+                    <p className="text-[11px] text-[#756861] dark:text-muted-foreground mt-0.5 italic">
+                      {entry.note}
+                    </p>
+                  );
+                })()}
                 {isCurrent && !isCancelled && (
                   <p className="text-[11px] text-[#B66F72] dark:text-primary mt-0.5 font-medium">
                     Current Status
