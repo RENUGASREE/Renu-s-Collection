@@ -8,6 +8,7 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(8000),
   API_PREFIX: z.string().default("/api/v1"),
   MONGODB_URI: z.string().min(1, "MONGODB_URI is required"),
+  COMMERCE_MODE: z.enum(["test", "live", "disabled"]).default("test"),
   CORS_ORIGINS: z.string().default("http://localhost:5173"),
   JWT_ACCESS_SECRET: z.string().min(16).default("dev-access-secret-change-me"),
   JWT_REFRESH_SECRET: z.string().min(16).default("dev-refresh-secret-change-me"),
@@ -44,4 +45,7 @@ export const env = {
   corsOrigins: parsed.data.CORS_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean),
   isProduction: parsed.data.NODE_ENV === "production",
   isDevelopment: parsed.data.NODE_ENV === "development",
+  isTestCommerce: parsed.data.COMMERCE_MODE === "test",
+  isLiveCommerce: parsed.data.COMMERCE_MODE === "live",
+  isCommerceDisabled: parsed.data.COMMERCE_MODE === "disabled",
 };

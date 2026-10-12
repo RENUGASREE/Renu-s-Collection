@@ -13,33 +13,46 @@ import { format } from 'date-fns';
 import { SEO } from '@/components/SEO';
 
 interface OrderItem {
-  id: number;
-  product_type: string;
-  product_id: number;
+  productId: string;
+  sku: string;
+  name: string;
+  imageUrl?: string;
+  unitPrice: number;
   quantity: number;
-  price: number;
-  product?: {
-    name: string;
-    image?: string;
+  subtotal: number;
+  customization?: {
+    selections: Record<string, string | string[]>;
+    previewImageUrl?: string;
+    engraving?: string;
   };
 }
 
 interface Order {
-  id: string;
-  order_number: string;
-  status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
-  payment_status: 'pending' | 'completed' | 'failed';
-  total_amount: number;
-  shipping_address: string;
-  billing_address: string;
-  phone_number: string;
-  email: string;
-  notes?: string;
-  created_at: string;
-  updated_at: string;
-  payment_method: string;
-  transaction_id?: string;
+  _id: string;
+  orderNumber: string;
+  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled' | 'refunded';
+  paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded';
   items: OrderItem[];
+  subtotal: number;
+  discount: number;
+  tax: number;
+  shipping: number;
+  total: number;
+  currency: string;
+  shippingAddress: {
+    fullName: string;
+    line1: string;
+    line2?: string;
+    city: string;
+    state: string;
+    postalCode: string;
+    country: string;
+    phone: string;
+  };
+  notes?: string;
+  paymentMethod: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface UserProfile {
@@ -186,11 +199,13 @@ const AccountPage: React.FC = () => {
         return 'default';
       case 'shipped':
         return 'default';
+      case 'processing':
       case 'confirmed':
         return 'secondary';
       case 'pending':
         return 'outline';
       case 'cancelled':
+      case 'refunded':
         return 'destructive';
       default:
         return 'outline';
@@ -199,6 +214,7 @@ const AccountPage: React.FC = () => {
 
   const getPaymentStatusBadgeVariant = (status: string) => {
     switch (status) {
+      case 'paid':
       case 'completed':
         return 'default';
       case 'failed':
@@ -429,21 +445,21 @@ const AccountPage: React.FC = () => {
                 </Card>
               ) : (
                 orders.map((order) => (
-                  <Card key={order.id}>
+                  <Card key={order._id}>
                     <CardHeader>
                       <div className="flex justify-between items-start">
                         <div>
-                          <CardTitle>Order #{order.order_number}</CardTitle>
+                          <CardTitle>Order #{order.orderNumber}</CardTitle>
                           <p className="text-sm text-muted-foreground">
-                            Placed on {format(new Date(order.created_at), 'MMMM d, yyyy')}
+                            Placed on {format(new Date(order.createdAt), 'MMMM d, yyyy')}
                           </p>
                         </div>
                         <div className="flex gap-2">
                           <Badge variant={getStatusBadgeVariant(order.status)}>
                             {order.status}
                           </Badge>
-                          <Badge variant={getPaymentStatusBadgeVariant(order.payment_status)}>
-                            Payment: {order.payment_status}
+                          <Badge variant={getPaymentStatusBadgeVariant(order.paymentStatus)}>
+                            Payment: {order.paymentStatus}
                           </Badge>
                         </div>
                       </div>
@@ -454,13 +470,13 @@ const AccountPage: React.FC = () => {
                         <div>
                           <h4 className="font-medium mb-2">Items</h4>
                           <div className="space-y-2">
-                            {order.items.map((item) => (
-                              <div key={item.id} className="flex justify-between text-sm">
+                            {order.items.map((item, idx) => (
+                              <div key={`${order._id}-${idx}`} className="flex justify-between text-sm">
                                 <span>
-                                  {item.product?.name || `Product ${item.product_id}`} 
-                                  (Qty: {item.quantity})
+                                  {item.name} 
+                                  <span className="text-muted-foreground"> (Qty: {item.quantity})</span>
                                 </span>
-                                <span>₹{(item.price * item.quantity).toFixed(2)}</span>
+                                <span>₹{(item.subtotal || item.unitPrice * item.quantity).toFixed(2)}</span>
                               </div>
                             ))}
                           </div>
@@ -472,11 +488,15 @@ const AccountPage: React.FC = () => {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
                             <h4 className="font-medium mb-2">Shipping Address</h4>
-                            <p className="text-sm text-muted-foreground">{order.shipping_address}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {order.shippingAddress ? (
+                                `${order.shippingAddress.fullName}, ${order.shippingAddress.line1}, ${order.shippingAddress.city}, ${order.shippingAddress.state} - ${order.shippingAddress.postalCode}`
+                              ) : 'N/A'}
+                            </p>
                           </div>
                           <div>
                             <h4 className="font-medium mb-2">Payment Method</h4>
-                            <p className="text-sm text-muted-foreground capitalize">{order.payment_method}</p>
+                            <p className="text-sm text-muted-foreground capitalize">{order.paymentMethod}</p>
                           </div>
                         </div>
 
@@ -485,7 +505,7 @@ const AccountPage: React.FC = () => {
                         {/* Order Total and Actions */}
                         <div className="flex justify-between items-center">
                           <div>
-                            <p className="text-lg font-bold">Total: ₹{order.total_amount}</p>
+                            <p className="text-lg font-bold">Total: ₹{order.total.toFixed(2)}</p>
                             {order.notes && (
                               <p className="text-sm text-muted-foreground mt-1">
                                 Notes: {order.notes}
@@ -497,7 +517,7 @@ const AccountPage: React.FC = () => {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => cancelOrder(order.id)}
+                                onClick={() => cancelOrder(order._id)}
                               >
                                 Cancel Order
                               </Button>
@@ -505,7 +525,7 @@ const AccountPage: React.FC = () => {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => navigate(`/order/${order.id}`)}
+                              onClick={() => navigate(`/orders/${order._id}`)}
                             >
                               View Details
                             </Button>

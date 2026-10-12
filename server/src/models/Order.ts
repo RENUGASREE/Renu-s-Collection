@@ -54,6 +54,11 @@ export interface IOrder extends Document {
   trackingNumber?: string;
   invoiceUrl?: string;
   statusHistory: IOrderStatusHistory[];
+  fulfillmentStatus?: "pending" | "completed" | "requires_action";
+  fulfillmentErrors?: string[];
+  deductedItemIds?: string[];
+  couponProcessed?: boolean;
+  cartCleared?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -142,6 +147,16 @@ const orderSchema = new Schema<IOrder>(
     trackingNumber: String,
     invoiceUrl: String,
     statusHistory: { type: [statusHistorySchema], default: [] },
+    fulfillmentStatus: {
+      type: String,
+      enum: ["pending", "completed", "requires_action"],
+      default: "pending",
+      index: true,
+    },
+    fulfillmentErrors: { type: [String], default: [] },
+    deductedItemIds: { type: [String], default: [] },
+    couponProcessed: { type: Boolean, default: false },
+    cartCleared: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

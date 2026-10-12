@@ -7,19 +7,75 @@ import { generateOrderNumber } from "../utils/helpers.js";
 import { getCartItems, clearCart, toLegacyCartItem } from "./cart.service.js";
 import { deductStockForOrder } from "./inventory.service.js";
 import { customizationService } from "./customization.service.js";
+import { env } from "../config/env.js";
 import type { IAddress } from "../models/User.js";
 import type { ICartItem } from "../models/Cart.js";
 import type { OrderStatus } from "../types/index.js";
 
 const SHIPPING_FREE_THRESHOLD = 1000;
 const SHIPPING_FLAT = 50;
-const TAX_RATE = 0.05;
 
-function parseLegacyAddress(raw: string): IAddress {
-  const parts = raw.split(",").map((p) => p.trim());
+/**
+ * Commerce Tax Configuration
+ * Explicitly tied to server-side COMMERCE_MODE:
+ * In test mode (COMMERCE_MODE=test):
+ *   - order.tax = 0 (Merchandise prices are final selling prices; no unexpected tax added)
+ *   - total = (subtotal - discount) + shipping
+ * 
+ * For future commercial operation:
+ *   - Production live commerce remains unactivated pending verified business and tax registration.
+ */
+export function getCommerceTaxConfig() {
+  if (env.COMMERCE_MODE === "test") {
+    return {
+      mode: "test",
+      isGstRegistered: false,
+      taxRate: 0,
+    };
+  }
+  // Safe closed default: non-GST registered, 0 tax rate
+  return {
+    mode: env.COMMERCE_MODE,
+    isGstRegistered: false,
+    taxRate: 0,
+  };
+}
+
+export function isTamilNaduState(state?: string): boolean {
+  if (!state) return false;
+  const normalized = state.trim().toLowerCase().replace(/[\s\-_.]/g, "");
+  return normalized === "tamilnadu" || normalized === "tn";
+}
+
+export function validateDeliveryEligibility(address: IAddress | { state?: string }) {
+  if (!address || !isTamilNaduState(address.state)) {
+    throw new AppError(
+      "Delivery is currently available only within Tamil Nadu. Please select or enter a Tamil Nadu delivery address.",
+      400
+    );
+  }
+}
+
+function parseLegacyAddress(raw: string | IAddress | any): IAddress {
+  if (typeof raw === "object" && raw !== null && raw.line1) {
+    return {
+      fullName: raw.fullName ?? "Customer",
+      line1: raw.line1,
+      line2: raw.line2 ?? "",
+      city: raw.city ?? "",
+      postalCode: raw.postalCode ?? "",
+      country: raw.country ?? "India",
+      state: raw.state ?? "",
+      phone: raw.phone ?? "",
+      label: raw.label,
+    };
+  }
+
+  const str = String(raw || "");
+  const parts = str.split(",").map((p) => p.trim());
   return {
     fullName: parts[0] ?? "Customer",
-    line1: parts[1] ?? raw,
+    line1: parts[1] ?? str,
     city: parts[2] ?? "",
     postalCode: parts[3] ?? "",
     country: parts[4] ?? "India",
@@ -123,13 +179,19 @@ export async function createOrderFromCart(
   const { discount, coupon } = await validateCoupon(input.couponCode, subtotal);
   const shipping = subtotal - discount >= SHIPPING_FREE_THRESHOLD ? 0 : SHIPPING_FLAT;
   const taxable = Math.max(0, subtotal - discount);
-  const tax = Math.round(taxable * TAX_RATE * 100) / 100;
+  const taxConfig = getCommerceTaxConfig();
+  const tax = taxConfig.isGstRegistered
+    ? Math.round(taxable * taxConfig.taxRate * 100) / 100
+    : 0;
   const total = Math.round((taxable + tax + shipping) * 100) / 100;
 
   const shippingAddress = parseLegacyAddress(input.shipping_address);
   shippingAddress.phone = input.phone_number;
   const billingAddress = parseLegacyAddress(input.billing_address ?? input.shipping_address);
   billingAddress.phone = input.phone_number;
+
+  // Enforce Tamil Nadu delivery restriction before creating order
+  validateDeliveryEligibility(shippingAddress);
 
   const order = await Order.create({
     orderNumber: generateOrderNumber(),

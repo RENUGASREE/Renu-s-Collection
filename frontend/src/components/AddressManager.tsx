@@ -305,28 +305,42 @@ export default function AddressManager({
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {addresses.map((address) => (
-          <Card
-            key={address._id}
-            className={`cursor-pointer transition-all ${
-              showSelection && selectedAddressId === address._id
-                ? 'border-primary ring-2 ring-primary'
-                : 'hover:border-gray-300'
-            }`}
-            onClick={() => showSelection && handleSelect(address)}
-          >
-            <CardContent className="p-4">
-              <div className="space-y-2">
-                <div className="flex justify-between items-start">
-                  <div className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-muted-foreground" />
-                    {address.label && (
-                      <Badge variant="outline">{address.label}</Badge>
-                    )}
-                    {address.isDefault && (
-                      <Badge variant="default">Default</Badge>
-                    )}
-                  </div>
+        {addresses.map((address) => {
+          const isEligible = address.state?.trim().toLowerCase().replace(/[\s\-_.]/g, '') === 'tamilnadu' || 
+                             address.state?.trim().toLowerCase().replace(/[\s\-_.]/g, '') === 'tn';
+          return (
+            <Card
+              key={address._id}
+              className={`cursor-pointer transition-all ${
+                showSelection && selectedAddressId === address._id
+                  ? 'border-primary ring-2 ring-primary'
+                  : 'hover:border-gray-300'
+              } ${showSelection && !isEligible ? 'opacity-80 bg-muted/20' : ''}`}
+              onClick={() => showSelection && handleSelect(address)}
+            >
+              <CardContent className="p-4">
+                <div className="space-y-2">
+                  <div className="flex justify-between items-start">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <MapPin className="h-4 w-4 text-muted-foreground" />
+                      {address.label && (
+                        <Badge variant="outline">{address.label}</Badge>
+                      )}
+                      {address.isDefault && (
+                        <Badge variant="default">Default</Badge>
+                      )}
+                      {showSelection && (
+                        isEligible ? (
+                          <Badge variant="outline" className="border-emerald-600/40 text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 text-[10px]">
+                            Eligible for Delivery
+                          </Badge>
+                        ) : (
+                          <Badge variant="destructive" className="text-[10px]">
+                            Out of delivery zone (TN only)
+                          </Badge>
+                        )
+                      )}
+                    </div>
                   {!showSelection && (
                     <div className="flex gap-1">
                       {!address.isDefault && (
@@ -382,7 +396,8 @@ export default function AddressManager({
               </div>
             </CardContent>
           </Card>
-        ))}
+        );
+      })}
       </div>
 
       {addresses.length === 0 && !showForm && (

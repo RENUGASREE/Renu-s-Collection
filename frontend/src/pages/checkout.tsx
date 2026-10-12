@@ -161,6 +161,12 @@ export default function Checkout() {
     }
   };
 
+  const isTamilNaduState = (state?: string) => {
+    if (!state) return false;
+    const normalized = state.trim().toLowerCase().replace(/[\s\-_.]/g, "");
+    return normalized === "tamilnadu" || normalized === "tn";
+  };
+
   const validateForm = () => {
     if (!useNewAddress && !selectedAddress) {
       toast({
@@ -171,12 +177,32 @@ export default function Checkout() {
       return false;
     }
 
+    if (!useNewAddress && selectedAddress) {
+      if (!isTamilNaduState(selectedAddress.state)) {
+        toast({
+          title: 'Delivery Unavailable',
+          description: 'Delivery is currently available only within Tamil Nadu. Please select or add an address in Tamil Nadu.',
+          variant: 'destructive',
+        });
+        return false;
+      }
+    }
+
     if (useNewAddress) {
       if (!newAddress.fullName || !newAddress.line1 || !newAddress.city || 
           !newAddress.state || !newAddress.postalCode || !newAddress.phone) {
         toast({
           title: 'Missing Information',
           description: 'Please fill in all address fields',
+          variant: 'destructive',
+        });
+        return false;
+      }
+
+      if (!isTamilNaduState(newAddress.state)) {
+        toast({
+          title: 'Delivery Restricted',
+          description: 'We currently deliver exclusively within Tamil Nadu. Please provide an address located in Tamil Nadu.',
           variant: 'destructive',
         });
         return false;
@@ -242,6 +268,21 @@ export default function Checkout() {
       />
       <main className="container mx-auto px-4 py-8 pt-20">
         <h1 className="text-5xl font-bold text-center mb-12">Checkout</h1>
+
+        {/* Tamil Nadu Exclusive Delivery Notice */}
+        <div className="max-w-4xl mx-auto mb-8 p-4 rounded-xl border border-[#B99A72]/40 bg-[#FBF7F3] dark:bg-card flex items-start gap-3">
+          <div className="p-2 rounded-full bg-[#B99A72]/15 text-[#B99A72] shrink-0 mt-0.5">
+            📍
+          </div>
+          <div>
+            <h3 className="font-playfair font-semibold text-sm text-[#342824] dark:text-foreground">
+              Exclusive Delivery Service — Tamil Nadu Only
+            </h3>
+            <p className="text-xs text-[#756861] dark:text-muted-foreground mt-0.5 leading-relaxed">
+              Renu's Collections currently handcrafts and delivers orders exclusively to delivery addresses within <strong>Tamil Nadu</strong>. Standard orders below ₹1,000 incur ₹50 shipping, and orders from ₹1,000 enjoy complimentary delivery.
+            </p>
+          </div>
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-8">
