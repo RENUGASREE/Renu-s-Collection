@@ -1,14 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Footer from '@/components/footer';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { apiRequest } from '@/lib/queryClient';
+import { apiRequest, getAssetUrl } from '@/lib/queryClient';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { SEO } from '@/components/SEO';
-import { Package, Calendar, IndianRupee, Clock } from 'lucide-react';
+import { 
+  Package, 
+  Calendar, 
+  CreditCard, 
+  Banknote, 
+  ChevronRight, 
+  ShoppingBag, 
+  RefreshCw,
+  Sparkles,
+  ArrowRight
+} from 'lucide-react';
 
 interface OrderItem {
   productId: string;
@@ -30,6 +39,7 @@ interface Order {
   orderNumber: string;
   status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled' | 'refunded';
   paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded';
+  paymentMethod?: string;
   items: OrderItem[];
   subtotal: number;
   discount: number;
@@ -65,6 +75,7 @@ export default function Orders() {
 
   const fetchOrders = async () => {
     try {
+      setLoading(true);
       const response = await apiRequest('GET', '/api/v1/orders');
       const data = await response.json();
       setOrders(data.data || []);
@@ -72,7 +83,7 @@ export default function Orders() {
       console.error('Error fetching orders:', error);
       toast({
         title: 'Error',
-        description: 'Failed to load orders',
+        description: 'Failed to load your orders',
         variant: 'destructive',
       });
     } finally {
@@ -80,210 +91,39 @@ export default function Orders() {
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const getOrderStatusBadge = (status: string) => {
     switch (status) {
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'processing':
-        return 'bg-blue-100 text-blue-800';
-      case 'shipped':
-        return 'bg-purple-100 text-purple-800';
       case 'delivered':
-        return 'bg-green-100 text-green-800';
+        return 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800';
+      case 'shipped':
+        return 'bg-purple-50 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border-purple-200 dark:border-purple-800';
+      case 'processing':
+        return 'bg-[#F1E6DF] text-[#95565A] dark:bg-muted dark:text-foreground border-[#E6D8D0] dark:border-border';
       case 'cancelled':
-        return 'bg-red-100 text-red-800';
+        return 'bg-rose-50 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border-rose-200 dark:border-rose-800';
       case 'refunded':
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-stone-100 text-stone-800 dark:bg-stone-900 dark:text-stone-300 border-stone-200 dark:border-stone-800';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-800';
     }
   };
 
-  const getPaymentStatusColor = (status: string) => {
+  const getPaymentBadge = (status: string, method?: string) => {
+    if (method === 'cod') {
+      return 'bg-stone-100 text-[#756861] dark:bg-muted dark:text-muted-foreground border-stone-200 dark:border-border';
+    }
     switch (status) {
       case 'paid':
-        return 'bg-green-100 text-green-800';
+        return 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800';
       case 'failed':
-        return 'bg-red-100 text-red-800';
-      case 'refunded':
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-rose-50 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border-rose-200 dark:border-rose-800';
       default:
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-800';
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-background flex flex-col">
-        <main className="flex-grow container mx-auto px-4 py-8 pt-20 text-center">
-          <h1 className="text-4xl font-bold mb-4">Loading Orders...</h1>
-        </main>
-        <Footer />
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-background text-foreground">
-      <SEO 
-        title="My Orders - Renu's Collections"
-        description="View your order history and track your jewelry purchases from Renu's Collections."
-        keywords="my orders, order history, track order, renu's collections orders, jewelry orders"
-        url="https://renucollections.com/orders"
-      />
-      <main className="container mx-auto px-4 py-8 pt-20">
-        <h1 className="text-5xl font-bold text-center mb-12">My Orders</h1>
-
-        {orders.length === 0 ? (
-          <Card className="max-w-md mx-auto">
-            <CardContent className="p-8 text-center">
-              <Package className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-              <h2 className="text-xl font-semibold mb-2">No orders yet</h2>
-              <p className="text-muted-foreground mb-4">
-                You haven't placed any orders yet. Start shopping to see your orders here.
-              </p>
-              <Button asChild>
-                <Link to="/products">Browse Products</Link>
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-6">
-            {orders.map((order) => (
-              <Card key={order._id}>
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <CardTitle className="text-xl">Order #{order.orderNumber}</CardTitle>
-                      <div className="flex items-center gap-2 mt-2">
-                        <Badge className={getStatusColor(order.status)}>
-                          {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-                        </Badge>
-                        <Badge variant="outline" className={getPaymentStatusColor(order.paymentStatus)}>
-                          Payment: {order.paymentStatus.charAt(0).toUpperCase() + order.paymentStatus.slice(1)}
-                        </Badge>
-                      </div>
-                    </div>
-                    <div className="text-right text-sm text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <Calendar className="h-4 w-4" />
-                        {new Date(order.createdAt).toLocaleDateString()}
-                      </div>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {/* Order Items */}
-                    <div className="space-y-3">
-                      {order.items.map((item, idx) => (
-                        <Link
-                          key={`${order._id}-${idx}`}
-                          to={`/product/${item.productId}`}
-                          className="flex gap-4 hover:bg-muted/50 p-2 rounded transition-colors"
-                        >
-                          {item.imageUrl && (
-                            <img
-                              src={item.imageUrl}
-                              alt={item.name}
-                              className="w-16 h-16 object-cover rounded"
-                            />
-                          )}
-                          <div className="flex-1">
-                            <p className="font-medium">{item.name}</p>
-                            <p className="text-sm text-muted-foreground">
-                              Qty: {item.quantity} × ₹{item.unitPrice.toFixed(2)}
-                            </p>
-                            {item.customization && (
-                              <div className="mt-1 text-xs text-muted-foreground flex flex-wrap gap-1">
-                                {(item.customization as any).breakdown && (item.customization as any).breakdown.length > 0 ? (
-                                  (item.customization as any).breakdown.map((b: any, bIdx: number) => (
-                                    <span key={bIdx} className="inline-block text-[11px] bg-muted/60 px-1.5 py-0.5 rounded border border-border/40">
-                                      {b.field}: <strong className="text-foreground font-medium">{b.option}</strong>
-                                    </span>
-                                  ))
-                                ) : (
-                                  <span className="text-[11px] text-primary">Customized</span>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                          <div className="text-right">
-                            <p className="font-medium">₹{item.subtotal.toFixed(2)}</p>
-                          </div>
-                        </Link>
-                      ))}
-                    </div>
-
-                    {/* Order Summary */}
-                    <div className="border-t pt-4 space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span>Subtotal:</span>
-                        <span>₹{order.subtotal.toFixed(2)}</span>
-                      </div>
-                      {order.discount > 0 && (
-                        <div className="flex justify-between text-green-600">
-                          <span>Discount:</span>
-                          <span>-₹{order.discount.toFixed(2)}</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between">
-                        <span>Shipping:</span>
-                        <span>{order.shipping === 0 ? 'Free' : `₹${order.shipping.toFixed(2)}`}</span>
-                      </div>
-                      {order.tax > 0 && (
-                        <div className="flex justify-between">
-                          <span>Tax:</span>
-                          <span>₹{order.tax.toFixed(2)}</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between font-bold text-lg pt-2 border-t">
-                        <span>Total:</span>
-                        <span className="flex items-center gap-1">
-                          <IndianRupee className="h-5 w-5" />
-                          {order.total.toFixed(2)}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex gap-2 pt-4">
-                      <Button asChild variant="outline" size="sm">
-                        <Link to={`/orders/${order._id}`}>View Details</Link>
-                      </Button>
-                      {(order.status === 'pending' || order.status === 'processing') && (
-                        <Button 
-                          size="sm" 
-                          variant="destructive"
-                          onClick={() => handleCancelOrder(order._id)}
-                        >
-                          Cancel Order
-                        </Button>
-                      )}
-                      {(order.status === 'shipped' || order.status === 'delivered') && (
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          disabled
-                          className="cursor-not-allowed"
-                        >
-                          Order shipped - Cannot cancel
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
-      </main>
-      <Footer />
-    </div>
-  );
-
-  async function handleCancelOrder(orderId: string) {
-    if (!confirm('Are you sure you want to cancel this order?')) return;
+  const handleCancelOrder = async (orderId: string) => {
+    if (!confirm('Are you sure you wish to cancel this order?')) return;
 
     try {
       const response = await apiRequest('POST', `/api/v1/orders/${orderId}/cancel`);
@@ -304,5 +144,210 @@ export default function Orders() {
         variant: 'destructive',
       });
     }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#FBF7F3] dark:bg-background flex flex-col">
+        <main className="flex-grow container mx-auto px-4 py-16 pt-28 text-center max-w-lg">
+          <div className="h-10 w-10 rounded-full border-2 border-[#B66F72] border-t-transparent animate-spin mx-auto mb-4" />
+          <h1 className="font-playfair text-2xl text-[#342824] dark:text-foreground">Loading Your Orders...</h1>
+          <p className="text-sm text-[#756861] dark:text-muted-foreground mt-2">Retrieving your boutique jewelry purchase history.</p>
+        </main>
+        <Footer />
+      </div>
+    );
   }
+
+  return (
+    <div className="min-h-screen bg-[#FBF7F3] dark:bg-background text-[#342824] dark:text-foreground">
+      <SEO 
+        title="My Orders - Renu's Collections"
+        description="View your handcrafted jewelry orders, review customization details and track purchase status."
+        keywords="my orders, order history, track jewelry, renu's collections"
+        url="https://renucollections.com/orders"
+      />
+      <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-10 pt-28 max-w-5xl">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-2 border-b border-[#E6D8D0] dark:border-border/60 pb-6 mb-8">
+          <div>
+            <h1 className="font-playfair text-3xl sm:text-4xl font-semibold tracking-tight text-[#342824] dark:text-foreground">
+              My Orders
+            </h1>
+            <p className="text-xs sm:text-sm text-[#756861] dark:text-muted-foreground mt-1">
+              Review and track your bespoke jewelry creations.
+            </p>
+          </div>
+          {orders.length > 0 && (
+            <span className="text-xs text-[#756861] dark:text-muted-foreground bg-white dark:bg-card px-3 py-1.5 rounded-full border border-[#E6D8D0] dark:border-border shadow-xs w-fit">
+              {orders.length} {orders.length === 1 ? 'Order' : 'Orders'} Recorded
+            </span>
+          )}
+        </div>
+
+        {/* Empty State */}
+        {orders.length === 0 ? (
+          <Card className="max-w-md mx-auto border border-[#E6D8D0] dark:border-border bg-white dark:bg-card shadow-xs rounded-xl p-8 text-center">
+            <div className="w-16 h-16 rounded-full bg-[#B66F72]/10 dark:bg-primary/10 flex items-center justify-center mx-auto mb-4">
+              <ShoppingBag className="w-8 h-8 text-[#B66F72] dark:text-primary" />
+            </div>
+            <h2 className="font-playfair text-2xl font-semibold text-[#342824] dark:text-foreground mb-2">
+              No orders placed yet
+            </h2>
+            <p className="text-xs sm:text-sm text-[#756861] dark:text-muted-foreground mb-6 leading-relaxed">
+              When you order personalized bracelets, chains, or boutique jewelry pieces, their tracking and status will appear here.
+            </p>
+            <Button asChild className="bg-[#B66F72] hover:bg-[#95565A] text-white rounded-xl px-6 py-5">
+              <Link to="/products" className="flex items-center gap-2">
+                <span>Browse Boutique Collection</span>
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+            </Button>
+          </Card>
+        ) : (
+          /* Orders List */
+          <div className="space-y-6">
+            {orders.map((order) => {
+              const formattedDate = new Date(order.createdAt).toLocaleDateString('en-IN', {
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric'
+              });
+
+              return (
+                <Card 
+                  key={order._id}
+                  className="border border-[#E6D8D0] dark:border-border bg-white dark:bg-card shadow-xs rounded-xl overflow-hidden hover:shadow-sm transition-shadow"
+                >
+                  {/* Card Header Bar */}
+                  <div className="p-4 sm:p-5 border-b border-[#E6D8D0]/60 dark:border-border/60 bg-[#FBF7F3]/50 dark:bg-muted/15 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div>
+                        <span className="text-[10px] uppercase font-semibold text-[#756861] dark:text-muted-foreground tracking-wider">Order</span>
+                        <p className="font-playfair text-base sm:text-lg font-bold text-[#342824] dark:text-foreground">
+                          #{order.orderNumber}
+                        </p>
+                      </div>
+                      <div className="hidden sm:flex items-center gap-1.5 text-xs text-[#756861] dark:text-muted-foreground pl-3 border-l border-[#E6D8D0] dark:border-border">
+                        <Calendar className="w-3.5 h-3.5 text-[#B99A72]" />
+                        <span>{formattedDate}</span>
+                      </div>
+                    </div>
+
+                    {/* Status Badges */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border ${getOrderStatusBadge(order.status)}`}>
+                        {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                      </span>
+                      <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border ${getPaymentBadge(order.paymentStatus, order.paymentMethod)}`}>
+                        {order.paymentMethod === 'cod' ? 'COD' : 'Paid'}: {order.paymentStatus.charAt(0).toUpperCase() + order.paymentStatus.slice(1)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Card Content - Items */}
+                  <CardContent className="p-4 sm:p-5 space-y-4">
+                    <div className="space-y-3">
+                      {order.items.map((item, idx) => {
+                        const fallbackImg = '/logo.png';
+                        const displayImg = item.imageUrl ? getAssetUrl(item.imageUrl) : fallbackImg;
+
+                        return (
+                          <div 
+                            key={`${order._id}-${idx}`}
+                            className="flex items-start gap-3 sm:gap-4 py-2 border-b border-[#E6D8D0]/40 dark:border-border/40 last:border-b-0"
+                          >
+                            <img
+                              src={displayImg}
+                              alt={item.name}
+                              className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg object-cover border border-[#E6D8D0]/80 dark:border-border bg-muted/20 shrink-0"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = fallbackImg;
+                              }}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="font-playfair font-semibold text-sm sm:text-base text-[#342824] dark:text-foreground truncate">
+                                {item.name}
+                              </p>
+                              <p className="text-xs text-[#756861] dark:text-muted-foreground mt-0.5">
+                                Qty: {item.quantity} × ₹{item.unitPrice.toLocaleString('en-IN')}
+                              </p>
+
+                              {/* Customization Details */}
+                              {item.customization && (
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                  {(item.customization as any).breakdown && (item.customization as any).breakdown.length > 0 ? (
+                                    (item.customization as any).breakdown.map((b: any, bIdx: number) => (
+                                      <span 
+                                        key={bIdx}
+                                        className="text-[10px] bg-[#F1E6DF]/80 dark:bg-muted text-[#756861] dark:text-muted-foreground px-1.5 py-0.5 rounded border border-[#E6D8D0]/60 dark:border-border/40"
+                                      >
+                                        {b.field}: <strong className="text-[#342824] dark:text-foreground">{b.option}</strong>
+                                      </span>
+                                    ))
+                                  ) : item.customization.selections && Object.keys(item.customization.selections).length > 0 ? (
+                                    Object.entries(item.customization.selections).map(([key, val]) => (
+                                      <span 
+                                        key={key}
+                                        className="text-[10px] bg-[#F1E6DF]/80 dark:bg-muted text-[#756861] dark:text-muted-foreground px-1.5 py-0.5 rounded border border-[#E6D8D0]/60 dark:border-border/40"
+                                      >
+                                        <span className="capitalize">{key.replace(/_/g, ' ')}:</span> <strong className="text-[#342824] dark:text-foreground">{Array.isArray(val) ? val.join(', ') : String(val)}</strong>
+                                      </span>
+                                    ))
+                                  ) : (
+                                    <span className="text-[10px] text-[#756861] dark:text-muted-foreground italic">Standard</span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            <span className="font-semibold text-sm sm:text-base text-[#342824] dark:text-foreground shrink-0">
+                              ₹{item.subtotal.toLocaleString('en-IN')}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Footer Controls & Total */}
+                    <div className="pt-3 border-t border-[#E6D8D0] dark:border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <span className="text-[11px] text-[#756861] dark:text-muted-foreground">Order Total</span>
+                        <p className="font-playfair text-xl font-bold text-[#B66F72] dark:text-primary">
+                          ₹{order.total.toLocaleString('en-IN')}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {order.status === 'pending' && (
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => handleCancelOrder(order._id)}
+                            className="border-rose-200 text-rose-700 hover:bg-rose-50 dark:border-rose-900 dark:text-rose-400 dark:hover:bg-rose-950/40 text-xs rounded-lg"
+                          >
+                            Cancel Order
+                          </Button>
+                        )}
+                        <Button 
+                          asChild 
+                          size="sm"
+                          className="bg-[#B66F72] hover:bg-[#95565A] text-white text-xs rounded-lg px-4 flex items-center gap-1 shadow-xs"
+                        >
+                          <Link to={`/orders/${order._id}`}>
+                            <span>View Details</span>
+                            <ChevronRight className="w-3.5 h-3.5" />
+                          </Link>
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </main>
+      <Footer />
+    </div>
+  );
 }
