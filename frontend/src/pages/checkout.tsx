@@ -5,14 +5,27 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { RazorpayCheckout } from "@/components/RazorpayCheckout";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
-import { useNavigate } from "react-router-dom";
+import { apiRequest, getAssetUrl } from "@/lib/queryClient";
+import { useNavigate, Link } from "react-router-dom";
 import { SEO } from "@/components/SEO";
 import AddressManager from "@/components/AddressManager";
+import { 
+  ShieldCheck, 
+  MapPin, 
+  CreditCard, 
+  Banknote, 
+  Sparkles, 
+  ShoppingBag, 
+  Truck, 
+  Lock, 
+  ArrowLeft,
+  Package,
+  Info
+} from "lucide-react";
 
 interface CartItem {
   _id: string;
@@ -43,15 +56,6 @@ interface Address {
   phone: string;
   isDefault: boolean;
 }
-
-// interface OrderData {
-//   shipping_address: string;
-//   billing_address: string;
-//   phone_number: string;
-//   email: string;
-//   notes?: string;
-//   payment_method: string;
-// }
 
 export default function Checkout() {
   const { user } = useAuth();
@@ -96,7 +100,6 @@ export default function Checkout() {
     try {
       const response = await apiRequest('GET', '/api/v1/cart');
       const data = await response.json();
-      // Backend returns { success: true, data: items } where data is the items array
       const items = data.data || [];
       setCartItems(items);
     } catch (error) {
@@ -137,7 +140,6 @@ export default function Checkout() {
         notes: orderNotes,
         paymentMethod: paymentMethod,
       };
-      console.log('Order data being sent:', orderData);
 
       const response = await apiRequest('POST', '/api/v1/orders', orderData);
       const data = await response.json();
@@ -224,7 +226,6 @@ export default function Checkout() {
   const handlePlaceOrder = async () => {
     const order = await createOrder();
     if (order && paymentMethod === 'cod') {
-      // COD orders are confirmed immediately
       toast({
         title: 'Order Placed',
         description: 'Your order has been placed successfully',
@@ -235,9 +236,11 @@ export default function Checkout() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex flex-col">
-        <main className="flex-grow container mx-auto px-4 py-8 pt-20 text-center">
-          <h1 className="text-4xl font-bold mb-4">Loading Checkout...</h1>
+      <div className="min-h-screen bg-[#FBF7F3] dark:bg-background flex flex-col">
+        <main className="flex-grow container mx-auto px-4 py-16 pt-28 text-center max-w-lg">
+          <div className="h-12 w-12 rounded-full border-2 border-[#B66F72] border-t-transparent animate-spin mx-auto mb-4" />
+          <h1 className="font-playfair text-2xl text-[#342824] dark:text-foreground">Preparing Secure Checkout...</h1>
+          <p className="text-sm text-[#756861] dark:text-muted-foreground mt-2">Loading your boutique shopping bag and delivery details.</p>
         </main>
         <Footer />
       </div>
@@ -246,11 +249,15 @@ export default function Checkout() {
 
   if (cartItems.length === 0) {
     return (
-      <div className="min-h-screen bg-background flex flex-col">
-        <main className="flex-grow container mx-auto px-4 py-8 pt-20 text-center">
-          <h1 className="text-4xl font-bold mb-4">Your cart is empty</h1>
-          <Button onClick={() => navigate('/products')} className="mt-4">
-            Continue Shopping
+      <div className="min-h-screen bg-[#FBF7F3] dark:bg-background flex flex-col">
+        <main className="flex-grow container mx-auto px-4 py-16 pt-28 text-center max-w-md">
+          <div className="w-16 h-16 rounded-full bg-[#B66F72]/10 dark:bg-primary/10 flex items-center justify-center mx-auto mb-4">
+            <ShoppingBag className="w-8 h-8 text-[#B66F72] dark:text-primary" />
+          </div>
+          <h1 className="font-playfair text-3xl font-semibold text-[#342824] dark:text-foreground mb-3">Your shopping bag is empty</h1>
+          <p className="text-sm text-[#756861] dark:text-muted-foreground mb-6">Explore our handcrafted jewelry collection and add your favorite pieces.</p>
+          <Button onClick={() => navigate('/products')} className="bg-[#B66F72] hover:bg-[#95565A] text-white">
+            Discover Collection
           </Button>
         </main>
         <Footer />
@@ -259,274 +266,438 @@ export default function Checkout() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-[#FBF7F3] dark:bg-background text-[#342824] dark:text-foreground">
       <SEO 
-        title="Checkout - Renu's Collections"
-        description="Complete your purchase of luxury customized jewelry. Secure checkout process for your bracelets and chains with multiple payment options."
-        keywords="checkout, secure payment, jewelry purchase, custom jewelry checkout, renu's collections payment"
+        title="Boutique Checkout - Renu's Collections"
+        description="Complete your order for exquisite handcrafted customized jewelry with secure payment and insured Tamil Nadu delivery."
+        keywords="checkout, luxury jewelry, secure payment, renu's collections checkout"
         url="https://renucollections.com/checkout"
       />
-      <main className="container mx-auto px-4 py-8 pt-20">
-        <h1 className="text-5xl font-bold text-center mb-12">Checkout</h1>
-
-        {/* Tamil Nadu Exclusive Delivery Notice */}
-        <div className="max-w-4xl mx-auto mb-8 p-4 rounded-xl border border-[#B99A72]/40 bg-[#FBF7F3] dark:bg-card flex items-start gap-3">
-          <div className="p-2 rounded-full bg-[#B99A72]/15 text-[#B99A72] shrink-0 mt-0.5">
-            📍
+      <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-10 pt-28 max-w-7xl">
+        {/* Navigation Breadcrumb / Header */}
+        <div className="mb-8">
+          <Link 
+            to="/cart" 
+            className="inline-flex items-center text-xs font-medium text-[#756861] dark:text-muted-foreground hover:text-[#B66F72] dark:hover:text-primary transition-colors mb-3"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 mr-1" /> Return to Shopping Bag
+          </Link>
+          <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-2 border-b border-[#E6D8D0] dark:border-border/60 pb-4">
+            <div>
+              <h1 className="font-playfair text-3xl sm:text-4xl font-semibold tracking-tight text-[#342824] dark:text-foreground">
+                Checkout
+              </h1>
+              <p className="text-xs sm:text-sm text-[#756861] dark:text-muted-foreground mt-1">
+                Finalize your order details and delivery preferences.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-[#756861] dark:text-muted-foreground bg-white dark:bg-card px-3 py-1.5 rounded-full border border-[#E6D8D0] dark:border-border shadow-xs">
+              <Lock className="w-3.5 h-3.5 text-[#B99A72]" />
+              <span>256-Bit Encrypted Secure Checkout</span>
+            </div>
           </div>
-          <div>
-            <h3 className="font-playfair font-semibold text-sm text-[#342824] dark:text-foreground">
-              Exclusive Delivery Service — Tamil Nadu Only
-            </h3>
-            <p className="text-xs text-[#756861] dark:text-muted-foreground mt-0.5 leading-relaxed">
-              Renu's Collections currently handcrafts and delivers orders exclusively to delivery addresses within <strong>Tamil Nadu</strong>. Standard orders below ₹1,000 incur ₹50 shipping, and orders from ₹1,000 enjoy complimentary delivery.
+        </div>
+
+        {/* Tamil Nadu Exclusive Delivery Banner */}
+        <div className="mb-8 p-4 rounded-xl border border-[#B99A72]/30 bg-white/80 dark:bg-card/80 backdrop-blur-xs flex items-start gap-3.5 shadow-xs">
+          <div className="p-2 rounded-lg bg-[#B99A72]/15 text-[#B99A72] shrink-0 mt-0.5">
+            <MapPin className="w-4 h-4" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="font-playfair font-semibold text-sm text-[#342824] dark:text-foreground">
+                Handcrafted Delivery Exclusive to Tamil Nadu
+              </h3>
+              <span className="text-[10px] font-medium tracking-wide uppercase px-2 py-0.5 rounded-full bg-[#B99A72]/15 text-[#95565A] dark:text-[#B99A72]">
+                State-Only Fulfillment
+              </span>
+            </div>
+            <p className="text-xs text-[#756861] dark:text-muted-foreground mt-1 leading-relaxed">
+              To preserve artisanal packaging and personalized jewelry integrity, Renu's Collections currently fulfills orders exclusively to delivery addresses in <strong>Tamil Nadu</strong>. Standard shipping is ₹50 below ₹1,000, and complimentary for orders ₹1,000 and above.
             </p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-8">
-            {/* Address Selection */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Shipping Address</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center space-x-2">
+        {/* Two-Column Responsive Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          {/* Left Column: Customer Info, Addresses, Payments (7 cols) */}
+          <div className="lg:col-span-7 space-y-6">
+            
+            {/* Step 1: Shipping Address */}
+            <Card className="border border-[#E6D8D0] dark:border-border bg-white dark:bg-card shadow-xs rounded-xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-[#E6D8D0]/60 dark:border-border/60 bg-[#FBF7F3]/60 dark:bg-muted/20 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <span className="flex items-center justify-center w-6 h-6 rounded-full bg-[#B66F72] text-white text-xs font-semibold">
+                    1
+                  </span>
+                  <h2 className="font-playfair text-lg font-semibold text-[#342824] dark:text-foreground">
+                    Delivery Address
+                  </h2>
+                </div>
+                <span className="text-xs text-[#756861] dark:text-muted-foreground font-medium">
+                  Tamil Nadu Addresses Only
+                </span>
+              </div>
+
+              <CardContent className="p-5 sm:p-6 space-y-5">
+                <div className="flex items-center gap-6 pb-2">
+                  <label className="flex items-center gap-2 cursor-pointer text-sm font-medium">
                     <input
                       type="radio"
-                      id="useSavedAddress"
+                      name="addressMode"
+                      className="accent-[#B66F72] w-4 h-4 cursor-pointer"
                       checked={!useNewAddress}
                       onChange={() => setUseNewAddress(false)}
                     />
-                    <Label htmlFor="useSavedAddress">Use saved address</Label>
-                  </div>
-                  
-                  {!useNewAddress && (
+                    <span>Select Saved Address</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer text-sm font-medium">
+                    <input
+                      type="radio"
+                      name="addressMode"
+                      className="accent-[#B66F72] w-4 h-4 cursor-pointer"
+                      checked={useNewAddress}
+                      onChange={() => setUseNewAddress(true)}
+                    />
+                    <span>Add New Address</span>
+                  </label>
+                </div>
+
+                {!useNewAddress ? (
+                  <div className="pt-1">
                     <AddressManager
                       onSelectAddress={setSelectedAddress}
                       selectedAddressId={selectedAddress?._id}
                       showSelection={true}
                     />
-                  )}
-                  
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="radio"
-                      id="useNewAddress"
-                      checked={useNewAddress}
-                      onChange={() => setUseNewAddress(true)}
-                    />
-                    <Label htmlFor="useNewAddress">Add new address</Label>
                   </div>
-                  
-                  {useNewAddress && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                      <div>
-                        <Label htmlFor="newLabel">Label (Optional)</Label>
-                        <Input
-                          id="newLabel"
-                          placeholder="e.g., Home, Office"
-                          value={newAddress.label}
-                          onChange={(e) => setNewAddress({ ...newAddress, label: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="newFullName">Full Name *</Label>
-                        <Input
-                          id="newFullName"
-                          value={newAddress.fullName}
-                          onChange={(e) => setNewAddress({ ...newAddress, fullName: e.target.value })}
-                          required
-                        />
-                      </div>
-                      <div className="md:col-span-2">
-                        <Label htmlFor="newLine1">Address Line 1 *</Label>
-                        <Input
-                          id="newLine1"
-                          value={newAddress.line1}
-                          onChange={(e) => setNewAddress({ ...newAddress, line1: e.target.value })}
-                          required
-                        />
-                      </div>
-                      <div className="md:col-span-2">
-                        <Label htmlFor="newLine2">Address Line 2 (Optional)</Label>
-                        <Input
-                          id="newLine2"
-                          value={newAddress.line2}
-                          onChange={(e) => setNewAddress({ ...newAddress, line2: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="newCity">City *</Label>
-                        <Input
-                          id="newCity"
-                          value={newAddress.city}
-                          onChange={(e) => setNewAddress({ ...newAddress, city: e.target.value })}
-                          required
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="newState">State *</Label>
-                        <Input
-                          id="newState"
-                          value={newAddress.state}
-                          onChange={(e) => setNewAddress({ ...newAddress, state: e.target.value })}
-                          required
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="newPostalCode">PIN Code *</Label>
-                        <Input
-                          id="newPostalCode"
-                          pattern="[0-9]{6}"
-                          placeholder="6 digits"
-                          value={newAddress.postalCode}
-                          onChange={(e) => setNewAddress({ ...newAddress, postalCode: e.target.value })}
-                          required
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="newCountry">Country *</Label>
-                        <Input
-                          id="newCountry"
-                          value={newAddress.country}
-                          onChange={(e) => setNewAddress({ ...newAddress, country: e.target.value })}
-                          required
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="newPhone">Phone *</Label>
-                        <Input
-                          id="newPhone"
-                          type="tel"
-                          placeholder="10 digits"
-                          value={newAddress.phone}
-                          onChange={(e) => setNewAddress({ ...newAddress, phone: e.target.value })}
-                          required
-                        />
-                      </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-[#E6D8D0]/60 dark:border-border/60">
+                    <div className="sm:col-span-2">
+                      <Label htmlFor="newFullName" className="text-xs font-semibold text-[#756861] dark:text-muted-foreground">Full Name *</Label>
+                      <Input
+                        id="newFullName"
+                        placeholder="Recipient full name"
+                        value={newAddress.fullName}
+                        onChange={(e) => setNewAddress({ ...newAddress, fullName: e.target.value })}
+                        className="mt-1 border-[#E6D8D0] dark:border-border focus-visible:ring-[#B66F72]"
+                        required
+                      />
                     </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Payment Method */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Payment Method</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <RadioGroup
-                  value={paymentMethod}
-                  onValueChange={setPaymentMethod}
-                  className="space-y-2"
-                >
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="razorpay" id="razorpay" />
-                    <Label htmlFor="razorpay">Razorpay (Credit/Debit Card, UPI, Net Banking)</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="cod" id="cod" />
-                    <Label htmlFor="cod">Cash on Delivery</Label>
-                  </div>
-                </RadioGroup>
-                
-                {paymentMethod === 'razorpay' && (
-                  <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-                    <p className="text-sm text-blue-800">
-                      🔒 Secure payment powered by Razorpay. We accept all major credit/debit cards, UPI, and net banking.
-                    </p>
+                    <div>
+                      <Label htmlFor="newPhone" className="text-xs font-semibold text-[#756861] dark:text-muted-foreground">Contact Phone *</Label>
+                      <Input
+                        id="newPhone"
+                        type="tel"
+                        placeholder="10-digit mobile number"
+                        value={newAddress.phone}
+                        onChange={(e) => setNewAddress({ ...newAddress, phone: e.target.value })}
+                        className="mt-1 border-[#E6D8D0] dark:border-border focus-visible:ring-[#B66F72]"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="newLabel" className="text-xs font-semibold text-[#756861] dark:text-muted-foreground">Address Label (Optional)</Label>
+                      <Input
+                        id="newLabel"
+                        placeholder="e.g., Home, Studio, Office"
+                        value={newAddress.label}
+                        onChange={(e) => setNewAddress({ ...newAddress, label: e.target.value })}
+                        className="mt-1 border-[#E6D8D0] dark:border-border focus-visible:ring-[#B66F72]"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <Label htmlFor="newLine1" className="text-xs font-semibold text-[#756861] dark:text-muted-foreground">Address Line 1 *</Label>
+                      <Input
+                        id="newLine1"
+                        placeholder="Door / Flat No., Building, Street"
+                        value={newAddress.line1}
+                        onChange={(e) => setNewAddress({ ...newAddress, line1: e.target.value })}
+                        className="mt-1 border-[#E6D8D0] dark:border-border focus-visible:ring-[#B66F72]"
+                        required
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <Label htmlFor="newLine2" className="text-xs font-semibold text-[#756861] dark:text-muted-foreground">Address Line 2 (Optional)</Label>
+                      <Input
+                        id="newLine2"
+                        placeholder="Area, Landmark"
+                        value={newAddress.line2}
+                        onChange={(e) => setNewAddress({ ...newAddress, line2: e.target.value })}
+                        className="mt-1 border-[#E6D8D0] dark:border-border focus-visible:ring-[#B66F72]"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="newCity" className="text-xs font-semibold text-[#756861] dark:text-muted-foreground">City / Town *</Label>
+                      <Input
+                        id="newCity"
+                        placeholder="e.g., Chennai, Coimbatore, Madurai"
+                        value={newAddress.city}
+                        onChange={(e) => setNewAddress({ ...newAddress, city: e.target.value })}
+                        className="mt-1 border-[#E6D8D0] dark:border-border focus-visible:ring-[#B66F72]"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="newState" className="text-xs font-semibold text-[#756861] dark:text-muted-foreground">State * (Tamil Nadu only)</Label>
+                      <Input
+                        id="newState"
+                        placeholder="Tamil Nadu"
+                        value={newAddress.state}
+                        onChange={(e) => setNewAddress({ ...newAddress, state: e.target.value })}
+                        className="mt-1 border-[#E6D8D0] dark:border-border focus-visible:ring-[#B66F72]"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="newPostalCode" className="text-xs font-semibold text-[#756861] dark:text-muted-foreground">PIN Code *</Label>
+                      <Input
+                        id="newPostalCode"
+                        pattern="[0-9]{6}"
+                        placeholder="6 digits (e.g. 600001)"
+                        value={newAddress.postalCode}
+                        onChange={(e) => setNewAddress({ ...newAddress, postalCode: e.target.value })}
+                        className="mt-1 border-[#E6D8D0] dark:border-border focus-visible:ring-[#B66F72]"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="newCountry" className="text-xs font-semibold text-[#756861] dark:text-muted-foreground">Country</Label>
+                      <Input
+                        id="newCountry"
+                        value={newAddress.country}
+                        disabled
+                        className="mt-1 bg-muted/30 border-[#E6D8D0] dark:border-border text-muted-foreground"
+                      />
+                    </div>
                   </div>
                 )}
               </CardContent>
             </Card>
 
-            {/* Order Notes */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Order Notes (Optional)</CardTitle>
-              </CardHeader>
-              <CardContent>
+            {/* Step 2: Payment Method */}
+            <Card className="border border-[#E6D8D0] dark:border-border bg-white dark:bg-card shadow-xs rounded-xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-[#E6D8D0]/60 dark:border-border/60 bg-[#FBF7F3]/60 dark:bg-muted/20 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <span className="flex items-center justify-center w-6 h-6 rounded-full bg-[#B66F72] text-white text-xs font-semibold">
+                    2
+                  </span>
+                  <h2 className="font-playfair text-lg font-semibold text-[#342824] dark:text-foreground">
+                    Payment Method
+                  </h2>
+                </div>
+                <span className="text-xs text-[#756861] dark:text-muted-foreground font-medium">
+                  Authoritative Pricing
+                </span>
+              </div>
+
+              <CardContent className="p-5 sm:p-6">
+                <RadioGroup
+                  value={paymentMethod}
+                  onValueChange={setPaymentMethod}
+                  className="space-y-3"
+                >
+                  {/* Razorpay Option */}
+                  <label 
+                    htmlFor="pay-razorpay" 
+                    className={`flex items-start justify-between p-4 rounded-xl border transition-all cursor-pointer ${
+                      paymentMethod === 'razorpay'
+                        ? 'border-[#B66F72] bg-[#F1E6DF]/30 dark:bg-primary/5 shadow-xs'
+                        : 'border-[#E6D8D0] dark:border-border hover:bg-muted/20'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <RadioGroupItem value="razorpay" id="pay-razorpay" className="mt-1" />
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-sm text-[#342824] dark:text-foreground">
+                            Online Payment (Razorpay)
+                          </p>
+                          <span className="text-[10px] bg-[#B99A72]/15 text-[#95565A] dark:text-[#B99A72] font-semibold px-2 py-0.5 rounded-full">
+                            Recommended
+                          </span>
+                        </div>
+                        <p className="text-xs text-[#756861] dark:text-muted-foreground mt-0.5">
+                          Cards, UPI (Google Pay, PhonePe, Paytm), and Net Banking via secure gateway.
+                        </p>
+                      </div>
+                    </div>
+                    <CreditCard className="w-5 h-5 text-[#B99A72] shrink-0 mt-0.5" />
+                  </label>
+
+                  {/* Cash on Delivery Option */}
+                  <label 
+                    htmlFor="pay-cod" 
+                    className={`flex items-start justify-between p-4 rounded-xl border transition-all cursor-pointer ${
+                      paymentMethod === 'cod'
+                        ? 'border-[#B66F72] bg-[#F1E6DF]/30 dark:bg-primary/5 shadow-xs'
+                        : 'border-[#E6D8D0] dark:border-border hover:bg-muted/20'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <RadioGroupItem value="cod" id="pay-cod" className="mt-1" />
+                      <div>
+                        <p className="font-medium text-sm text-[#342824] dark:text-foreground">
+                          Cash on Delivery (COD)
+                        </p>
+                        <p className="text-xs text-[#756861] dark:text-muted-foreground mt-0.5">
+                          Pay upon delivery at your doorstep within Tamil Nadu.
+                        </p>
+                      </div>
+                    </div>
+                    <Banknote className="w-5 h-5 text-[#B99A72] shrink-0 mt-0.5" />
+                  </label>
+                </RadioGroup>
+
+                {paymentMethod === 'razorpay' && (
+                  <div className="mt-4 p-3.5 rounded-lg bg-[#FBF7F3] dark:bg-muted/30 border border-[#E6D8D0]/60 dark:border-border/60 flex items-center gap-2.5 text-xs text-[#756861] dark:text-muted-foreground">
+                    <ShieldCheck className="w-4 h-4 text-[#B99A72] shrink-0" />
+                    <span>Your transaction is verified on the server and encrypted via Razorpay's trusted infrastructure.</span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Step 3: Order Notes */}
+            <Card className="border border-[#E6D8D0] dark:border-border bg-white dark:bg-card shadow-xs rounded-xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-[#E6D8D0]/60 dark:border-border/60 bg-[#FBF7F3]/60 dark:bg-muted/20 flex items-center gap-2.5">
+                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-[#B99A72] text-white text-xs font-semibold">
+                  3
+                </span>
+                <h2 className="font-playfair text-lg font-semibold text-[#342824] dark:text-foreground">
+                  Order Notes & Instructions (Optional)
+                </h2>
+              </div>
+              <CardContent className="p-5 sm:p-6">
                 <Textarea
                   value={orderNotes}
                   onChange={(e) => setOrderNotes(e.target.value)}
-                  placeholder="Any special instructions for your order..."
-                  rows={3}
+                  placeholder="Special delivery notes, gifting instructions, or timing preferences..."
+                  rows={2}
+                  className="border-[#E6D8D0] dark:border-border focus-visible:ring-[#B66F72] text-sm resize-none"
                 />
               </CardContent>
             </Card>
           </div>
 
-          {/* Order Summary */}
-          <div className="lg:col-span-1">
-            <Card className="sticky top-8">
-              <CardHeader>
-                <CardTitle>Order Summary</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
+          {/* Right Column: Order Summary (5 cols - sticky) */}
+          <div className="lg:col-span-5 lg:sticky lg:top-28 space-y-4">
+            <Card className="border border-[#E6D8D0] dark:border-border bg-white dark:bg-card shadow-sm rounded-xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-[#E6D8D0]/60 dark:border-border/60 bg-[#FBF7F3]/60 dark:bg-muted/20 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Package className="w-4 h-4 text-[#B66F72]" />
+                  <h2 className="font-playfair text-lg font-semibold text-[#342824] dark:text-foreground">
+                    Order Summary
+                  </h2>
+                </div>
+                <span className="text-xs text-[#756861] dark:text-muted-foreground font-medium">
+                  {cartItems.length} {cartItems.length === 1 ? 'item' : 'items'}
+                </span>
+              </div>
+
+              <CardContent className="p-5 sm:p-6 space-y-4">
+                {/* Product List */}
+                <div className="space-y-3.5 max-h-[340px] overflow-y-auto pr-1">
                   {cartItems.map((item) => {
                     const customizationPrice = item.customization?.priceModifier || 0;
-                    const itemTotal = (item.unitPrice + customizationPrice) * item.quantity;
+                    const itemUnitTotal = item.unitPrice + customizationPrice;
+                    const itemTotal = itemUnitTotal * item.quantity;
+                    const fallbackImg = '/logo.png';
+                    const displayImg = item.imageUrl ? getAssetUrl(item.imageUrl) : fallbackImg;
+
                     return (
-                      <div key={item._id} className="space-y-2">
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <p className="font-medium">{item.name}</p>
-                            <p className="text-sm text-muted-foreground">
-                              Qty: {item.quantity} × ₹{(item.unitPrice + customizationPrice).toFixed(2)}
-                            </p>
-                            {item.customization?.breakdown && item.customization.breakdown.length > 0 ? (
-                              <div className="mt-1.5 p-2 bg-muted/40 rounded text-xs space-y-1">
-                                <p className="font-semibold text-muted-foreground uppercase text-[10px] tracking-wider">Customization:</p>
-                                {item.customization.breakdown.map((b, idx) => (
-                                  <div key={idx} className="flex justify-between text-muted-foreground">
-                                    <span>{b.field}: <strong className="text-foreground">{b.option}</strong></span>
-                                    {b.modifier ? <span className="text-primary font-medium">+₹{b.modifier}</span> : null}
-                                  </div>
-                                ))}
-                              </div>
-                            ) : item.customization?.selections && (
-                              <div className="mt-1 text-sm">
-                                <p className="text-muted-foreground text-xs font-semibold">Customization:</p>
-                                <ul className="text-xs text-muted-foreground ml-3 space-y-0.5">
-                                  {Object.entries(item.customization.selections).map(([key, value]) => (
-                                    <li key={key}>
-                                      <span className="capitalize">{key.replace(/_/g, ' ')}:</span>{' '}
-                                      <strong>{Array.isArray(value) ? value.join(', ') : value}</strong>
-                                    </li>
-                                  ))}
-                                </ul>
-                                {customizationPrice > 0 && (
-                                  <p className="text-xs text-primary mt-1">+ ₹{customizationPrice.toFixed(2)}</p>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                          <span className="font-medium">₹{itemTotal.toFixed(2)}</span>
+                      <div key={item._id} className="flex items-start gap-3 py-2 border-b border-[#E6D8D0]/40 dark:border-border/40 last:border-b-0">
+                        <img
+                          src={displayImg}
+                          alt={item.name}
+                          className="w-14 h-14 rounded-lg object-cover border border-[#E6D8D0]/80 dark:border-border bg-muted/20 shrink-0"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = fallbackImg;
+                          }}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-playfair font-semibold text-sm text-[#342824] dark:text-foreground truncate">
+                            {item.name}
+                          </p>
+                          <p className="text-xs text-[#756861] dark:text-muted-foreground mt-0.5">
+                            Qty: {item.quantity} × ₹{itemUnitTotal.toLocaleString('en-IN')}
+                          </p>
+
+                          {/* Customization Details */}
+                          {item.customization?.breakdown && item.customization.breakdown.length > 0 ? (
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {item.customization.breakdown.map((b, idx) => (
+                                <span 
+                                  key={idx} 
+                                  className="text-[10px] bg-[#F1E6DF]/80 dark:bg-muted text-[#756861] dark:text-muted-foreground px-1.5 py-0.5 rounded border border-[#E6D8D0]/60 dark:border-border/40"
+                                >
+                                  {b.field}: <strong className="text-[#342824] dark:text-foreground">{b.option}</strong>
+                                </span>
+                              ))}
+                            </div>
+                          ) : item.customization?.selections && Object.keys(item.customization.selections).length > 0 ? (
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {Object.entries(item.customization.selections).map(([key, val]) => (
+                                <span 
+                                  key={key} 
+                                  className="text-[10px] bg-[#F1E6DF]/80 dark:bg-muted text-[#756861] dark:text-muted-foreground px-1.5 py-0.5 rounded border border-[#E6D8D0]/60 dark:border-border/40"
+                                >
+                                  <span className="capitalize">{key.replace(/_/g, ' ')}:</span> <strong className="text-[#342824] dark:text-foreground">{Array.isArray(val) ? val.join(', ') : String(val)}</strong>
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-[#756861] dark:text-muted-foreground italic">Standard Design</span>
+                          )}
                         </div>
+                        <span className="font-semibold text-sm text-[#342824] dark:text-foreground shrink-0">
+                          ₹{itemTotal.toLocaleString('en-IN')}
+                        </span>
                       </div>
                     );
                   })}
-                  
-                  <div className="border-t pt-4 space-y-2">
-                    <div className="flex justify-between">
-                      <span>Subtotal:</span>
-                      <span>₹{subtotal.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Shipping:</span>
-                      <span>{shipping === 0 ? 'Free' : `₹${shipping.toFixed(2)}`}</span>
-                    </div>
-                    <div className="flex justify-between text-xl font-bold">
-                      <span>Total:</span>
-                      <span>₹{total.toFixed(2)}</span>
-                    </div>
+                </div>
+
+                {/* Pricing Breakdown */}
+                <div className="border-t border-[#E6D8D0] dark:border-border pt-4 space-y-2 text-sm">
+                  <div className="flex justify-between text-[#756861] dark:text-muted-foreground">
+                    <span>Merchandise Subtotal</span>
+                    <span className="font-medium text-[#342824] dark:text-foreground">₹{subtotal.toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[#756861] dark:text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <span>Delivery Fee</span>
+                      {shipping === 0 && (
+                        <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-300 px-1.5 py-0.2 rounded">
+                          Free
+                        </span>
+                      )}
+                    </span>
+                    <span className="font-medium text-[#342824] dark:text-foreground">
+                      {shipping === 0 ? '₹0' : `₹${shipping}`}
+                    </span>
                   </div>
 
+                  {shipping > 0 && (
+                    <div className="p-2 rounded bg-[#F1E6DF]/40 dark:bg-muted/40 border border-[#E6D8D0]/60 dark:border-border/60 text-[11px] text-[#756861] dark:text-muted-foreground flex items-center gap-1.5">
+                      <Truck className="w-3.5 h-3.5 text-[#B99A72] shrink-0" />
+                      <span>Add ₹{(1000 - subtotal).toLocaleString('en-IN')} more to unlock free shipping in Tamil Nadu.</span>
+                    </div>
+                  )}
+
+                  <div className="border-t border-[#E6D8D0] dark:border-border pt-3 flex justify-between items-baseline">
+                    <div>
+                      <span className="font-playfair text-base font-semibold text-[#342824] dark:text-foreground">Final Payable Amount</span>
+                      <p className="text-[11px] text-[#756861] dark:text-muted-foreground">Inclusive of handcrafted boutique packaging</p>
+                    </div>
+                    <span className="font-playfair text-2xl font-bold text-[#B66F72] dark:text-primary">
+                      ₹{total.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Primary Action Button */}
+                <div className="pt-2">
                   {paymentMethod === 'razorpay' && createdOrderId ? (
                     <RazorpayCheckout
                       orderId={createdOrderId}
@@ -534,14 +705,14 @@ export default function Checkout() {
                       onSuccess={(response) => {
                         toast({
                           title: 'Order Placed Successfully',
-                          description: 'Your order has been placed and payment received',
+                          description: 'Your order has been placed and payment confirmed.',
                         });
                         navigate('/order-success', { state: { orderId: createdOrderId } });
                       }}
                       onFailure={(_error) => {
                         toast({
-                          title: 'Payment Failed',
-                          description: 'Payment failed. Please try again.',
+                          title: 'Payment Incomplete',
+                          description: 'Payment was not completed. You can re-attempt payment.',
                           variant: 'destructive',
                         });
                       }}
@@ -550,11 +721,31 @@ export default function Checkout() {
                     <Button
                       onClick={handlePlaceOrder}
                       disabled={orderProcessing}
-                      className="w-full"
+                      className="w-full bg-[#B66F72] hover:bg-[#95565A] text-white py-6 text-base font-medium rounded-xl shadow-xs transition-all flex items-center justify-center gap-2"
                     >
-                      {orderProcessing ? 'Processing...' : `Place Order (${paymentMethod === 'cod' ? 'Cash on Delivery' : 'Pay with Razorpay'})`}
+                      {orderProcessing ? (
+                        <>
+                          <div className="h-4 w-4 border-2 border-white border-t-transparent animate-spin rounded-full" />
+                          <span>Processing Order...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4 text-white/90" />
+                          <span>
+                            {paymentMethod === 'cod' 
+                              ? `Confirm Cash on Delivery (₹${total.toLocaleString('en-IN')})` 
+                              : `Proceed to Pay ₹${total.toLocaleString('en-IN')}`}
+                          </span>
+                        </>
+                      )}
                     </Button>
                   )}
+                </div>
+
+                {/* Guarantee assurance */}
+                <div className="pt-2 text-center text-[11px] text-[#756861] dark:text-muted-foreground flex items-center justify-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-[#B99A72]" />
+                  <span>Artisanal guarantee • Hand-inspected before dispatch</span>
                 </div>
               </CardContent>
             </Card>
