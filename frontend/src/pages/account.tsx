@@ -21,7 +21,9 @@ import {
   ShoppingBag,
   Sparkles,
   ShieldCheck,
-  Edit3
+  Edit3,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 interface OrderItem {
@@ -91,6 +93,10 @@ const AccountPage: React.FC = () => {
   const [editMode, setEditMode] = useState(false);
   const [editForm, setEditForm] = useState({ username: '', firstName: '', lastName: '', phone: '' });
   const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -179,31 +185,68 @@ const AccountPage: React.FC = () => {
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+    if (!passwordForm.currentPassword) {
       toast({
-        title: 'Password Mismatch',
-        description: 'New passwords do not match',
+        title: 'Missing Current Password',
+        description: 'Please enter your current password.',
         variant: 'destructive',
       });
       return;
     }
+    if (passwordForm.newPassword.length < 8) {
+      toast({
+        title: 'Password Too Short',
+        description: 'New password must be at least 8 characters long.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (!/[A-Za-z]/.test(passwordForm.newPassword) || !/[0-9]/.test(passwordForm.newPassword)) {
+      toast({
+        title: 'Password Complexity Required',
+        description: 'New password must contain both letters and numbers.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      toast({
+        title: 'Password Mismatch',
+        description: 'New password and confirmation password do not match.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsChangingPassword(true);
     try {
-      await apiRequest('POST', '/api/v1/users/change-password', {
+      const response = await apiRequest('POST', '/api/v1/users/change-password', {
         currentPassword: passwordForm.currentPassword,
         newPassword: passwordForm.newPassword,
       });
-      toast({
-        title: 'Password Changed',
-        description: 'Your password has been updated successfully',
-      });
-      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
-    } catch (error) {
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        toast({
+          title: 'Password Updated',
+          description: 'Your account password has been updated successfully.',
+        });
+        setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      } else {
+        const errorMsg = data.errors
+          ? Object.values(data.errors).flat().join(', ')
+          : data.message || data.error || 'Failed to update password. Please check your current password.';
+        throw new Error(errorMsg);
+      }
+    } catch (error: any) {
       console.error('Error changing password:', error);
       toast({
-        title: 'Error',
-        description: 'Failed to change password. Please verify your current password.',
+        title: 'Update Failed',
+        description: error.message || 'Failed to change password. Please verify your current password.',
         variant: 'destructive',
       });
+    } finally {
+      setIsChangingPassword(false);
     }
   };
 
@@ -540,39 +583,82 @@ const AccountPage: React.FC = () => {
               <form onSubmit={handleChangePassword} className="space-y-4">
                 <div>
                   <Label htmlFor="currentPassword" className="text-xs font-semibold text-[#756861] dark:text-muted-foreground">Current Password</Label>
-                  <Input
-                    id="currentPassword"
-                    type="password"
-                    value={passwordForm.currentPassword}
-                    onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
-                    className="mt-1 border-[#E6D8D0] dark:border-border focus-visible:ring-[#B66F72]"
-                    required
-                  />
+                  <div className="relative mt-1">
+                    <Input
+                      id="currentPassword"
+                      type={showCurrentPassword ? "text" : "password"}
+                      value={passwordForm.currentPassword}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                      className="border-[#E6D8D0] dark:border-border focus-visible:ring-[#B66F72] pr-10"
+                      required
+                      autoComplete="current-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5"
+                      aria-label={showCurrentPassword ? "Hide current password" : "Show current password"}
+                    >
+                      {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
+
                 <div>
                   <Label htmlFor="newPassword" className="text-xs font-semibold text-[#756861] dark:text-muted-foreground">New Password</Label>
-                  <Input
-                    id="newPassword"
-                    type="password"
-                    value={passwordForm.newPassword}
-                    onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
-                    className="mt-1 border-[#E6D8D0] dark:border-border focus-visible:ring-[#B66F72]"
-                    required
-                  />
+                  <div className="relative mt-1">
+                    <Input
+                      id="newPassword"
+                      type={showNewPassword ? "text" : "password"}
+                      value={passwordForm.newPassword}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                      className="border-[#E6D8D0] dark:border-border focus-visible:ring-[#B66F72] pr-10"
+                      required
+                      autoComplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5"
+                      aria-label={showNewPassword ? "Hide new password" : "Show new password"}
+                    >
+                      {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Must be at least 8 characters and contain letters and numbers.
+                  </p>
                 </div>
+
                 <div>
                   <Label htmlFor="confirmPassword" className="text-xs font-semibold text-[#756861] dark:text-muted-foreground">Confirm New Password</Label>
-                  <Input
-                    id="confirmPassword"
-                    type="password"
-                    value={passwordForm.confirmPassword}
-                    onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
-                    className="mt-1 border-[#E6D8D0] dark:border-border focus-visible:ring-[#B66F72]"
-                    required
-                  />
+                  <div className="relative mt-1">
+                    <Input
+                      id="confirmPassword"
+                      type={showConfirmPassword ? "text" : "password"}
+                      value={passwordForm.confirmPassword}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                      className="border-[#E6D8D0] dark:border-border focus-visible:ring-[#B66F72] pr-10"
+                      required
+                      autoComplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5"
+                      aria-label={showConfirmPassword ? "Hide confirm new password" : "Show confirm new password"}
+                    >
+                      {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
-                <Button type="submit" className="bg-[#B66F72] hover:bg-[#95565A] text-white text-xs rounded-lg mt-2">
-                  Update Password
+
+                <Button
+                  type="submit"
+                  disabled={isChangingPassword}
+                  className="bg-[#B66F72] hover:bg-[#95565A] text-white text-xs rounded-lg mt-2 min-w-[130px]"
+                >
+                  {isChangingPassword ? "Updating..." : "Update Password"}
                 </Button>
               </form>
             </CardContent>

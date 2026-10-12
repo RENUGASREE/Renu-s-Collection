@@ -58,29 +58,42 @@ export function validateDeliveryEligibility(address: IAddress | { state?: string
 }
 
 function parseLegacyAddress(raw: string | IAddress | any): IAddress {
-  if (typeof raw === "object" && raw !== null && raw.line1) {
+  if (typeof raw === "object" && raw !== null) {
     return {
       fullName: raw.fullName ?? "Customer",
-      line1: raw.line1,
-      line2: raw.line2 ?? "",
+      line1: raw.line1 ?? raw.addressLine1 ?? raw.address ?? "",
+      line2: raw.line2 ?? raw.addressLine2 ?? "",
       city: raw.city ?? "",
-      postalCode: raw.postalCode ?? "",
+      postalCode: raw.postalCode ?? raw.pincode ?? raw.zipCode ?? "",
       country: raw.country ?? "India",
       state: raw.state ?? "",
-      phone: raw.phone ?? "",
+      phone: raw.phone ?? raw.phoneNumber ?? "",
       label: raw.label,
     };
   }
 
-  const str = String(raw || "");
+  const str = String(raw || "").trim();
   const parts = str.split(",").map((p) => p.trim());
+  // If formatted as "fullName, line1, line2, city, state, postalCode, country" (7 parts)
+  // or "fullName, line1, city, state, postalCode, country" (6 parts)
+  let state = "";
+  if (parts.length >= 6) {
+    // Second-to-last or third-to-last is often state before postalCode/country
+    // E.g.: [fullName, line1, line2, city, state, postalCode, country] -> state is at index length - 3
+    state = parts[parts.length - 3] || "";
+  } else if (parts.length >= 4) {
+    state = parts[parts.length - 2] || "";
+  } else {
+    state = parts[2] ?? "";
+  }
+
   return {
     fullName: parts[0] ?? "Customer",
     line1: parts[1] ?? str,
-    city: parts[2] ?? "",
-    postalCode: parts[3] ?? "",
-    country: parts[4] ?? "India",
-    state: parts[2] ?? "",
+    city: parts.length > 4 ? parts[parts.length - 4] : (parts[2] ?? ""),
+    postalCode: parts.length > 2 ? parts[parts.length - 2] : (parts[3] ?? ""),
+    country: parts.length > 1 ? parts[parts.length - 1] : "India",
+    state: state,
     phone: "",
   };
 }
@@ -144,8 +157,8 @@ async function assertTestCommerceAccess(userId: string): Promise<void> {
 export async function createOrderFromCart(
   userId: string,
   input: {
-    shipping_address: string;
-    billing_address?: string;
+    shipping_address: string | IAddress | any;
+    billing_address?: string | IAddress | any;
     phone_number: string;
     email: string;
     notes?: string;

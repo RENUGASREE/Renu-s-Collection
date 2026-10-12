@@ -20,12 +20,16 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Search,
   ChevronDown,
+  ChevronRight,
   RotateCcw,
   Heart,
   Gem,
   SlidersHorizontal,
   PackageX,
   Sparkles,
+  Check,
+  X,
+  Layers,
 } from "lucide-react";
 
 interface Product {
@@ -35,7 +39,8 @@ interface Product {
   price: number;
   effectivePrice: number;
   salePrice: number | null;
-  media: { url: string; isPrimary: boolean }[];
+  media?: { url: string; isPrimary?: boolean; sortOrder?: number }[];
+  imageUrl?: string;
   isSignaturePiece: boolean;
   signatureCategory: string;
   categoryId: string;
@@ -58,11 +63,12 @@ interface Category {
 function ProductImage({ src, alt }: { src: string; alt: string }) {
   const [hasError, setHasError] = useState(false);
   const placeholderUrl = getAssetUrl("/placeholders/placeholder.png");
-  const resolvedSrc = !src || hasError ? placeholderUrl : getAssetUrl(src);
+  const cleanSrc = (src || "").trim();
+  const resolvedSrc = !cleanSrc || hasError ? placeholderUrl : getAssetUrl(cleanSrc);
 
   return (
     <div className="relative w-full aspect-square bg-[#FAF4F1]/60 dark:bg-[#241C1A] overflow-hidden rounded-t-xl flex items-center justify-center">
-      {(!src || hasError) && (
+      {(!cleanSrc || hasError) && (
         <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground/60 p-4 text-center select-none">
           <Gem className="h-8 w-8 text-primary/30 mb-1.5" />
           <span className="text-[11px] font-medium tracking-wider uppercase">Jewellery Preview</span>
@@ -74,12 +80,14 @@ function ProductImage({ src, alt }: { src: string; alt: string }) {
         loading="lazy"
         onError={() => {
           if (!hasError) {
-            console.warn(`[Asset Issue] Missing or broken product image for "${alt}": ${src || "(empty URL)"}`);
+            if (cleanSrc) {
+              console.warn(`[Asset Issue] Missing or broken product image for "${alt}": ${cleanSrc}`);
+            }
             setHasError(true);
           }
         }}
         className={`w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105 ${
-          !src || hasError ? "opacity-0" : "opacity-100"
+          !cleanSrc || hasError ? "opacity-0" : "opacity-100"
         }`}
       />
     </div>
@@ -95,10 +103,22 @@ export default function Products() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [wishlistIds, setWishlistIds] = useState<Set<string>>(new Set());
+  const [mobileCategoryOpen, setMobileCategoryOpen] = useState(false);
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
+
+  const toggleCategoryExpand = (catId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExpandedCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(catId)) next.delete(catId);
+      else next.add(catId);
+      return next;
+    });
+  };
 
   // Handle URL parameters for filtering
   useEffect(() => {
@@ -282,8 +302,16 @@ export default function Products() {
   }, [filterCategory, searchTerm, categories]);
 
   const getProductImage = (product: Product) => {
-    const primaryMedia = product.media.find((m) => m.isPrimary);
-    return primaryMedia?.url || product.media[0]?.url || "";
+    if (Array.isArray(product.media) && product.media.length > 0) {
+      // Find primary media with non-empty URL
+      const primaryMedia = product.media.find((m) => m.isPrimary && m.url && m.url.trim());
+      if (primaryMedia?.url) return primaryMedia.url.trim();
+
+      // Find first media item with non-empty URL
+      const validMedia = product.media.find((m) => m.url && m.url.trim());
+      if (validMedia?.url) return validMedia.url.trim();
+    }
+    return product.imageUrl?.trim() || "";
   };
 
   const getCategoryName = (product: Product) => {
@@ -335,75 +363,195 @@ export default function Products() {
               />
             </div>
 
-            {/* Category Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  className="min-w-[190px] h-10 justify-between border-border bg-background hover:bg-secondary text-sm font-medium"
-                >
+            {/* Mobile Category Dropdown & Accordion (Hidden on md+) */}
+            <div className="relative md:hidden">
+              <Button
+                variant="outline"
+                onClick={() => setMobileCategoryOpen(!mobileCategoryOpen)}
+                className="w-full h-10 justify-between border-border bg-background hover:bg-secondary text-sm font-medium"
+              >
+                <div className="flex items-center gap-2 truncate">
+                  <Layers className="h-4 w-4 text-primary shrink-0" />
                   <span className="truncate">{filterLabel}</span>
-                  <ChevronDown className="h-4 w-4 ml-2 opacity-60 shrink-0" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-64 max-h-80 overflow-y-auto">
-                <DropdownMenuItem
-                  onClick={() => {
-                    setFilterCategory("all");
-                    setFilterLabel("All Categories");
-                  }}
-                >
-                  All Categories
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => {
-                    setFilterCategory("signature_all");
-                    setFilterLabel("Signature Pieces");
-                  }}
-                >
-                  <Sparkles className="h-3.5 w-3.5 mr-2 text-primary" />
-                  Signature Pieces
-                </DropdownMenuItem>
-                {categoryTree.map((cat) =>
-                  cat.subcategories.length > 0 ? (
-                    <DropdownMenuSub key={cat._id}>
-                      <DropdownMenuSubTrigger>{cat.name}</DropdownMenuSubTrigger>
-                      <DropdownMenuSubContent>
-                        <DropdownMenuItem
-                          onClick={() => {
-                            setFilterCategory(cat._id);
-                            setFilterLabel(`All ${cat.name}`);
-                          }}
-                        >
-                          All {cat.name}
-                        </DropdownMenuItem>
-                        {cat.subcategories.map((sub) => (
-                          <DropdownMenuItem
-                            key={sub._id}
+                </div>
+                <ChevronDown className={`h-4 w-4 ml-2 opacity-60 shrink-0 transition-transform ${mobileCategoryOpen ? "rotate-180" : ""}`} />
+              </Button>
+
+              {mobileCategoryOpen && (
+                <div className="absolute left-0 right-0 top-12 z-50 bg-popover text-popover-foreground border border-border rounded-xl shadow-xl max-h-80 overflow-y-auto p-1.5 space-y-1">
+                  <button
+                    onClick={() => {
+                      setFilterCategory("all");
+                      setFilterLabel("All Categories");
+                      setMobileCategoryOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-colors text-left ${
+                      filterCategory === "all" ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground"
+                    }`}
+                  >
+                    <span>All Categories</span>
+                    {filterCategory === "all" && <Check className="h-4 w-4 text-primary" />}
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setFilterCategory("signature_all");
+                      setFilterLabel("Signature Pieces");
+                      setMobileCategoryOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-colors text-left ${
+                      filterCategory === "signature_all" ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground"
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5 text-primary" />
+                      Signature Pieces
+                    </span>
+                    {filterCategory === "signature_all" && <Check className="h-4 w-4 text-primary" />}
+                  </button>
+
+                  <div className="h-px bg-border/60 my-1" />
+
+                  {categoryTree.map((cat) => {
+                    const isExpanded = expandedCategories.has(cat._id);
+                    const isSelected = filterCategory === cat._id;
+                    const hasSubs = cat.subcategories.length > 0;
+
+                    return (
+                      <div key={cat._id} className="rounded-lg overflow-hidden">
+                        <div className="flex items-center justify-between w-full hover:bg-secondary rounded-lg">
+                          <button
                             onClick={() => {
-                              setFilterCategory(sub._id);
-                              setFilterLabel(sub.name);
+                              setFilterCategory(cat._id);
+                              setFilterLabel(cat.name);
+                              setMobileCategoryOpen(false);
+                            }}
+                            className={`flex-grow text-left px-3 py-2 text-sm truncate ${
+                              isSelected ? "text-primary font-medium" : "text-foreground"
+                            }`}
+                          >
+                            {cat.name}
+                          </button>
+                          {hasSubs && (
+                            <button
+                              onClick={(e) => toggleCategoryExpand(cat._id, e)}
+                              className="px-2.5 py-2 text-muted-foreground hover:text-foreground"
+                              aria-label={`Toggle ${cat.name} subcategories`}
+                            >
+                              <ChevronDown className={`h-4 w-4 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+                            </button>
+                          )}
+                        </div>
+
+                        {hasSubs && isExpanded && (
+                          <div className="pl-4 pr-1 py-1 space-y-0.5 border-l-2 border-primary/30 ml-3 my-1">
+                            <button
+                              onClick={() => {
+                                setFilterCategory(cat._id);
+                                setFilterLabel(`All ${cat.name}`);
+                                setMobileCategoryOpen(false);
+                              }}
+                              className={`w-full text-left px-2.5 py-1.5 text-xs rounded-md transition-colors ${
+                                filterCategory === cat._id ? "text-primary font-semibold bg-primary/10" : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                              }`}
+                            >
+                              All {cat.name}
+                            </button>
+                            {cat.subcategories.map((sub) => (
+                              <button
+                                key={sub._id}
+                                onClick={() => {
+                                  setFilterCategory(sub._id);
+                                  setFilterLabel(sub.name);
+                                  setMobileCategoryOpen(false);
+                                }}
+                                className={`w-full text-left px-2.5 py-1.5 text-xs rounded-md transition-colors ${
+                                  filterCategory === sub._id ? "text-primary font-semibold bg-primary/10" : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                                }`}
+                              >
+                                {sub.name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Desktop Category Dropdown (Hidden on mobile) */}
+            <div className="hidden md:block">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="min-w-[190px] h-10 justify-between border-border bg-background hover:bg-secondary text-sm font-medium"
+                  >
+                    <span className="truncate">{filterLabel}</span>
+                    <ChevronDown className="h-4 w-4 ml-2 opacity-60 shrink-0" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-64 max-h-80 overflow-y-auto" align="end">
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setFilterCategory("all");
+                      setFilterLabel("All Categories");
+                    }}
+                  >
+                    All Categories
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setFilterCategory("signature_all");
+                      setFilterLabel("Signature Pieces");
+                    }}
+                  >
+                    <Sparkles className="h-3.5 w-3.5 mr-2 text-primary" />
+                    Signature Pieces
+                  </DropdownMenuItem>
+                  {categoryTree.map((cat) =>
+                    cat.subcategories.length > 0 ? (
+                      <DropdownMenuSub key={cat._id}>
+                        <DropdownMenuSubTrigger>{cat.name}</DropdownMenuSubTrigger>
+                        <DropdownMenuSubContent>
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setFilterCategory(cat._id);
+                              setFilterLabel(`All ${cat.name}`);
                             }}
                           >
-                            {sub.name}
+                            All {cat.name}
                           </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuSubContent>
-                    </DropdownMenuSub>
-                  ) : (
-                    <DropdownMenuItem
-                      key={cat._id}
-                      onClick={() => {
-                        setFilterCategory(cat._id);
-                        setFilterLabel(cat.name);
-                      }}
-                    >
-                      {cat.name}
-                    </DropdownMenuItem>
-                  )
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                          {cat.subcategories.map((sub) => (
+                            <DropdownMenuItem
+                              key={sub._id}
+                              onClick={() => {
+                                setFilterCategory(sub._id);
+                                setFilterLabel(sub.name);
+                              }}
+                            >
+                              {sub.name}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuSubContent>
+                      </DropdownMenuSub>
+                    ) : (
+                      <DropdownMenuItem
+                        key={cat._id}
+                        onClick={() => {
+                          setFilterCategory(cat._id);
+                          setFilterLabel(cat.name);
+                        }}
+                      >
+                        {cat.name}
+                      </DropdownMenuItem>
+                    )
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
 
             {/* Reset Button */}
             {(searchTerm || filterCategory !== "all") && (

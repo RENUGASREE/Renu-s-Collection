@@ -132,9 +132,20 @@ export default function Checkout() {
         return null;
       }
 
+      const shippingAddressObj = {
+        fullName: shippingAddress.fullName,
+        line1: shippingAddress.line1,
+        line2: shippingAddress.line2 || '',
+        city: shippingAddress.city,
+        state: shippingAddress.state,
+        postalCode: shippingAddress.postalCode,
+        country: shippingAddress.country || 'India',
+        phone: shippingAddress.phone,
+      };
+
       const orderData = {
-        shippingAddress: `${shippingAddress.fullName}, ${shippingAddress.line1}, ${shippingAddress.line2 || ''}, ${shippingAddress.city}, ${shippingAddress.state}, ${shippingAddress.postalCode}, ${shippingAddress.country}`,
-        billingAddress: `${shippingAddress.fullName}, ${shippingAddress.line1}, ${shippingAddress.line2 || ''}, ${shippingAddress.city}, ${shippingAddress.state}, ${shippingAddress.postalCode}, ${shippingAddress.country}`,
+        shippingAddress: shippingAddressObj,
+        billingAddress: shippingAddressObj,
         email: user?.email || '',
         phone: shippingAddress.phone,
         notes: orderNotes,
@@ -148,13 +159,13 @@ export default function Checkout() {
         setCreatedOrderId(data.data._id);
         return data.data;
       } else {
-        throw new Error(data.error || 'Failed to create order');
+        throw new Error(data.message || data.error || 'Failed to create order');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating order:', error);
       toast({
-        title: 'Error',
-        description: 'Failed to create order',
+        title: 'Order Placement Failed',
+        description: error.message || 'Failed to create order. Please verify your address and try again.',
         variant: 'destructive',
       });
       return null;
