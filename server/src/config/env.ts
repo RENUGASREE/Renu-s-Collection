@@ -30,6 +30,7 @@ const envSchema = z.object({
   ADMIN_SEED_USERNAME: z.string().min(2).default("admin"),
   ADMIN_SEED_EMAIL: z.string().email().default("admin@renucollections.com"),
   ADMIN_SEED_PASSWORD: z.string().min(8).default("Admin@12345"),
+  TEST_COMMERCE_ALLOWED_EMAILS: z.string().optional(),
   COOKIE_DOMAIN: z.string().optional(),
 });
 
@@ -48,4 +49,9 @@ export const env = {
   isTestCommerce: parsed.data.COMMERCE_MODE === "test",
   isLiveCommerce: parsed.data.COMMERCE_MODE === "live",
   isCommerceDisabled: parsed.data.COMMERCE_MODE === "disabled",
+  testCommerceAllowedEmails: parsed.data.TEST_COMMERCE_ALLOWED_EMAILS
+    ? parsed.data.TEST_COMMERCE_ALLOWED_EMAILS.split(",")
+        .map((e) => e.trim().toLowerCase())
+        .filter(Boolean)
+    : [],
 };

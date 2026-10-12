@@ -1,5 +1,6 @@
 import { Types } from "mongoose";
 import { Order } from "../models/Order.js";
+import { User } from "../models/User.js";
 import { Coupon } from "../models/Coupon.js";
 import { Product } from "../models/Product.js";
 import { AppError } from "../middleware/errorHandler.js";
@@ -107,6 +108,39 @@ async function validateCoupon(code: string | undefined, subtotal: number) {
   return { discount, coupon };
 }
 
+/**
+ * Safeguard for non-commercial test deployments:
+ * When COMMERCE_MODE=test, only authorized testing accounts (administrators or
+ * accounts specified in TEST_COMMERCE_ALLOWED_EMAILS) are permitted to create orders.
+ * This prevents public visitors from accidentally placing test orders (COD or Razorpay)
+ * before the boutique officially opens.
+ */
+async function assertTestCommerceAccess(userId: string): Promise<void> {
+  if (env.COMMERCE_MODE === "disabled") {
+    throw new AppError("Order placement is currently disabled on this server.", 503);
+  }
+
+  if (env.COMMERCE_MODE === "test") {
+    // If an allowlist is configured, enforce strict membership.
+    // If not configured, default safely to admin-only test ordering.
+    const user = await User.findById(userId).select("email role");
+    if (!user) throw new AppError("User not found", 401);
+
+    const isExplicitlyAllowed =
+      env.testCommerceAllowedEmails.length > 0 &&
+      env.testCommerceAllowedEmails.includes(user.email.toLowerCase());
+
+    const isAdmin = user.role === "admin";
+
+    if (!isAdmin && !isExplicitlyAllowed) {
+      throw new AppError(
+        "Store is currently undergoing private testing prior to launch. Order placement is restricted to authorized testing accounts.",
+        403
+      );
+    }
+  }
+}
+
 export async function createOrderFromCart(
   userId: string,
   input: {
@@ -119,6 +153,9 @@ export async function createOrderFromCart(
     couponCode?: string;
   }
 ) {
+  // Enforce testing access safeguard before processing the order
+  await assertTestCommerceAccess(userId);
+
   const cartItems = await getCartItems(userId);
   if (cartItems.length === 0) throw new AppError("Cart is empty", 400);
 
@@ -209,9 +246,13 @@ export async function createOrderFromCart(
     billingAddress,
     email: input.email,
     phone: input.phone_number,
-    notes: input.notes,
+    notes: env.COMMERCE_MODE === "test" ? `[TEST ORDER] ${input.notes || ""}`.trim() : input.notes,
     paymentMethod: input.payment_method,
-    statusHistory: [{ status: "pending", note: "Order placed", changedAt: new Date() }],
+    statusHistory: [{
+      status: "pending",
+      note: env.COMMERCE_MODE === "test" ? "Test order placed (non-commercial mode)" : "Order placed",
+      changedAt: new Date()
+    }],
   });
 
   if (input.payment_method === "cod") {
