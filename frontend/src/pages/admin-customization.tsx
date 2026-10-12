@@ -4,12 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { apiRequest } from '@/lib/queryClient';
+import { apiRequest, getAssetUrl } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 import AdminNav from '@/components/AdminNav';
 import { SEO } from '@/components/SEO';
-import { Settings, Plus, Pencil, Trash2, Sparkles, Type, Hash, Palette, List, LayoutList } from 'lucide-react';
+import { Settings, Plus, Pencil, Trash2, Sparkles, Type, Hash, Palette, List, LayoutList, ImageIcon, ImageOff, X, Check } from 'lucide-react';
 
 interface CustomizationField {
   key: string;
@@ -399,6 +399,9 @@ function FieldForm({
   const [colorHex, setColorHex] = useState('#EC4899');
   const [colorLabel, setColorLabel] = useState('');
   const [colorPrice, setColorPrice] = useState(0);
+  const [colorImageUrl, setColorImageUrl] = useState('');
+  const [editingImageIdx, setEditingImageIdx] = useState<number | null>(null);
+  const [tempImageUrl, setTempImageUrl] = useState('');
 
   const resolveColor = (val: string) => {
     if (!val) return '#cccccc';
@@ -409,10 +412,18 @@ function FieldForm({
   };
 
   const handleAddOption = () => {
-    if (!newOption.value || !newOption.label) return;
+    if (!newOption.value.trim() || !newOption.label.trim()) return;
     setFormData({
       ...formData,
-      options: [...(formData.options || []), { ...newOption }],
+      options: [
+        ...(formData.options || []),
+        {
+          value: newOption.value.trim(),
+          label: newOption.label.trim(),
+          priceModifier: Number(newOption.priceModifier) || 0,
+          imageUrl: newOption.imageUrl.trim() || undefined,
+        },
+      ],
     });
     setNewOption({ value: '', label: '', priceModifier: 0, imageUrl: '' });
   };
@@ -427,11 +438,13 @@ function FieldForm({
           value: colorHex.trim(),
           label: colorLabel.trim(),
           priceModifier: Number(colorPrice) || 0,
+          imageUrl: colorImageUrl.trim() || undefined,
         },
       ],
     });
     setColorLabel('');
     setColorPrice(0);
+    setColorImageUrl('');
   };
 
   const handleRemoveOption = (index: number) => {
@@ -439,6 +452,35 @@ function FieldForm({
       ...formData,
       options: formData.options?.filter((_, i) => i !== index),
     });
+    if (editingImageIdx === index) {
+      setEditingImageIdx(null);
+      setTempImageUrl('');
+    }
+  };
+
+  const handleRemoveOptionImage = (index: number) => {
+    if (!formData.options) return;
+    const updated = [...formData.options];
+    delete updated[index].imageUrl;
+    setFormData({ ...formData, options: updated });
+    if (editingImageIdx === index) {
+      setEditingImageIdx(null);
+      setTempImageUrl('');
+    }
+  };
+
+  const handleSaveOptionImage = (index: number) => {
+    if (!formData.options) return;
+    const updated = [...formData.options];
+    const cleanUrl = tempImageUrl.trim();
+    if (cleanUrl) {
+      updated[index].imageUrl = cleanUrl;
+    } else {
+      delete updated[index].imageUrl;
+    }
+    setFormData({ ...formData, options: updated });
+    setEditingImageIdx(null);
+    setTempImageUrl('');
   };
 
   const inputCls = "border-[#E6D8D0] dark:border-border bg-white dark:bg-background focus-visible:ring-[#B66F72]/30";
@@ -543,25 +585,146 @@ function FieldForm({
           </div>
 
           {/* Existing colours */}
-          <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
-            {formData.options?.map((option, index) => (
-              <div key={index} className="flex items-center gap-3 p-2.5 border border-[#E6D8D0] dark:border-border rounded-lg bg-[#FBF7F3] dark:bg-background">
-                <div
-                  className="w-7 h-7 rounded-full border-2 border-[#E6D8D0] dark:border-border shadow-sm shrink-0"
-                  style={{ backgroundColor: resolveColor(option.value) }}
-                />
-                <span className="flex-1 font-medium text-sm text-[#342824] dark:text-foreground">{option.label}</span>
-                <Badge variant="outline" className="font-mono text-xs border-[#E6D8D0] dark:border-border">{option.value}</Badge>
-                {option.priceModifier !== undefined && option.priceModifier !== 0 && (
-                  <Badge variant="secondary" className="text-xs">
-                    {option.priceModifier > 0 ? '+' : ''}₹{option.priceModifier}
-                  </Badge>
-                )}
-                <Button variant="ghost" size="sm" className="text-[#756861] hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 h-7 px-2" onClick={() => handleRemoveOption(index)}>
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            ))}
+          <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+            {formData.options?.map((option, index) => {
+              const isEditingThisImage = editingImageIdx === index;
+              return (
+                <div key={index} className="p-2.5 border border-[#E6D8D0] dark:border-border rounded-lg bg-[#FBF7F3] dark:bg-background space-y-2">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="w-7 h-7 rounded-full border-2 border-[#E6D8D0] dark:border-border shadow-sm shrink-0"
+                      style={{ backgroundColor: resolveColor(option.value) }}
+                    />
+                    
+                    {/* Attached Option Image Thumbnail */}
+                    {option.imageUrl ? (
+                      <div className="relative group shrink-0">
+                        <img
+                          src={getAssetUrl(option.imageUrl)}
+                          alt={option.label}
+                          className="w-8 h-8 rounded-md object-cover border border-[#E6D8D0] dark:border-border bg-white"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = '/logo.png';
+                          }}
+                        />
+                      </div>
+                    ) : null}
+
+                    <div className="flex-1 min-w-0">
+                      <span className="font-medium text-sm text-[#342824] dark:text-foreground truncate block">
+                        {option.label}
+                      </span>
+                      <span className="font-mono text-[10px] text-[#756861] dark:text-muted-foreground">
+                        {option.value}
+                      </span>
+                    </div>
+
+                    {option.priceModifier !== undefined && option.priceModifier !== 0 && (
+                      <Badge variant="secondary" className="text-xs shrink-0">
+                        {option.priceModifier > 0 ? '+' : ''}₹{option.priceModifier}
+                      </Badge>
+                    )}
+
+                    {/* Image Action buttons */}
+                    {option.imageUrl ? (
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          title="Replace option image"
+                          className="h-7 px-1.5 text-xs text-[#756861] hover:text-[#B66F72]"
+                          onClick={() => {
+                            setEditingImageIdx(isEditingThisImage ? null : index);
+                            setTempImageUrl(option.imageUrl || '');
+                          }}
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          title="Remove image from option"
+                          className="h-7 px-1.5 text-xs text-[#756861] hover:text-rose-600"
+                          onClick={() => handleRemoveOptionImage(index)}
+                        >
+                          <ImageOff className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        title="Attach option image"
+                        className="h-7 px-2 text-xs text-[#756861] hover:text-[#B66F72] flex items-center gap-1 shrink-0"
+                        onClick={() => {
+                          setEditingImageIdx(isEditingThisImage ? null : index);
+                          setTempImageUrl('');
+                        }}
+                      >
+                        <ImageIcon className="h-3.5 w-3.5" />
+                        <span className="text-[10px] hidden sm:inline">Add Image</span>
+                      </Button>
+                    )}
+
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="sm" 
+                      className="text-[#756861] hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 h-7 px-2 shrink-0" 
+                      onClick={() => handleRemoveOption(index)}
+                      title="Delete option"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+
+                  {/* Inline Image Edit / Replace input */}
+                  {isEditingThisImage && (
+                    <div className="pt-2 border-t border-[#E6D8D0]/60 dark:border-border/60 flex items-center gap-2">
+                      <Input
+                        value={tempImageUrl}
+                        onChange={(e) => setTempImageUrl(e.target.value)}
+                        placeholder="Image URL (e.g., /assets/... or https://...)"
+                        className={`text-xs h-7 flex-1 ${inputCls}`}
+                      />
+                      {tempImageUrl.trim() && (
+                        <img
+                          src={getAssetUrl(tempImageUrl.trim())}
+                          alt="Preview"
+                          className="w-7 h-7 rounded object-cover border border-[#E6D8D0] shrink-0"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = '/logo.png';
+                          }}
+                        />
+                      )}
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => handleSaveOptionImage(index)}
+                        className="h-7 px-2 text-xs bg-[#B66F72] text-white hover:bg-[#95565A]"
+                      >
+                        <Check className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setEditingImageIdx(null);
+                          setTempImageUrl('');
+                        }}
+                        className="h-7 px-2 text-xs"
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           {/* Add colour form */}
@@ -601,9 +764,44 @@ function FieldForm({
                 />
               </div>
             </div>
+
+            {/* Optional Option Image for Color */}
+            <div className="flex items-center gap-2 pt-1">
+              <div className="flex-1">
+                <Input
+                  placeholder="Optional Swatch/Bead Image URL (e.g., /assets/... or https://...)"
+                  value={colorImageUrl}
+                  onChange={(e) => setColorImageUrl(e.target.value)}
+                  className={inputCls}
+                />
+              </div>
+              {colorImageUrl.trim() ? (
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <img
+                    src={getAssetUrl(colorImageUrl.trim())}
+                    alt="Preview"
+                    className="w-9 h-9 rounded-md object-cover border border-[#E6D8D0] bg-white"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = '/logo.png';
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setColorImageUrl('')}
+                    className="h-8 px-1.5 text-xs text-[#756861]"
+                    title="Clear image"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+
             <Button onClick={handleAddColorOption} variant="outline" size="sm" className="w-full border-[#E6D8D0] dark:border-border hover:bg-[#F1E6DF] dark:hover:bg-muted">
               <Plus className="h-3.5 w-3.5 mr-1.5" />
-              Add Colour
+              Add Colour Option
             </Button>
           </div>
         </div>
@@ -621,27 +819,145 @@ function FieldForm({
           </div>
 
           {/* Existing options */}
-          <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
-            {formData.options?.map((option, index) => (
-              <div key={index} className="flex items-center gap-2 p-2.5 border border-[#E6D8D0] dark:border-border rounded-lg bg-[#FBF7F3] dark:bg-background">
-                <span className="flex-1 font-medium text-sm text-[#342824] dark:text-foreground">{option.label}</span>
-                <Badge variant="outline" className="text-xs border-[#E6D8D0] dark:border-border">{option.value}</Badge>
-                {option.priceModifier !== undefined && option.priceModifier !== 0 && (
-                  <Badge variant="secondary" className="text-xs">
-                    {option.priceModifier > 0 ? '+' : ''}₹{option.priceModifier}
-                  </Badge>
-                )}
-                <Button variant="ghost" size="sm" className="text-[#756861] hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 h-7 px-2" onClick={() => handleRemoveOption(index)}>
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            ))}
+          <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+            {formData.options?.map((option, index) => {
+              const isEditingThisImage = editingImageIdx === index;
+              return (
+                <div key={index} className="p-2.5 border border-[#E6D8D0] dark:border-border rounded-lg bg-[#FBF7F3] dark:bg-background space-y-2">
+                  <div className="flex items-center gap-2">
+                    {/* Attached Option Image Thumbnail */}
+                    {option.imageUrl ? (
+                      <img
+                        src={getAssetUrl(option.imageUrl)}
+                        alt={option.label}
+                        className="w-8 h-8 rounded-md object-cover border border-[#E6D8D0] dark:border-border bg-white shrink-0"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = '/logo.png';
+                        }}
+                      />
+                    ) : null}
+
+                    <div className="flex-1 min-w-0">
+                      <span className="font-medium text-sm text-[#342824] dark:text-foreground truncate block">
+                        {option.label}
+                      </span>
+                      <Badge variant="outline" className="text-[10px] border-[#E6D8D0] dark:border-border">
+                        {option.value}
+                      </Badge>
+                    </div>
+
+                    {option.priceModifier !== undefined && option.priceModifier !== 0 && (
+                      <Badge variant="secondary" className="text-xs shrink-0">
+                        {option.priceModifier > 0 ? '+' : ''}₹{option.priceModifier}
+                      </Badge>
+                    )}
+
+                    {/* Image Action buttons */}
+                    {option.imageUrl ? (
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          title="Replace option image"
+                          className="h-7 px-1.5 text-xs text-[#756861] hover:text-[#B66F72]"
+                          onClick={() => {
+                            setEditingImageIdx(isEditingThisImage ? null : index);
+                            setTempImageUrl(option.imageUrl || '');
+                          }}
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          title="Remove image from option"
+                          className="h-7 px-1.5 text-xs text-[#756861] hover:text-rose-600"
+                          onClick={() => handleRemoveOptionImage(index)}
+                        >
+                          <ImageOff className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        title="Attach option image"
+                        className="h-7 px-2 text-xs text-[#756861] hover:text-[#B66F72] flex items-center gap-1 shrink-0"
+                        onClick={() => {
+                          setEditingImageIdx(isEditingThisImage ? null : index);
+                          setTempImageUrl('');
+                        }}
+                      >
+                        <ImageIcon className="h-3.5 w-3.5" />
+                        <span className="text-[10px] hidden sm:inline">Add Image</span>
+                      </Button>
+                    )}
+
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="sm" 
+                      className="text-[#756861] hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 h-7 px-2 shrink-0" 
+                      onClick={() => handleRemoveOption(index)}
+                      title="Delete option"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+
+                  {/* Inline Image Edit / Replace input */}
+                  {isEditingThisImage && (
+                    <div className="pt-2 border-t border-[#E6D8D0]/60 dark:border-border/60 flex items-center gap-2">
+                      <Input
+                        value={tempImageUrl}
+                        onChange={(e) => setTempImageUrl(e.target.value)}
+                        placeholder="Image URL (e.g., /assets/... or https://...)"
+                        className={`text-xs h-7 flex-1 ${inputCls}`}
+                      />
+                      {tempImageUrl.trim() && (
+                        <img
+                          src={getAssetUrl(tempImageUrl.trim())}
+                          alt="Preview"
+                          className="w-7 h-7 rounded object-cover border border-[#E6D8D0] shrink-0"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = '/logo.png';
+                          }}
+                        />
+                      )}
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => handleSaveOptionImage(index)}
+                        className="h-7 px-2 text-xs bg-[#B66F72] text-white hover:bg-[#95565A]"
+                      >
+                        <Check className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setEditingImageIdx(null);
+                          setTempImageUrl('');
+                        }}
+                        className="h-7 px-2 text-xs"
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           {/* Add option form */}
           <div className="p-3.5 bg-[#F1E6DF]/40 dark:bg-muted/20 rounded-xl border border-[#E6D8D0] dark:border-border space-y-3">
             <p className="text-xs font-semibold text-[#756861] dark:text-muted-foreground uppercase tracking-wider">Add Option</p>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <Input
                 placeholder="Value (e.g. 18cm, heart)"
                 value={newOption.value}
@@ -661,13 +977,42 @@ function FieldForm({
                 onChange={(e) => setNewOption({ ...newOption, priceModifier: Number(e.target.value) })}
                 className={inputCls}
               />
-              <Input
-                placeholder="Image URL (optional)"
-                value={newOption.imageUrl}
-                onChange={(e) => setNewOption({ ...newOption, imageUrl: e.target.value })}
-                className={inputCls}
-              />
             </div>
+
+            {/* Optional Image URL for Select / Multiselect Option */}
+            <div className="flex items-center gap-2 pt-1">
+              <div className="flex-1">
+                <Input
+                  placeholder="Optional Option Image URL (e.g., /assets/... or https://...)"
+                  value={newOption.imageUrl}
+                  onChange={(e) => setNewOption({ ...newOption, imageUrl: e.target.value })}
+                  className={inputCls}
+                />
+              </div>
+              {newOption.imageUrl.trim() ? (
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <img
+                    src={getAssetUrl(newOption.imageUrl.trim())}
+                    alt="Preview"
+                    className="w-9 h-9 rounded-md object-cover border border-[#E6D8D0] bg-white"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = '/logo.png';
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setNewOption({ ...newOption, imageUrl: '' })}
+                    className="h-8 px-1.5 text-xs text-[#756861]"
+                    title="Clear image"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+
             <Button onClick={handleAddOption} variant="outline" size="sm" className="w-full border-[#E6D8D0] dark:border-border hover:bg-[#F1E6DF] dark:hover:bg-muted">
               <Plus className="h-3.5 w-3.5 mr-1.5" />
               Add Option
