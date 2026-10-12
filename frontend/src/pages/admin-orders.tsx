@@ -3,27 +3,28 @@ import { Link } from "react-router-dom";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Footer from "@/components/footer";
 import { SEO } from "@/components/SEO";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import AdminNav from "@/components/AdminNav";
 import { 
   Package, 
   Search, 
   Filter, 
-  IndianRupee, 
   Calendar,
   MapPin,
-  Phone,
-  Mail,
-  Truck,
-  CheckCircle,
-  XCircle,
   Clock,
-  RefreshCw
+  RefreshCw,
+  ShoppingBag,
+  ExternalLink,
+  Truck,
+  CheckCircle2,
+  XCircle,
+  AlertCircle
 } from "lucide-react";
 
 interface OrderItem {
@@ -38,6 +39,7 @@ interface OrderItem {
     selections: Record<string, string | string[]>;
     previewImageUrl?: string;
     engraving?: string;
+    breakdown?: { field: string; option: string; modifier?: number }[];
   };
 }
 
@@ -46,6 +48,7 @@ interface Order {
   orderNumber: string;
   status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled' | 'refunded';
   paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded';
+  fulfillmentStatus?: 'pending' | 'completed' | 'requires_action';
   items: OrderItem[];
   subtotal: number;
   discount: number;
@@ -91,7 +94,6 @@ export default function AdminOrders() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [showDetails, setShowDetails] = useState(false);
   const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
@@ -116,43 +118,42 @@ export default function AdminOrders() {
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const getOrderStatusBadge = (status: string) => {
     switch (status) {
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'processing':
-        return 'bg-blue-100 text-blue-800';
-      case 'shipped':
-        return 'bg-purple-100 text-purple-800';
       case 'delivered':
-        return 'bg-green-100 text-green-800';
+        return 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800';
+      case 'shipped':
+        return 'bg-purple-50 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border-purple-200 dark:border-purple-800';
+      case 'processing':
+        return 'bg-[#F1E6DF] text-[#95565A] dark:bg-muted dark:text-foreground border-[#E6D8D0] dark:border-border';
       case 'cancelled':
-        return 'bg-red-100 text-red-800';
+        return 'bg-rose-50 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border-rose-200 dark:border-rose-800';
       case 'refunded':
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-stone-100 text-stone-800 dark:bg-stone-900 dark:text-stone-300 border-stone-200 dark:border-stone-800';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-800';
     }
   };
 
-  const getPaymentStatusColor = (status: string) => {
+  const getPaymentBadge = (status: string, method?: string) => {
+    if (method === 'cod') {
+      return 'bg-stone-100 text-[#756861] dark:bg-muted dark:text-muted-foreground border-stone-200 dark:border-border';
+    }
     switch (status) {
       case 'paid':
-        return 'bg-green-100 text-green-800';
+        return 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800';
       case 'failed':
-        return 'bg-red-100 text-red-800';
-      case 'refunded':
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-rose-50 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border-rose-200 dark:border-rose-800';
       default:
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-800';
     }
   };
 
   const filteredOrders = orders.filter(order => {
     const matchesSearch = 
       order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.shippingAddress.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.email.toLowerCase().includes(searchTerm.toLowerCase());
+      order.shippingAddress?.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.email?.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
     
@@ -164,7 +165,7 @@ export default function AdminOrders() {
     try {
       let trackingNumber = undefined;
       if (newStatus === 'shipped') {
-        trackingNumber = prompt('Enter tracking number (e.g., FedEx: 123456789012, BlueDart: B123456789):');
+        trackingNumber = prompt('Enter tracking number (e.g., FedEx: 123456789012, BlueDart: B123456789):') || undefined;
         if (!trackingNumber) {
           toast({
             title: 'Cancelled',
@@ -176,14 +177,12 @@ export default function AdminOrders() {
         }
       }
 
-      console.log('Updating order status:', { orderId, newStatus, trackingNumber });
       const response = await apiRequest('PATCH', `/api/v1/orders/admin/${orderId}/status`, {
         status: newStatus,
         trackingNumber,
       });
 
       const data = await response.json();
-      console.log('Update status response:', data);
 
       if (response.ok) {
         toast({
@@ -209,315 +208,178 @@ export default function AdminOrders() {
     }
   };
 
-  const handleRefund = async (orderId: string) => {
-    if (!confirm('Are you sure you want to process a refund for this order?')) return;
-
-    const reason = prompt('Enter refund reason (optional):');
-    const amountStr = prompt('Enter refund amount (leave empty for full refund):');
-    const amount = amountStr ? parseFloat(amountStr) : undefined;
-
-    if (amountStr && isNaN(amount)) {
-      toast({
-        title: 'Error',
-        description: 'Invalid amount',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setUpdating(true);
-    try {
-      const response = await apiRequest('POST', '/api/v1/payments/refund', {
-        orderId,
-        amount,
-        reason,
-      });
-      
-      if (response.ok) {
-        toast({
-          title: 'Success',
-          description: 'Refund processed successfully',
-        });
-        fetchOrders();
-        if (selectedOrder?._id === orderId) {
-          setSelectedOrder({ ...selectedOrder, paymentStatus: 'refunded' as any, status: 'refunded' as any });
-        }
-      }
-    } catch (error) {
-      console.error('Error processing refund:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to process refund',
-        variant: 'destructive',
-      });
-    } finally {
-      setUpdating(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-background flex flex-col">
-        <main className="flex-grow container mx-auto px-4 py-8">
-          <h1 className="text-4xl font-bold mb-4">Loading Orders...</h1>
-        </main>
-        <Footer />
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <SEO 
-        title="Order Management - Admin - Renu's Collections"
-        description="Manage and track customer orders for Renu's Collections jewelry store."
-        keywords="admin orders, order management, renu's collections admin"
-        url="https://renucollections.com/admin/orders"
-      />
-      <main className="container mx-auto px-4 py-8">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-4xl font-bold">Order Management</h1>
-          <Button onClick={fetchOrders} variant="outline" size="sm">
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
+    <div className="min-h-screen bg-[#FBF7F3] dark:bg-background text-[#342824] dark:text-foreground">
+      <SEO title="Order Management - Renu's Collections Admin" noindex />
+      <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-10 pt-28 max-w-7xl">
+        <AdminNav className="mb-6" />
+
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-3 border-b border-[#E6D8D0] dark:border-border/60 pb-6 mb-8">
+          <div>
+            <span className="text-xs uppercase font-semibold text-[#B99A72] tracking-wider">Fulfillment & Operations</span>
+            <h1 className="font-playfair text-3xl sm:text-4xl font-semibold tracking-tight text-[#342824] dark:text-foreground mt-0.5">
+              Order Management
+            </h1>
+            <p className="text-xs sm:text-sm text-[#756861] dark:text-muted-foreground mt-1">
+              Process customer orders, update tracking, and inspect payments.
+            </p>
+          </div>
+
+          <Button 
+            onClick={fetchOrders}
+            variant="outline" 
+            size="sm"
+            className="border-[#E6D8D0] dark:border-border text-xs rounded-xl flex items-center gap-1.5"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Refresh</span>
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Orders List */}
-          <div className="lg:col-span-2 space-y-4">
-            {/* Filters */}
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex gap-4">
-                  <div className="flex-1 relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search orders..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-48">
-                      <Filter className="h-4 w-4 mr-2" />
-                      <SelectValue placeholder="Filter by status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="processing">Processing</SelectItem>
-                      <SelectItem value="shipped">Shipped</SelectItem>
-                      <SelectItem value="delivered">Delivered</SelectItem>
-                      <SelectItem value="cancelled">Cancelled</SelectItem>
-                      <SelectItem value="refunded">Refunded</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </CardContent>
-            </Card>
+        {/* Filters */}
+        <div className="flex flex-col sm:flex-row gap-3 mb-6">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#756861] dark:text-muted-foreground" />
+            <Input
+              placeholder="Search by order #, client name, or email..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9 border-[#E6D8D0] dark:border-border bg-white dark:bg-card text-xs sm:text-sm rounded-xl focus-visible:ring-[#B66F72]"
+            />
+          </div>
 
-            {/* Orders */}
-            {filteredOrders.length === 0 ? (
-              <Card>
-                <CardContent className="p-8 text-center">
-                  <Package className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-                  <p className="text-muted-foreground">No orders found</p>
-                </CardContent>
-              </Card>
-            ) : (
-              filteredOrders.map((order) => (
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-full sm:w-48 border-[#E6D8D0] dark:border-border bg-white dark:bg-card rounded-xl text-xs sm:text-sm">
+              <SelectValue placeholder="All Statuses" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="processing">Processing</SelectItem>
+              <SelectItem value="shipped">Shipped</SelectItem>
+              <SelectItem value="delivered">Delivered</SelectItem>
+              <SelectItem value="cancelled">Cancelled</SelectItem>
+              <SelectItem value="refunded">Refunded</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Orders Table/Cards */}
+        {loading ? (
+          <div className="py-20 text-center">
+            <div className="h-8 w-8 rounded-full border-2 border-[#B66F72] border-t-transparent animate-spin mx-auto mb-3" />
+            <p className="text-xs text-[#756861] dark:text-muted-foreground">Loading orders...</p>
+          </div>
+        ) : filteredOrders.length === 0 ? (
+          <Card className="border border-[#E6D8D0] dark:border-border bg-white dark:bg-card rounded-xl p-8 text-center max-w-md mx-auto">
+            <ShoppingBag className="w-12 h-12 text-[#B66F72] mx-auto mb-3 opacity-60" />
+            <h3 className="font-playfair text-xl font-semibold mb-1">No Orders Match Filter</h3>
+            <p className="text-xs text-[#756861] dark:text-muted-foreground mb-4">Try clearing your search query or status filter.</p>
+            <Button onClick={() => { setSearchTerm(''); setStatusFilter('all'); }} variant="outline" size="sm" className="text-xs">
+              Clear Filters
+            </Button>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            {filteredOrders.map((order) => {
+              const formattedDate = new Date(order.createdAt).toLocaleDateString('en-IN', {
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric'
+              });
+
+              return (
                 <Card 
-                  key={order._id} 
-                  className="cursor-pointer hover:border-primary transition-colors"
-                  onClick={() => { setSelectedOrder(order); setShowDetails(true); }}
+                  key={order._id}
+                  className="border border-[#E6D8D0] dark:border-border bg-white dark:bg-card rounded-xl overflow-hidden shadow-xs hover:shadow-sm transition-all"
                 >
-                  <CardContent className="p-4">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <div className="flex items-center gap-2 mb-2">
-                          <h3 className="font-semibold">#{order.orderNumber}</h3>
-                          <Badge className={`${getStatusColor(order.status)} text-xs`}>
-                            {order.status}
-                          </Badge>
-                          <Badge variant="outline" className={`${getPaymentStatusColor(order.paymentStatus)} text-xs`}>
-                            {order.paymentStatus}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground">{order.shippingAddress.fullName}</p>
-                        <p className="text-sm text-muted-foreground">{order.items.length} item(s)</p>
+                  <div className="p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-[#E6D8D0]/60 dark:border-border/60 bg-[#FBF7F3]/40 dark:bg-muted/10">
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-playfair text-lg font-bold text-[#342824] dark:text-foreground">
+                          #{order.orderNumber}
+                        </span>
+                        <span className="text-xs text-[#756861] dark:text-muted-foreground">
+                          • {formattedDate}
+                        </span>
+                        {order.fulfillmentStatus === 'requires_action' && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-300">
+                            <AlertCircle className="w-3 h-3" />
+                            Requires Action
+                          </span>
+                        )}
                       </div>
-                      <div className="text-right">
-                        <p className="font-semibold flex items-center gap-1">
-                          <IndianRupee className="h-4 w-4" />
-                          {order.total.toFixed(2)}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(order.createdAt).toLocaleDateString()}
-                        </p>
+                      <p className="text-xs text-[#756861] dark:text-muted-foreground mt-0.5">
+                        Client: <strong className="text-[#342824] dark:text-foreground">{order.shippingAddress?.fullName}</strong> ({order.email})
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border ${getOrderStatusBadge(order.status)}`}>
+                        {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                      </span>
+                      <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border ${getPaymentBadge(order.paymentStatus, order.paymentMethod)}`}>
+                        {order.paymentMethod === 'cod' ? 'COD' : 'Paid'}: {order.paymentStatus}
+                      </span>
+                      <span className="font-playfair text-lg font-bold text-[#B66F72] dark:text-primary ml-2">
+                        ₹{order.total.toLocaleString('en-IN')}
+                      </span>
+                    </div>
+                  </div>
+
+                  <CardContent className="p-4 sm:p-5">
+                    {/* Item list snapshot */}
+                    <div className="space-y-1.5 text-xs text-[#756861] dark:text-muted-foreground mb-4">
+                      {order.items.map((i, idx) => (
+                        <div key={idx} className="flex justify-between">
+                          <span>
+                            {i.name} <strong className="text-[#342824] dark:text-foreground">× {i.quantity}</strong>
+                          </span>
+                          <span>₹{(i.subtotal || i.unitPrice * i.quantity).toLocaleString('en-IN')}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Status updater and action controls */}
+                    <div className="border-t border-[#E6D8D0]/60 dark:border-border/60 pt-3 flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-[#756861] dark:text-muted-foreground font-medium">Update Status:</span>
+                        <select
+                          value={order.status}
+                          disabled={updating}
+                          onChange={(e) => handleUpdateStatus(order._id, e.target.value)}
+                          className="px-2.5 py-1 border border-[#E6D8D0] dark:border-border rounded-lg text-xs bg-white dark:bg-card focus:outline-none focus:ring-1 focus:ring-[#B66F72]"
+                        >
+                          <option value="pending">Pending</option>
+                          <option value="processing">Processing</option>
+                          <option value="shipped">Shipped</option>
+                          <option value="delivered">Delivered</option>
+                          <option value="cancelled">Cancelled</option>
+                          <option value="refunded">Refunded</option>
+                        </select>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <Button 
+                          asChild
+                          variant="outline"
+                          size="sm"
+                          className="text-xs border-[#E6D8D0] dark:border-border rounded-lg h-8"
+                        >
+                          <Link to={`/orders/${order._id}`} target="_blank">
+                            <span>Client Receipt</span>
+                            <ExternalLink className="w-3 h-3 ml-1" />
+                          </Link>
+                        </Button>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
-              ))
-            )}
+              );
+            })}
           </div>
-
-          {/* Order Details */}
-          {showDetails && selectedOrder && (
-            <div className="lg:col-span-1">
-              <Card className="sticky top-8">
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <CardTitle className="text-lg">Order #{selectedOrder.orderNumber}</CardTitle>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={() => setShowDetails(false)}
-                    >
-                      <XCircle className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {/* Status Actions */}
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium">Update Status:</p>
-                    <div className="flex flex-wrap gap-2">
-                      {['pending', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'].map((status) => (
-                        <Button
-                          key={status}
-                          size="sm"
-                          variant={selectedOrder.status === status ? 'default' : 'outline'}
-                          onClick={() => handleUpdateStatus(selectedOrder._id, status)}
-                          disabled={updating}
-                        >
-                          {status.charAt(0).toUpperCase() + status.slice(1)}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Refund Action */}
-                  {selectedOrder.paymentStatus === 'paid' && selectedOrder.status !== 'refunded' && (
-                    <div className="pt-2 border-t">
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => handleRefund(selectedOrder._id)}
-                        disabled={updating}
-                        className="w-full"
-                      >
-                        Process Refund
-                      </Button>
-                    </div>
-                  )}
-
-                  {/* Customer Info */}
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium">Customer:</p>
-                    <div className="text-sm space-y-1">
-                      <p className="font-medium">{selectedOrder.shippingAddress.fullName}</p>
-                      <div className="flex items-center gap-1 text-muted-foreground">
-                        <Mail className="h-3 w-3" />
-                        <p>{selectedOrder.email}</p>
-                      </div>
-                      <div className="flex items-center gap-1 text-muted-foreground">
-                        <Phone className="h-3 w-3" />
-                        <p>{selectedOrder.phone}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Shipping Address */}
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium">Shipping Address:</p>
-                    <div className="text-sm space-y-1 text-muted-foreground">
-                      <p>{selectedOrder.shippingAddress.line1}</p>
-                      {selectedOrder.shippingAddress.line2 && <p>{selectedOrder.shippingAddress.line2}</p>}
-                      <p>{selectedOrder.shippingAddress.city}, {selectedOrder.shippingAddress.state} - {selectedOrder.shippingAddress.postalCode}</p>
-                      <p>{selectedOrder.shippingAddress.country}</p>
-                    </div>
-                  </div>
-
-                  {/* Items */}
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium">Items:</p>
-                    <div className="space-y-2">
-                      {selectedOrder.items.map((item, idx) => (
-                        <div key={idx} className="text-sm">
-                          <p className="font-medium">{item.name}</p>
-                          <p className="text-muted-foreground">
-                            Qty: {item.quantity} × ₹{item.unitPrice.toFixed(2)}
-                          </p>
-                          {item.customization && (
-                            <div className="mt-1 text-xs space-y-0.5 bg-muted/40 p-2 rounded">
-                              <p className="font-semibold text-primary">Customization:</p>
-                              {(item.customization as any).breakdown && (item.customization as any).breakdown.length > 0 ? (
-                                (item.customization as any).breakdown.map((b: any, bIdx: number) => (
-                                  <p key={bIdx} className="text-muted-foreground">
-                                    {b.field}: <strong className="text-foreground">{b.option}</strong>
-                                    {b.modifier ? <span className="text-primary ml-1">(+₹{b.modifier})</span> : null}
-                                  </p>
-                                ))
-                              ) : item.customization.selections ? (
-                                Object.entries(item.customization.selections).map(([k, v]) => (
-                                  <p key={k} className="text-muted-foreground">
-                                    <span className="capitalize">{k.replace(/_/g, ' ')}:</span>{' '}
-                                    <strong className="text-foreground">{Array.isArray(v) ? v.join(', ') : String(v)}</strong>
-                                  </p>
-                                ))
-                              ) : null}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Tracking */}
-                  {selectedOrder.trackingNumber && (
-                    <div className="p-2 bg-blue-50 rounded">
-                      <div className="flex items-center gap-2">
-                        <Truck className="h-4 w-4 text-blue-600" />
-                        <div>
-                          <p className="text-xs font-medium">Tracking Number</p>
-                          <p className="text-sm text-blue-600">{selectedOrder.trackingNumber}</p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Payment Info */}
-                  {selectedOrder.razorpayPaymentId && (
-                    <div className="text-xs text-muted-foreground">
-                      <p>Payment ID: {selectedOrder.razorpayPaymentId}</p>
-                    </div>
-                  )}
-
-                  {/* Notes */}
-                  {selectedOrder.notes && (
-                    <div className="p-2 bg-gray-50 rounded">
-                      <p className="text-xs font-medium mb-1">Notes:</p>
-                      <p className="text-sm text-muted-foreground">{selectedOrder.notes}</p>
-                    </div>
-                  )}
-
-                  <div className="pt-4 border-t">
-                    <div className="flex justify-between font-bold">
-                      <span>Total:</span>
-                      <span className="flex items-center gap-1">
-                        <IndianRupee className="h-4 w-4" />
-                        {selectedOrder.total.toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-        </div>
+        )}
       </main>
       <Footer />
     </div>
