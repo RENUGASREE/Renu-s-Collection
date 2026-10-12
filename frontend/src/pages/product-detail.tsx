@@ -9,6 +9,13 @@ import { SEO } from "@/components/SEO";
 import { CustomizationPreview } from "@/components/CustomizationPreview";
 import { CustomizationControls } from "@/components/CustomizationControls";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { ReviewList } from "@/components/review-list";
 import { ReviewForm } from "@/components/review-form";
 import { StarRating } from "@/components/star-rating";
@@ -95,6 +102,7 @@ export default function ProductDetail() {
   const [, setWishlistIds] = useState<Set<string>>(new Set());
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [reviewRefreshKey, setReviewRefreshKey] = useState(0);
+  const [showCartConfirmation, setShowCartConfirmation] = useState(false);
 
   const { toast } = useToast();
   const { user } = useAuth();
@@ -277,11 +285,7 @@ export default function ProductDetail() {
       const response = await apiRequest("POST", "/api/v1/cart", cartItem);
 
       if (response.ok) {
-        toast({
-          title: "Added to Shopping Bag",
-          description: `"${product.name}" has been added to your bag.`,
-        });
-        navigate("/cart");
+        setShowCartConfirmation(true);
       } else {
         const errorData = await response.json();
         toast({
@@ -899,6 +903,67 @@ export default function ProductDetail() {
           <ReviewList productId={productId!} refreshTrigger={reviewRefreshKey} />
         </div>
       </main>
+
+      {/* Add to Cart Confirmation Dialog */}
+      <Dialog open={showCartConfirmation} onOpenChange={setShowCartConfirmation}>
+        <DialogContent className="sm:max-w-md bg-[#FBF7F3] dark:bg-card border-[#E6D8D0] dark:border-border">
+          <DialogHeader className="text-center sm:text-center">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[#B66F72]/10 dark:bg-primary/10">
+              <Check className="h-6 w-6 text-[#B66F72] dark:text-primary" />
+            </div>
+            <DialogTitle className="font-playfair text-xl text-[#342824] dark:text-foreground">
+              Added to Your Shopping Bag!
+            </DialogTitle>
+            <DialogDescription className="text-[#756861] dark:text-muted-foreground">
+              Your selected piece has been added successfully.
+            </DialogDescription>
+          </DialogHeader>
+
+          {product && (
+            <div className="flex items-center gap-4 rounded-lg border border-[#E6D8D0] dark:border-border bg-white dark:bg-background p-3 my-2">
+              <img
+                src={getProductImage(product, 0)}
+                alt={product.name}
+                className="h-16 w-16 rounded-md object-cover"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = '/logo.png';
+                }}
+              />
+              <div className="flex-1 min-w-0">
+                <p className="font-playfair font-semibold text-sm text-[#342824] dark:text-foreground truncate">
+                  {product.name}
+                </p>
+                <p className="text-xs text-[#756861] dark:text-muted-foreground mt-0.5">
+                  Qty: {quantity}
+                </p>
+                <p className="text-sm font-semibold text-[#B66F72] dark:text-primary mt-0.5">
+                  ₹{((product.effectivePrice + (customizationMode === 'customized' && customizationPrice ? customizationPrice.priceModifier : 0)) * quantity).toLocaleString('en-IN')}
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-col sm:flex-row gap-3 mt-2">
+            <Button
+              variant="outline"
+              className="flex-1 border-[#E6D8D0] dark:border-border text-[#756861] dark:text-muted-foreground hover:bg-[#F1E6DF] dark:hover:bg-muted"
+              onClick={() => setShowCartConfirmation(false)}
+            >
+              Continue Shopping
+            </Button>
+            <Button
+              className="flex-1 bg-[#B66F72] hover:bg-[#95565A] text-white dark:bg-primary dark:hover:bg-primary/90 dark:text-primary-foreground"
+              onClick={() => {
+                setShowCartConfirmation(false);
+                navigate('/cart');
+              }}
+            >
+              <ShoppingBag className="mr-2 h-4 w-4" />
+              View Cart
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Footer />
     </div>
