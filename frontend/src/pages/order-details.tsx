@@ -7,6 +7,8 @@ import { apiRequest, getAssetUrl } from '@/lib/queryClient';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { SEO } from '@/components/SEO';
+import OrderProgressTracker from '@/components/OrderProgressTracker';
+import { getEstimatedDeliveryWindow } from '@/lib/deliveryEstimate';
 import { 
   Package, 
   Calendar, 
@@ -334,24 +336,101 @@ export default function OrderDetails() {
               </CardContent>
             </Card>
 
-            {/* Status Timeline Card */}
+            {/* Order Progress Tracker */}
             <Card className="border border-[#E6D8D0] dark:border-border bg-white dark:bg-card shadow-xs rounded-xl overflow-hidden">
               <div className="px-5 py-4 border-b border-[#E6D8D0]/60 dark:border-border/60 bg-[#FBF7F3]/60 dark:bg-muted/20 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-[#B99A72]" />
+                  <Truck className="w-4 h-4 text-[#B66F72]" />
                   <h2 className="font-playfair text-base font-semibold text-[#342824] dark:text-foreground">
-                    Order Lifecycle Timeline
+                    Order Progress
                   </h2>
                 </div>
+                {/* Delivery estimate inline badge */}
+                {(() => {
+                  const estimate = getEstimatedDeliveryWindow(order.createdAt);
+                  if (!estimate || order.status === 'delivered' || order.status === 'cancelled' || order.status === 'refunded') return null;
+                  return (
+                    <span className="text-[11px] font-medium text-[#B99A72] dark:text-[#B99A72] bg-[#F1E6DF]/60 dark:bg-muted/40 px-2.5 py-1 rounded-full border border-[#E6D8D0]/80 dark:border-border hidden sm:inline-flex items-center gap-1">
+                      <Calendar className="w-3 h-3" />
+                      Est. {estimate.formattedShort}
+                    </span>
+                  );
+                })()}
               </div>
 
               <CardContent className="p-5">
-                <div className="space-y-4">
-                  {order.statusHistory && order.statusHistory.length > 0 ? (
-                    order.statusHistory.map((history, idx) => (
+                <OrderProgressTracker
+                  status={order.status}
+                  statusHistory={order.statusHistory}
+                  createdAt={order.createdAt}
+                />
+
+                {/* Delivery Estimate Card (visible for active orders) */}
+                {(() => {
+                  if (order.status === 'cancelled' || order.status === 'refunded') return null;
+                  if (order.status === 'delivered') {
+                    const deliveredEntry = order.statusHistory.find(h => h.status === 'delivered');
+                    if (deliveredEntry) {
+                      return (
+                        <div className="mt-4 p-3 rounded-lg bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-900 flex items-center gap-2.5 text-xs">
+                          <CheckCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                          <div>
+                            <span className="font-medium text-emerald-800 dark:text-emerald-300">Delivered on </span>
+                            <span className="font-semibold text-emerald-800 dark:text-emerald-300">
+                              {new Date(deliveredEntry.changedAt).toLocaleDateString('en-IN', {
+                                timeZone: 'Asia/Kolkata', day: 'numeric', month: 'long', year: 'numeric'
+                              })}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }
+                  const estimate = getEstimatedDeliveryWindow(order.createdAt);
+                  if (!estimate) return null;
+                  return (
+                    <div className="mt-4 p-3 rounded-lg bg-[#F1E6DF]/50 dark:bg-muted/40 border border-[#E6D8D0]/80 dark:border-border flex items-center gap-2.5 text-xs">
+                      <Calendar className="w-4 h-4 text-[#B99A72] shrink-0" />
+                      <div>
+                        <span className="font-medium text-[#342824] dark:text-foreground">Estimated Delivery: </span>
+                        <span className="font-semibold text-[#B66F72] dark:text-primary">{estimate.formatted}</span>
+                        <p className="text-[11px] text-[#756861]/70 dark:text-muted-foreground/70 mt-0.5">
+                          5–7 business days (excludes weekends)
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Tracking Number */}
+                {order.trackingNumber && (
+                  <div className="mt-4 p-3 rounded-lg bg-[#F1E6DF]/50 dark:bg-muted/40 border border-[#E6D8D0]/80 dark:border-border flex items-center gap-2.5 text-xs">
+                    <Truck className="w-4 h-4 text-[#B99A72] shrink-0" />
+                    <div>
+                      <span className="font-medium text-[#342824] dark:text-foreground">Courier Tracking Number:</span>{' '}
+                      <span className="font-mono text-[#B66F72] dark:text-primary font-semibold">{order.trackingNumber}</span>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Status History Timeline */}
+            {order.statusHistory && order.statusHistory.length > 0 && (
+              <Card className="border border-[#E6D8D0] dark:border-border bg-white dark:bg-card shadow-xs rounded-xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-[#E6D8D0]/60 dark:border-border/60 bg-[#FBF7F3]/60 dark:bg-muted/20 flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-[#B99A72]" />
+                  <h2 className="font-playfair text-base font-semibold text-[#342824] dark:text-foreground">
+                    Status History
+                  </h2>
+                </div>
+                <CardContent className="p-5">
+                  <div className="space-y-3">
+                    {order.statusHistory.map((history, idx) => (
                       <div key={idx} className="flex gap-3 text-xs sm:text-sm">
                         <div className="flex flex-col items-center">
-                          <div className="w-2.5 h-2.5 rounded-full bg-[#B66F72] mt-1 shrink-0" />
+                          <div className="w-2 h-2 rounded-full bg-[#B66F72] mt-1.5 shrink-0" />
                           {idx < order.statusHistory.length - 1 && (
                             <div className="w-0.5 h-full bg-[#E6D8D0] dark:bg-border my-1" />
                           )}
@@ -366,27 +445,15 @@ export default function OrderDetails() {
                             </p>
                           )}
                           <p className="text-[11px] text-[#756861]/70 dark:text-muted-foreground/70 mt-0.5">
-                            {new Date(history.changedAt).toLocaleString('en-IN')}
+                            {new Date(history.changedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
                           </p>
                         </div>
                       </div>
-                    ))
-                  ) : (
-                    <p className="text-xs text-[#756861] dark:text-muted-foreground">Order received and scheduled for preparation.</p>
-                  )}
-                </div>
-
-                {order.trackingNumber && (
-                  <div className="mt-4 p-3 rounded-lg bg-[#F1E6DF]/50 dark:bg-muted/40 border border-[#E6D8D0]/80 dark:border-border flex items-center gap-2.5 text-xs">
-                    <Truck className="w-4 h-4 text-[#B99A72] shrink-0" />
-                    <div>
-                      <span className="font-medium text-[#342824] dark:text-foreground">Courier Tracking Number:</span>{' '}
-                      <span className="font-mono text-[#B66F72] dark:text-primary font-semibold">{order.trackingNumber}</span>
-                    </div>
+                    ))}
                   </div>
-                )}
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Addresses Card */}
             <Card className="border border-[#E6D8D0] dark:border-border bg-white dark:bg-card shadow-xs rounded-xl overflow-hidden">

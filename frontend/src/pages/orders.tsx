@@ -7,6 +7,7 @@ import { apiRequest, getAssetUrl } from '@/lib/queryClient';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { SEO } from '@/components/SEO';
+import { getEstimatedDeliveryWindow } from '@/lib/deliveryEstimate';
 import { 
   Package, 
   Calendar, 
@@ -228,9 +229,22 @@ export default function Orders() {
                           #{order.orderNumber}
                         </p>
                       </div>
-                      <div className="hidden sm:flex items-center gap-1.5 text-xs text-[#756861] dark:text-muted-foreground pl-3 border-l border-[#E6D8D0] dark:border-border">
-                        <Calendar className="w-3.5 h-3.5 text-[#B99A72]" />
-                        <span>{formattedDate}</span>
+                      <div className="hidden sm:flex flex-col gap-0.5 pl-3 border-l border-[#E6D8D0] dark:border-border">
+                        <div className="flex items-center gap-1.5 text-xs text-[#756861] dark:text-muted-foreground">
+                          <Calendar className="w-3.5 h-3.5 text-[#B99A72]" />
+                          <span>{formattedDate}</span>
+                        </div>
+                        {(() => {
+                          if (order.status === 'delivered' || order.status === 'cancelled' || order.status === 'refunded') return null;
+                          const estimate = getEstimatedDeliveryWindow(order.createdAt);
+                          if (!estimate) return null;
+                          return (
+                            <div className="flex items-center gap-1.5 text-[11px] text-[#B99A72]">
+                              <Package className="w-3 h-3" />
+                              <span>Est. {estimate.formattedShort}</span>
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
 

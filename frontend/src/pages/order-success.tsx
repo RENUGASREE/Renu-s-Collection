@@ -10,7 +10,8 @@ import {
   Calendar, 
   ShieldCheck, 
   Sparkles,
-  ExternalLink
+  ExternalLink,
+  Truck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,6 +19,7 @@ import Footer from "@/components/footer";
 import { SEO } from "@/components/SEO";
 import { useEffect, useState } from "react";
 import { apiRequest } from "@/lib/queryClient";
+import { getEstimatedDeliveryWindow } from "@/lib/deliveryEstimate";
 
 interface OrderItem {
   name: string;
@@ -262,6 +264,28 @@ export default function OrderSuccess() {
               <ShieldCheck className="w-4 h-4 text-[#B99A72]" />
               <span>We will notify you via email and SMS as your jewelry is prepared and dispatched.</span>
             </div>
+
+            {/* Delivery Estimate */}
+            {order.createdAt && (() => {
+              const estimate = getEstimatedDeliveryWindow(order.createdAt);
+              if (!estimate) return null;
+              return (
+                <div className="p-4 rounded-xl border border-[#E6D8D0]/80 dark:border-border bg-[#FBF7F3]/70 dark:bg-muted/20 flex items-start gap-3.5">
+                  <Truck className="w-5 h-5 text-[#B99A72] shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold text-[#342824] dark:text-foreground">
+                      Estimated Delivery Window
+                    </p>
+                    <p className="text-base font-bold text-[#B66F72] dark:text-primary mt-0.5">
+                      {estimate.formatted}
+                    </p>
+                    <p className="text-xs text-[#756861] dark:text-muted-foreground mt-1">
+                      5–7 business days from order placement (weekends excluded)
+                    </p>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         ) : (
           /* Graceful Fallback if page refreshed directly without state */
