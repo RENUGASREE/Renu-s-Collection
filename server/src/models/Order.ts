@@ -1,9 +1,11 @@
 import mongoose, { Schema, Document, Model, Types } from "mongoose";
 import { OrderStatus, PaymentStatus } from "../types/index.js";
 import { IAddress } from "./User.js";
+import { IStudioDesignSnapshot } from "./Cart.js";
 
 export interface IOrderItem {
-  productId: Types.ObjectId;
+  itemType?: "product" | "custom_design";
+  productId?: Types.ObjectId;
   sku: string;
   name: string;
   imageUrl?: string;
@@ -20,6 +22,7 @@ export interface IOrderItem {
       modifier?: number;
     }[];
   };
+  studioDesign?: IStudioDesignSnapshot;
 }
 
 export interface IOrderStatusHistory {
@@ -59,13 +62,18 @@ export interface IOrder extends Document {
   deductedItemIds?: string[];
   couponProcessed?: boolean;
   cartCleared?: boolean;
+  idempotencyKey?: string;
+  checkoutFingerprint?: string;
+  studioReservationId?: Types.ObjectId;
+  studioReservationStatus?: "reserved" | "committed" | "released" | "restocked" | "reconciliation_required";
   createdAt: Date;
   updatedAt: Date;
 }
 
 const orderItemSchema = new Schema<IOrderItem>(
   {
-    productId: { type: Schema.Types.ObjectId, ref: "Product", required: true },
+    itemType: { type: String, enum: ["product", "custom_design"], default: "product" },
+    productId: { type: Schema.Types.ObjectId, ref: "Product", required: false },
     sku: { type: String, required: true },
     name: { type: String, required: true },
     imageUrl: String,
@@ -77,6 +85,16 @@ const orderItemSchema = new Schema<IOrderItem>(
       previewImageUrl: String,
       engraving: String,
       breakdown: Schema.Types.Mixed,
+    },
+    studioDesign: {
+      savedDesignId: { type: Schema.Types.ObjectId, ref: "SavedDesign" },
+      name: String,
+      jewelleryType: { type: String, default: "bracelet" },
+      constructionType: { type: String, default: "elastic_bead" },
+      wristMm: Number,
+      beadSequence: { type: Schema.Types.Mixed, default: [] },
+      charms: { type: Schema.Types.Mixed, default: [] },
+      breakdown: { type: Schema.Types.Mixed },
     },
   },
   { _id: true }
@@ -157,11 +175,28 @@ const orderSchema = new Schema<IOrder>(
     deductedItemIds: { type: [String], default: [] },
     couponProcessed: { type: Boolean, default: false },
     cartCleared: { type: Boolean, default: false },
+    idempotencyKey: { type: String, index: true },
+    checkoutFingerprint: { type: String, index: true },
+    studioReservationId: { type: Schema.Types.ObjectId, ref: "StudioReservation" },
+    studioReservationStatus: {
+      type: String,
+      enum: ["reserved", "committed", "released", "restocked", "reconciliation_required"],
+      index: true,
+    },
   },
   { timestamps: true }
 );
 
 orderSchema.index({ userId: 1, createdAt: -1 });
+orderSchema.index(
+  { userId: 1, idempotencyKey: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      idempotencyKey: { $type: "string" },
+    },
+  }
+);
 orderSchema.index({ status: 1, createdAt: -1 });
 orderSchema.index({ createdAt: -1 });
 

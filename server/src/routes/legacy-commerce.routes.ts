@@ -72,7 +72,16 @@ router.get("/orders", requireAuth, async (req, res, next) => {
 
 router.post("/orders", requireAuth, async (req, res, next) => {
   try {
-    const order = await orderService.createOrderFromCart(authUserId(req), req.body);
+    const resolvedIdempotencyKey =
+      (typeof req.body?.idempotencyKey === "string" && req.body.idempotencyKey.trim()) ||
+      (typeof req.headers["idempotency-key"] === "string" && req.headers["idempotency-key"].trim()) ||
+      (typeof req.headers["x-idempotency-key"] === "string" && req.headers["x-idempotency-key"].trim()) ||
+      undefined;
+
+    const order = await orderService.createOrderFromCart(authUserId(req), {
+      ...req.body,
+      idempotencyKey: resolvedIdempotencyKey,
+    });
     res.status(201).json({
       id: order.id,
       order_number: order.orderNumber,

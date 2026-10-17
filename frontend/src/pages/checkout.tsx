@@ -13,6 +13,16 @@ import { apiRequest, getAssetUrl } from "@/lib/queryClient";
 import { useNavigate, Link } from "react-router-dom";
 import { SEO } from "@/components/SEO";
 import AddressManager from "@/components/AddressManager";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { 
   ShieldCheck, 
   MapPin, 
@@ -29,12 +39,23 @@ import {
 
 interface CartItem {
   _id: string;
-  productId: string;
+  productId?: string;
+  itemType?: "product" | "custom_design";
   sku: string;
   name: string;
   imageUrl?: string;
   unitPrice: number;
   quantity: number;
+  studioDesign?: {
+    savedDesignId?: string;
+    name?: string;
+    jewelleryType: string;
+    constructionType: string;
+    wristMm: number;
+    beadSequence?: any[];
+    charms?: any[];
+    breakdown?: any;
+  };
   customization?: {
     selections: Record<string, string | string[]>;
     previewImageUrl?: string;
@@ -83,6 +104,10 @@ export default function Checkout() {
   
   const [paymentMethod, setPaymentMethod] = useState("razorpay");
   const [orderNotes, setOrderNotes] = useState("");
+  const [priceChangeMessage, setPriceChangeMessage] = useState<string | null>(null);
+  const [showPriceChangeDialog, setShowPriceChangeDialog] = useState(false);
+  const generateAttemptKey = () => `chk_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  const [checkoutIdempotencyKey, setCheckoutIdempotencyKey] = useState<string>(generateAttemptKey);
 
   // Calculate total
   const subtotal = cartItems.reduce((sum, item) => {
@@ -114,7 +139,7 @@ export default function Checkout() {
     }
   };
 
-  const createOrder = async () => {
+  const createOrder = async (options?: { confirmPriceChanges?: boolean; expectedTotal?: number }) => {
     if (!validateForm()) {
       return null;
     }
@@ -150,6 +175,9 @@ export default function Checkout() {
         phone: shippingAddress.phone,
         notes: orderNotes,
         paymentMethod: paymentMethod,
+        confirmPriceChanges: options?.confirmPriceChanges ?? false,
+        expectedTotal: options?.expectedTotal,
+        idempotencyKey: checkoutIdempotencyKey,
       };
 
       const response = await apiRequest('POST', '/api/v1/orders', orderData);
@@ -157,20 +185,46 @@ export default function Checkout() {
       
       if (data.success) {
         setCreatedOrderId(data.data._id);
+        setShowPriceChangeDialog(false);
+        setPriceChangeMessage(null);
         return data.data;
       } else {
         throw new Error(data.message || data.error || 'Failed to create order');
       }
     } catch (error: any) {
       console.error('Error creating order:', error);
-      toast({
-        title: 'Order Placement Failed',
-        description: error.message || 'Failed to create order. Please verify your address and try again.',
-        variant: 'destructive',
-      });
+      const rawMessage = error.message || '';
+      const isPriceChange = rawMessage.includes('409') || rawMessage.toLowerCase().includes('price for') || rawMessage.toLowerCase().includes('rates');
+      const cleanMessage = rawMessage.replace(/^\d+:\s*/, '');
+
+      // Synchronize cart items to display current prices & total in UI
+      await fetchCartItems();
+
+      if (isPriceChange) {
+        setPriceChangeMessage(cleanMessage);
+        setShowPriceChangeDialog(true);
+      } else {
+        toast({
+          title: 'Order Placement Notice',
+          description: cleanMessage || 'Failed to create order. Please verify your address and try again.',
+          variant: 'destructive',
+        });
+      }
       return null;
     } finally {
       setOrderProcessing(false);
+    }
+  };
+
+  const handleConfirmPriceChange = async () => {
+    setShowPriceChangeDialog(false);
+    const order = await createOrder({ confirmPriceChanges: true, expectedTotal: total });
+    if (order && paymentMethod === 'cod') {
+      toast({
+        title: 'Order Placed',
+        description: 'Your order has been placed successfully with updated pricing.',
+      });
+      navigate('/order-success', { state: { order } });
     }
   };
 
@@ -505,7 +559,10 @@ export default function Checkout() {
               <CardContent className="p-5 sm:p-6">
                 <RadioGroup
                   value={paymentMethod}
-                  onValueChange={setPaymentMethod}
+                  onValueChange={(val) => {
+                    setPaymentMethod(val);
+                    setCheckoutIdempotencyKey(generateAttemptKey());
+                  }}
                   className="space-y-3"
                 >
                   {/* Razorpay Option */}
@@ -763,6 +820,49 @@ export default function Checkout() {
           </div>
         </div>
       </main>
+
+      {/* Price Update Confirmation Dialog */}
+      <AlertDialog open={showPriceChangeDialog} onOpenChange={setShowPriceChangeDialog}>
+        <AlertDialogContent className="bg-[#FBF7F3] dark:bg-card border-[#E6D8D0] dark:border-border max-w-md">
+          <AlertDialogHeader>
+            <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-400">
+              <Sparkles className="h-6 w-6" />
+            </div>
+            <AlertDialogTitle className="font-playfair text-xl text-center text-[#342824] dark:text-foreground">
+              Updated Design Pricing
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm text-[#756861] dark:text-muted-foreground text-center pt-1">
+              {priceChangeMessage}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="my-2 p-3 rounded-lg bg-white dark:bg-background border border-[#E6D8D0] dark:border-border text-xs text-[#756861] dark:text-muted-foreground space-y-1">
+            <div className="flex justify-between font-semibold text-sm text-[#342824] dark:text-foreground">
+              <span>Updated Total Payable:</span>
+              <span className="text-[#B66F72] dark:text-primary font-bold">₹{total.toLocaleString('en-IN')}</span>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Material and gemstone prices are calculated based on live rates. Would you like to confirm and place your order with this updated total?
+            </p>
+          </div>
+          <AlertDialogFooter className="flex flex-col sm:flex-row gap-2">
+            <AlertDialogCancel
+              disabled={orderProcessing}
+              onClick={() => setShowPriceChangeDialog(false)}
+              className="border-[#E6D8D0] dark:border-border text-[#756861] dark:text-muted-foreground"
+            >
+              Review Shopping Bag
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={orderProcessing}
+              onClick={handleConfirmPriceChange}
+              className="bg-[#B66F72] hover:bg-[#95565A] text-white"
+            >
+              Confirm & Place Order
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <Footer />
     </div>
   );

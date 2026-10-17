@@ -1,13 +1,20 @@
 import { Types } from "mongoose";
+import crypto from "crypto";
 import { Order } from "../models/Order.js";
 import { User } from "../models/User.js";
 import { Coupon } from "../models/Coupon.js";
 import { Product } from "../models/Product.js";
 import { AppError } from "../middleware/errorHandler.js";
 import { generateOrderNumber } from "../utils/helpers.js";
-import { getCartItems, clearCart, toLegacyCartItem } from "./cart.service.js";
-import { deductStockForOrder } from "./inventory.service.js";
+import { getCartItems, clearCart, toLegacyCartItem, getOrCreateCart } from "./cart.service.js";
+import { deductStockForOrder, adjustStock } from "./inventory.service.js";
+import {
+  validateCustomDesignStock,
+  reserveStudioStockForOrder,
+  restockStudioReservation,
+} from "./studio-inventory.service.js";
 import { customizationService } from "./customization.service.js";
+import { calculateDesignPrice } from "./studio.service.js";
 import { env } from "../config/env.js";
 import type { IAddress } from "../models/User.js";
 import type { ICartItem } from "../models/Cart.js";
@@ -154,6 +161,114 @@ async function assertTestCommerceAccess(userId: string): Promise<void> {
   }
 }
 
+function normalizeAddressForFingerprint(addr: IAddress): string {
+  const norm = (s?: string) => (s || "").trim().toLowerCase();
+  return [
+    norm(addr.fullName),
+    norm(addr.line1),
+    norm(addr.line2),
+    norm(addr.city),
+    norm(addr.state),
+    norm(addr.postalCode),
+    norm(addr.country),
+  ].join("|");
+}
+
+function isAddressMatching(a: IAddress, b: IAddress): boolean {
+  const norm = (s?: string) => (s || "").trim().toLowerCase();
+  return (
+    norm(a.line1) === norm(b.line1) &&
+    norm(a.city) === norm(b.city) &&
+    norm(a.state) === norm(b.state) &&
+    norm(a.postalCode) === norm(b.postalCode)
+  );
+}
+
+function serializeCustomDesignForFingerprint(item: any, includePrice: boolean): string {
+  const sd = item.studioDesign;
+  const jType = sd?.jewelleryType || "bracelet";
+  const cType = sd?.constructionType || "elastic_bead";
+  const wrist = sd?.wristMm || 0;
+  // Preserve ordered bead sequence; fall back to aggregate components if beadSequence is unavailable
+  const beads =
+    sd?.beadSequence && sd.beadSequence.length > 0
+      ? sd.beadSequence
+          .map((b: any, idx: number) => `${idx}:${b.variantSku || b.materialId || ""}`)
+          .join(",")
+      : (sd?.components || [])
+          .map((c: any) => `${c.variantSku}:${c.quantity}`)
+          .sort()
+          .join(",");
+  // Preserve charm-to-bead attachment relationships (anchorInstanceId)
+  const charms = (sd?.charms || [])
+    .map((c: any) => `${c.variantSku || c.materialId || ""}@${c.anchorInstanceId || ""}`)
+    .sort()
+    .join(",");
+
+  const pricePart = includePrice ? `:${item.unitPrice}` : "";
+  return `custom:${item.quantity}${pricePart}:${jType}:${cType}:${wrist}:[${beads}]:[${charms}]`;
+}
+
+function serializeProductForFingerprint(item: any, includePrice: boolean): string {
+  const prodId = item.productId ? item.productId.toString() : item.sku;
+  const selections = item.customization?.selections;
+  const selSummary = selections
+    ? Object.keys(selections)
+        .sort()
+        .map((k) => `${k}=${JSON.stringify((selections as any)[k])}`)
+        .join(",")
+    : "";
+  const eng = item.customization?.engraving || "";
+  const pricePart = includePrice ? `:${item.unitPrice}` : "";
+  return `product:${prodId}:${item.sku}:${item.quantity}${pricePart}:${selSummary}:${eng}`;
+}
+
+export function isCustomDesignItem(item: any): boolean {
+  if (item.itemType === "product") return false;
+  if (item.itemType === "custom_design") return true;
+  return Boolean(
+    item.studioDesign &&
+      ((Array.isArray(item.studioDesign.beadSequence) && item.studioDesign.beadSequence.length > 0) ||
+        (Array.isArray(item.studioDesign.charms) && item.studioDesign.charms.length > 0) ||
+        (Array.isArray(item.studioDesign.components) && item.studioDesign.components.length > 0))
+  );
+}
+
+export function generateCheckoutFingerprint(
+  userId: string,
+  items: Array<any>,
+  authoritativeTotal: number,
+  shippingAddress: IAddress,
+  paymentMethod: string
+): string {
+  const sortedItems = [...items]
+    .map((item) => {
+      if (isCustomDesignItem(item)) {
+        return serializeCustomDesignForFingerprint(item, true);
+      }
+      return serializeProductForFingerprint(item, true);
+    })
+    .sort()
+    .join(";");
+
+  const normalizedAddress = normalizeAddressForFingerprint(shippingAddress);
+  const raw = `${userId}|${sortedItems}|${authoritativeTotal}|${normalizedAddress}|${paymentMethod}`;
+  return crypto.createHash("sha256").update(raw).digest("hex");
+}
+
+function getCompositionFingerprint(items: Array<any>): string {
+  const sortedItems = [...items]
+    .map((item) => {
+      if (isCustomDesignItem(item)) {
+        return serializeCustomDesignForFingerprint(item, false);
+      }
+      return serializeProductForFingerprint(item, false);
+    })
+    .sort()
+    .join(";");
+  return crypto.createHash("sha256").update(sortedItems).digest("hex");
+}
+
 export async function createOrderFromCart(
   userId: string,
   input: {
@@ -164,18 +279,159 @@ export async function createOrderFromCart(
     notes?: string;
     payment_method: string;
     couponCode?: string;
+    confirmPriceChanges?: boolean;
+    expectedTotal?: number;
+    idempotencyKey?: string;
   }
 ) {
   // Enforce testing access safeguard before processing the order
   await assertTestCommerceAccess(userId);
 
-  const cartItems = await getCartItems(userId);
+  // 1. Fast-path Idempotency Check:
+  // If an order already exists for this authenticated user and idempotencyKey (e.g. cart already cleared by COD)
+  const idempotencyKey = input.idempotencyKey?.trim() || undefined;
+  if (idempotencyKey) {
+    const existingOrder = await Order.findOne({
+      userId: new Types.ObjectId(userId),
+      idempotencyKey,
+    });
+    if (existingOrder) {
+      if (input.payment_method && existingOrder.paymentMethod !== input.payment_method) {
+        throw new AppError(
+          "Idempotency key has already been used for a different payment method. Please start a new checkout attempt.",
+          409
+        );
+      }
+      if (input.shipping_address) {
+        const incomingAddress = parseLegacyAddress(input.shipping_address);
+        if (!isAddressMatching(incomingAddress, existingOrder.shippingAddress)) {
+          throw new AppError(
+            "Idempotency key has already been used for a different shipping destination. Please start a new checkout attempt.",
+            409
+          );
+        }
+      }
+
+      // Check current cart contents:
+      // If the cart has already been cleared (e.g. legitimate retry after completed COD), return existingOrder safely.
+      // If the cart is non-empty, ensure the key is not being reused for a materially different cart.
+      const cart = await getOrCreateCart(userId);
+      const cartItems = cart.items.filter((i) => !i.savedForLater);
+
+      if (cartItems.length > 0) {
+        const currentCartComposition = getCompositionFingerprint(cartItems);
+        const existingOrderComposition = getCompositionFingerprint(existingOrder.items);
+
+        if (currentCartComposition !== existingOrderComposition) {
+          throw new AppError(
+            "Idempotency key has already been used for an order with different items. Please start a new checkout attempt.",
+            409
+          );
+        }
+      }
+
+      return existingOrder;
+    }
+  }
+
+  const cart = await getOrCreateCart(userId);
+  const cartItems = cart.items.filter((i) => !i.savedForLater);
   if (cartItems.length === 0) throw new AppError("Cart is empty", 400);
+
+  // Validate custom design material stock before processing pricing or orders
+  await validateCustomDesignStock(cartItems);
 
   const orderItems = [];
   let subtotal = 0;
 
   for (const item of cartItems) {
+    if (isCustomDesignItem(item)) {
+      if (!item.studioDesign) {
+        throw new AppError(`Custom design "${item.name}" is missing required design specification.`, 400);
+      }
+
+      const skuCounts: Record<string, number> = {};
+      for (const b of item.studioDesign.beadSequence || []) {
+        if (b.variantSku) {
+          skuCounts[b.variantSku] = (skuCounts[b.variantSku] || 0) + 1;
+        }
+      }
+      for (const c of item.studioDesign.charms || []) {
+        if (c.variantSku) {
+          skuCounts[c.variantSku] = (skuCounts[c.variantSku] || 0) + 1;
+        }
+      }
+
+      const components = Object.entries(skuCounts).map(([variantSku, quantity]) => ({
+        variantSku,
+        quantity,
+      }));
+
+      if (components.length === 0) {
+        throw new AppError(`Custom design "${item.name}" has no bead or charm components.`, 400);
+      }
+
+      // Authoritative pricing calculated fresh from active materials & selling rates
+      const quote = await calculateDesignPrice({
+        jewelleryType: item.studioDesign.jewelleryType || "bracelet",
+        constructionType: item.studioDesign.constructionType || "elastic_bead",
+        components,
+      });
+
+      const authoritativeUnitPrice = quote.totalPrice;
+      const storedUnitPrice = Number(item.unitPrice);
+
+      // If price differs from what was stored in the cart, do not silently charge the changed amount
+      if (Math.abs(authoritativeUnitPrice - storedUnitPrice) > 0.01) {
+        // Synchronize cart item with latest authoritative quote
+        item.unitPrice = authoritativeUnitPrice;
+        item.studioDesign.breakdown = {
+          componentsTotal: quote.componentSubtotal,
+          baseMakingCharge: quote.makingCharge.baseFee,
+          customizationCharge: quote.makingCharge.totalMakingFee - quote.makingCharge.baseFee,
+          total: quote.totalPrice,
+        };
+        cart.markModified("items");
+        await cart.save();
+
+        if (!input.confirmPriceChanges) {
+          throw new AppError(
+            `Price for "${item.name}" has updated from ₹${storedUnitPrice.toLocaleString("en-IN")} to ₹${authoritativeUnitPrice.toLocaleString("en-IN")} based on current component rates. Please review and confirm the updated total to place your order.`,
+            409
+          );
+        }
+      }
+
+      const authoritativeStudioDesign = {
+        ...item.studioDesign,
+        breakdown: {
+          componentsTotal: quote.componentSubtotal,
+          baseMakingCharge: quote.makingCharge.baseFee,
+          customizationCharge: quote.makingCharge.totalMakingFee - quote.makingCharge.baseFee,
+          total: quote.totalPrice,
+        },
+      };
+
+      const lineSubtotal = authoritativeUnitPrice * item.quantity;
+      subtotal += lineSubtotal;
+
+      orderItems.push({
+        itemType: "custom_design" as const,
+        sku: item.sku,
+        name: item.name,
+        imageUrl: item.imageUrl,
+        unitPrice: authoritativeUnitPrice,
+        quantity: item.quantity,
+        subtotal: lineSubtotal,
+        studioDesign: authoritativeStudioDesign,
+      });
+      continue;
+    }
+
+    if (!item.productId) {
+      throw new AppError(`Product unavailable: ${item.name}`, 400);
+    }
+
     const product = await Product.findById(item.productId);
     if (!product || !product.isActive) {
       throw new AppError(`Product unavailable: ${item.name}`, 400);
@@ -235,6 +491,18 @@ export async function createOrderFromCart(
     : 0;
   const total = Math.round((taxable + tax + shipping) * 100) / 100;
 
+  // Safeguard against intervening price changes:
+  // If the customer confirmed an updated total, verify that authoritative rates haven't changed again
+  // between the confirmation dialog rendering and order placement.
+  if (input.confirmPriceChanges && input.expectedTotal !== undefined) {
+    if (Math.abs(total - input.expectedTotal) > 0.01) {
+      throw new AppError(
+        `Component rates have updated again. The order total has changed from ₹${input.expectedTotal.toLocaleString("en-IN")} to ₹${total.toLocaleString("en-IN")}. Please review and confirm the updated total before continuing.`,
+        409
+      );
+    }
+  }
+
   const shippingAddress = parseLegacyAddress(input.shipping_address);
   shippingAddress.phone = input.phone_number;
   const billingAddress = parseLegacyAddress(input.billing_address ?? input.shipping_address);
@@ -243,45 +511,127 @@ export async function createOrderFromCart(
   // Enforce Tamil Nadu delivery restriction before creating order
   validateDeliveryEligibility(shippingAddress);
 
-  const order = await Order.create({
-    orderNumber: generateOrderNumber(),
-    userId: new Types.ObjectId(userId),
-    status: "pending",
-    paymentStatus: input.payment_method === "cod" ? "pending" : "pending",
-    items: orderItems,
-    subtotal,
-    discount,
-    tax,
-    shipping,
+  const checkoutFingerprint = generateCheckoutFingerprint(
+    userId,
+    orderItems,
     total,
-    couponCode: coupon?.code,
     shippingAddress,
-    billingAddress,
-    email: input.email,
-    phone: input.phone_number,
-    notes: env.COMMERCE_MODE === "test" ? `[TEST ORDER] ${input.notes || ""}`.trim() : input.notes,
-    paymentMethod: input.payment_method,
-    statusHistory: [{
+    input.payment_method
+  );
+
+  if (!idempotencyKey) {
+    // Secondary safety check for callers without an idempotencyKey:
+    // Match only identical cart/order fingerprints within 15 seconds (prevents double-tap duplicates)
+    const recentDuplicate = await Order.findOne({
+      userId: new Types.ObjectId(userId),
+      checkoutFingerprint,
+      createdAt: { $gte: new Date(Date.now() - 15000) },
+    }).sort({ createdAt: -1 });
+
+    if (recentDuplicate) {
+      return recentDuplicate;
+    }
+  }
+
+  let order;
+  try {
+    order = await Order.create({
+      orderNumber: generateOrderNumber(),
+      userId: new Types.ObjectId(userId),
+      idempotencyKey,
+      checkoutFingerprint,
       status: "pending",
-      note: env.COMMERCE_MODE === "test" ? "Test order placed (non-commercial mode)" : "Order placed",
-      changedAt: new Date()
-    }],
-  });
+      paymentStatus: input.payment_method === "cod" ? "pending" : "pending",
+      items: orderItems,
+      subtotal,
+      discount,
+      tax,
+      shipping,
+      total,
+      couponCode: coupon?.code,
+      shippingAddress,
+      billingAddress,
+      email: input.email,
+      phone: input.phone_number,
+      notes: env.COMMERCE_MODE === "test" ? `[TEST ORDER] ${input.notes || ""}`.trim() : input.notes,
+      paymentMethod: input.payment_method,
+      statusHistory: [{
+        status: "pending",
+        note: env.COMMERCE_MODE === "test" ? "Test order placed (non-commercial mode)" : "Order placed",
+        changedAt: new Date()
+      }],
+    });
+  } catch (err: any) {
+    // Concurrent request race resolution: if another request already inserted with this idempotencyKey
+    if (err?.code === 11000 && idempotencyKey) {
+      const existing = await Order.findOne({
+        userId: new Types.ObjectId(userId),
+        idempotencyKey,
+      });
+      if (existing) {
+        if (existing.checkoutFingerprint && existing.checkoutFingerprint !== checkoutFingerprint) {
+          throw new AppError(
+            "Idempotency key has already been used for a different checkout request. Please start a new checkout attempt.",
+            409
+          );
+        }
+        return existing;
+      }
+    }
+    throw err;
+  }
+
+  // Atomically reserve custom design component stock (or commit immediately for COD)
+  try {
+    const studioReservation = await reserveStudioStockForOrder({
+      orderId: order._id as Types.ObjectId,
+      orderNumber: order.orderNumber,
+      userId: order.userId as Types.ObjectId,
+      cartItems,
+      paymentMethod: input.payment_method,
+    });
+    if (studioReservation) {
+      order.studioReservationId = studioReservation._id as Types.ObjectId;
+      order.studioReservationStatus = studioReservation.status;
+      await order.save();
+    }
+  } catch (reservationErr) {
+    // If stock reservation fails, remove the newly inserted pending order
+    // to prevent orphaned, unpayable orders in the database.
+    await Order.deleteOne({ _id: order._id });
+    throw reservationErr;
+  }
 
   if (input.payment_method === "cod") {
-    await deductStockForOrder(
-      orderItems.map((i) => ({ productId: i.productId.toString(), quantity: i.quantity })),
-      order.id,
-      userId
-    );
-    order.status = "processing";
-    order.statusHistory.push({ status: "processing", note: "COD order confirmed", changedAt: new Date() });
-    await order.save();
-    if (coupon) {
-      coupon.usedCount += 1;
-      await coupon.save();
+    try {
+      const regularItems = orderItems
+        .filter((i) => i.productId && i.itemType !== "custom_design")
+        .map((i) => ({ productId: i.productId!.toString(), quantity: i.quantity }));
+      if (regularItems.length > 0) {
+        await deductStockForOrder(
+          regularItems,
+          order.id,
+          userId
+        );
+        order.deductedItemIds = orderItems
+          .filter((i) => i.productId && i.itemType !== "custom_design")
+          .map((i: any) => (i._id ? i._id.toString() : i.productId!.toString()));
+      }
+      order.status = "processing";
+      order.statusHistory.push({ status: "processing", note: "COD order confirmed", changedAt: new Date() });
+      await order.save();
+      if (coupon) {
+        coupon.usedCount += 1;
+        await coupon.save();
+      }
+      await clearCart(userId);
+    } catch (codErr) {
+      if (order.studioReservationId) {
+        await restockStudioReservation(order._id, "COD placement failed rollback");
+      }
+      await Order.deleteOne({ _id: order._id });
+      throw codErr;
     }
-    await clearCart(userId);
   }
 
   return order;
@@ -314,6 +664,34 @@ export async function cancelOrder(userId: string, orderId: string) {
   }
   order.status = "cancelled";
   order.statusHistory.push({ status: "cancelled", changedAt: new Date() });
+
+  // Idempotently restock custom design components
+  await restockStudioReservation(order._id, "Customer cancelled order");
+
+  // Restore regular product inventory if deducted
+  if (order.deductedItemIds && order.deductedItemIds.length > 0) {
+    const regularItems = order.items
+      .filter((i) => i.productId && i.itemType !== "custom_design")
+      .map((i) => ({ productId: i.productId!.toString(), quantity: i.quantity }));
+    if (regularItems.length > 0) {
+      for (const item of regularItems) {
+        try {
+          await adjustStock({
+            productId: item.productId,
+            quantityChange: item.quantity,
+            action: "release",
+            reason: "Order cancelled - stock returned",
+            orderId: order.id,
+            performedBy: userId,
+          });
+        } catch (restockErr) {
+          console.error(`[cancelOrder] Product restock error:`, restockErr);
+        }
+      }
+      order.deductedItemIds = [];
+    }
+  }
+
   await order.save();
   return order;
 }
@@ -326,6 +704,7 @@ export async function updateOrderStatus(
 ) {
   const order = await Order.findById(orderId);
   if (!order) throw new AppError("Order not found", 404);
+  const oldStatus = order.status;
   order.status = status;
   if (trackingNumber) order.trackingNumber = trackingNumber;
   order.statusHistory.push({
@@ -334,6 +713,34 @@ export async function updateOrderStatus(
     changedBy: adminId ? new Types.ObjectId(adminId) : undefined,
     note: trackingNumber ? `Tracking: ${trackingNumber}` : undefined,
   });
+
+  // If transitioning to cancelled, restock inventory
+  if (status === "cancelled" && oldStatus !== "cancelled") {
+    await restockStudioReservation(order._id, "Admin cancelled order");
+    if (order.deductedItemIds && order.deductedItemIds.length > 0) {
+      const regularItems = order.items
+        .filter((i) => i.productId && i.itemType !== "custom_design")
+        .map((i) => ({ productId: i.productId!.toString(), quantity: i.quantity }));
+      if (regularItems.length > 0) {
+        for (const item of regularItems) {
+          try {
+            await adjustStock({
+              productId: item.productId,
+              quantityChange: item.quantity,
+              action: "release",
+              reason: "Order cancelled by admin - stock returned",
+              orderId: order.id,
+              performedBy: adminId,
+            });
+          } catch (restockErr) {
+            console.error(`[updateOrderStatus] Product restock error:`, restockErr);
+          }
+        }
+        order.deductedItemIds = [];
+      }
+    }
+  }
+
   await order.save();
   return order;
 }
@@ -354,15 +761,24 @@ export function toLegacyOrder(order: Record<string, unknown>) {
     updated_at: order.updatedAt,
     payment_method: order.paymentMethod,
     transaction_id: order.razorpayPaymentId,
-    items: (order.items as Record<string, unknown>[])?.map((item) => ({
-      id: item._id,
-      product_type: String(item.sku).startsWith("BRC") ? "bracelet" : "chain",
-      product_id: item.productId,
-      product_name: item.name,
-      price: item.unitPrice,
-      quantity: item.quantity,
-      subtotal: item.subtotal,
-    })),
+    items: (order.items as Record<string, unknown>[])?.map((item) => {
+      const isCustomDesign = (item as any).itemType === "custom_design" || !!(item as any).studioDesign;
+      const productType = isCustomDesign
+        ? ((item as any).studioDesign?.jewelleryType ?? "bracelet")
+        : (String(item.sku || "").startsWith("BRC") ? "bracelet" : "chain");
+      return {
+        id: item._id,
+        itemType: isCustomDesign ? "custom_design" : "product",
+        product_type: productType,
+        product_id: item.productId ? (item.productId as any).toString() : undefined,
+        productId: item.productId ? (item.productId as any).toString() : undefined,
+        product_name: item.name,
+        price: item.unitPrice,
+        quantity: item.quantity,
+        subtotal: item.subtotal,
+        studioDesign: (item as any).studioDesign,
+      };
+    }),
   };
 }
 

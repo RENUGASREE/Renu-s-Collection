@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Sun, Moon, Menu, ShoppingBag, Heart, Package, User, LogOut, LogIn, UserPlus, Info, Phone, Home } from "lucide-react";
+import { Sun, Moon, Menu, ShoppingBag, Heart, Package, User, LogOut, LogIn, UserPlus, Info, Phone, Home, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTheme } from "../contexts/ThemeContext";
@@ -48,6 +48,7 @@ export default function Navbar() {
   const baseNavItems = [
     { label: "Home", path: "/", icon: Home },
     { label: "Products", path: "/products", icon: ShoppingBag },
+    { label: "Create Your Own", path: "/create-your-own", icon: Sparkles },
     { label: "Wishlist", path: "/wishlist", icon: Heart },
     { label: "Orders", path: "/orders", icon: Package },
     { label: "About", path: "/about", icon: Info },
@@ -57,6 +58,7 @@ export default function Navbar() {
 
   const authNavItems = user
     ? [
+        { label: "My Designs", path: "/my-designs", icon: Sparkles },
         { label: `Account (${user.username})`, path: "/account", icon: User },
         { label: "Logout", onClick: logout, path: "#", icon: LogOut },
       ]

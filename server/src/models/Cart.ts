@@ -12,14 +12,48 @@ export interface ICartItemCustomization {
   }[];
 }
 
+export interface IStudioDesignSnapshot {
+  savedDesignId?: Types.ObjectId | string;
+  name?: string;
+  jewelleryType: string;
+  constructionType: string;
+  wristMm: number;
+  beadSequence: Array<{
+    materialId: string;
+    variantSku: string;
+    displayName: string;
+    diameterMm: number;
+    imageUrl: string;
+    unitPrice?: number;
+  }>;
+  charms: Array<{
+    instanceId: string;
+    anchorInstanceId: string;
+    materialId: string;
+    variantSku: string;
+    displayName: string;
+    imageUrl: string;
+    unitPrice?: number;
+  }>;
+  breakdown?: {
+    componentsTotal: number;
+    baseMakingCharge: number;
+    customizationCharge: number;
+    giftBoxPrice?: number;
+    total: number;
+  };
+}
+
 export interface ICartItem {
-  productId: Types.ObjectId;
+  itemType?: "product" | "custom_design";
+  productId?: Types.ObjectId;
   sku: string;
   name: string;
   imageUrl?: string;
   unitPrice: number;
   quantity: number;
   customization?: ICartItemCustomization;
+  studioDesign?: IStudioDesignSnapshot;
   savedForLater: boolean;
 }
 
@@ -34,7 +68,8 @@ export interface ICart extends Document {
 
 const cartItemSchema = new Schema<ICartItem>(
   {
-    productId: { type: Schema.Types.ObjectId, ref: "Product", required: true },
+    itemType: { type: String, enum: ["product", "custom_design"], default: "product" },
+    productId: { type: Schema.Types.ObjectId, ref: "Product", required: false },
     sku: { type: String, required: true },
     name: { type: String, required: true },
     imageUrl: String,
@@ -47,6 +82,22 @@ const cartItemSchema = new Schema<ICartItem>(
       engraving: String,
       breakdown: { type: Schema.Types.Mixed, default: [] },
     },
+    studioDesign: {
+      type: new Schema(
+        {
+          savedDesignId: { type: Schema.Types.ObjectId, ref: "SavedDesign" },
+          name: String,
+          jewelleryType: { type: String, default: "bracelet" },
+          constructionType: { type: String, default: "elastic_bead" },
+          wristMm: Number,
+          beadSequence: { type: Schema.Types.Mixed, default: [] },
+          charms: { type: Schema.Types.Mixed, default: [] },
+          breakdown: { type: Schema.Types.Mixed },
+        },
+        { _id: false }
+      ),
+      default: undefined,
+    },
     savedForLater: { type: Boolean, default: false },
   },
   { _id: true }
@@ -54,8 +105,8 @@ const cartItemSchema = new Schema<ICartItem>(
 
 const cartSchema = new Schema<ICart>(
   {
-    userId: { type: Schema.Types.ObjectId, ref: "User", default: null, sparse: true },
-    sessionId: { type: String, default: null, sparse: true },
+    userId: { type: Schema.Types.ObjectId, ref: "User", default: null },
+    sessionId: { type: String, default: null },
     items: { type: [cartItemSchema], default: [] },
     couponCode: String,
   },

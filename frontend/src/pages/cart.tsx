@@ -39,6 +39,14 @@ interface CartItem {
   priceModifier: number;
   quantity: number;
   image: string; // normalized client-side from image_url/imageUrl
+  itemType?: "product" | "custom_design";
+  studioDesign?: {
+    jewelleryType: string;
+    wristMm: number;
+    beadSequence?: any[];
+    charms?: any[];
+    breakdown?: any;
+  };
   customization?: {
     selections?: Record<string, any>;
     priceModifier?: number;
@@ -74,6 +82,8 @@ export default function Cart() {
           price: basePrice + priceModifier,
           quantity: Number(item.quantity ?? 1),
           image: item.imageUrl || item.image_url || item.image || '',
+          itemType: item.itemType || (item.studioDesign ? "custom_design" : "product"),
+          studioDesign: item.studioDesign,
           customization: item.customization,
         };
       });
@@ -294,15 +304,42 @@ export default function Cart() {
                         {/* Product Details */}
                         <div className="flex-1 min-w-0 w-full">
                           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1">
-                            <h2 className="font-playfair font-semibold text-base sm:text-lg text-[#342824] dark:text-foreground leading-snug">
-                              {item.name}
-                            </h2>
+                            <div>
+                              <h2 className="font-playfair font-semibold text-base sm:text-lg text-[#342824] dark:text-foreground leading-snug">
+                                {item.name}
+                              </h2>
+                              {item.studioDesign && (
+                                <Badge 
+                                  variant="outline" 
+                                  className="mt-1 text-[10px] uppercase font-semibold border-[#B66F72]/30 text-[#B66F72] dark:text-primary bg-[#B66F72]/5"
+                                >
+                                  Custom Studio Creation · {item.studioDesign.wristMm / 10} cm
+                                </Badge>
+                              )}
+                            </div>
                             <div className="text-left sm:text-right shrink-0">
                               <span className="text-base sm:text-lg font-semibold text-[#342824] dark:text-foreground">
                                 ₹{item.price.toLocaleString('en-IN')}
                               </span>
                             </div>
                           </div>
+
+                          {/* Studio Design Breakdown */}
+                          {item.studioDesign && (
+                            <div className="mt-2.5 text-xs bg-[#FBF7F3] dark:bg-muted/30 p-2.5 sm:p-3 rounded-lg border border-[#E6D8D0]/70 dark:border-border/50 max-w-lg space-y-1">
+                              <div className="flex items-center gap-1.5 font-medium text-[#756861] dark:text-muted-foreground uppercase text-[10px] tracking-wider">
+                                <Sparkles className="w-3 h-3 text-[#B66F72]" />
+                                <span>Bespoke Component Arrangement</span>
+                              </div>
+                              <div className="flex justify-between items-center text-[#342824] dark:text-foreground">
+                                <span>Sequence Composition:</span>
+                                <span className="font-medium text-[#756861] dark:text-muted-foreground">
+                                  {item.studioDesign.beadSequence?.length || 0} beads
+                                  {item.studioDesign.charms?.length ? ` · ${item.studioDesign.charms.length} charm(s)` : ''}
+                                </span>
+                              </div>
+                            </div>
+                          )}
 
                           {/* Price modifier breakdown if customized */}
                           {item.priceModifier > 0 && (

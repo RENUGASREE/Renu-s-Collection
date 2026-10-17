@@ -12,6 +12,7 @@ import paymentRoutes from "./payment.routes.js";
 import webhookRoutes from "./webhook.routes.js";
 import orderRoutes from "./order.routes.js";
 import reviewRoutes from "./review.routes.js";
+import studioRoutes from "./studio.routes.js";
 import { sanitizeRequest } from "../middleware/validate.js";
 
 const router = Router();
@@ -32,5 +33,6 @@ router.use("/payments", paymentRoutes);
 router.use("/webhooks", webhookRoutes);
 router.use("/orders", orderRoutes);
 router.use("/reviews", reviewRoutes);
+router.use("/studio", studioRoutes);
 
 export default router;

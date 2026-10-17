@@ -30,6 +30,10 @@ import AdminInventory from "./pages/admin-inventory";
 import AdminCustomization from "./pages/admin-customization";
 import AdminOrders from "./pages/admin-orders";
 import AdminReviews from "./pages/admin-reviews";
+import CreateYourOwnLanding from "./pages/create-your-own";
+import BraceletDesigner from "./pages/bracelet-designer";
+import MyDesignsPage from "./pages/my-designs";
+import AdminStudio from "./pages/admin-studio";
 import { FloatingParticles, PageTransition } from "@/components/visual-effects";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import Navbar from "./components/navbar";
@@ -278,6 +282,24 @@ function App() {
                   element={
                     <ProtectedRoute adminOnly>
                       <AdminReviews />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route path="/create-your-own" element={<CreateYourOwnLanding />} />
+                <Route path="/create-your-own/bracelet" element={<BraceletDesigner />} />
+                <Route
+                  path="/my-designs"
+                  element={
+                    <ProtectedRoute>
+                      <MyDesignsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/studio"
+                  element={
+                    <ProtectedRoute adminOnly>
+                      <AdminStudio />
                     </ProtectedRoute>
                   }
                 />

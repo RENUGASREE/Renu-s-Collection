@@ -32,6 +32,9 @@ const envSchema = z.object({
   ADMIN_SEED_PASSWORD: z.string().min(8).default("Admin@12345"),
   TEST_COMMERCE_ALLOWED_EMAILS: z.string().optional(),
   COOKIE_DOMAIN: z.string().optional(),
+  GEMINI_API_KEY: z.string().optional(),
+  GEMINI_MODEL: z.string().default("gemini-2.5-flash"),
+  STUDIO_RESERVATION_TIMEOUT_MINUTES: z.coerce.number().default(30),
 });
 
 const parsed = envSchema.safeParse(process.env);

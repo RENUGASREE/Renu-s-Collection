@@ -4,6 +4,7 @@ import { env } from "../config/env.js";
 import { Order } from "../models/Order.js";
 import { AppError } from "../middleware/errorHandler.js";
 import { adjustStock } from "./inventory.service.js";
+import { commitStudioReservation, releaseStudioReservation } from "./studio-inventory.service.js";
 import { clearCart } from "./cart.service.js";
 import { Coupon } from "../models/Coupon.js";
 import { validateDeliveryEligibility } from "./order.service.js";
@@ -277,6 +278,11 @@ async function runFulfillment(
         continue;
       }
 
+      // Skip custom studio design items (component stock managed via studio)
+      if (!item.productId || item.itemType === "custom_design") {
+        continue;
+      }
+
       try {
         await adjustStock({
           productId: item.productId.toString(),
@@ -300,6 +306,18 @@ async function runFulfillment(
         errors.push(msg);
         // Continue to attempt remaining items — do not abort the whole loop.
       }
+    }
+
+    // --- Step 1b: Commit Studio Reservation (Custom Jewelry Components) ---
+    try {
+      const commitRes = await commitStudioReservation((order as any)._id);
+      if (!commitRes.success && commitRes.status === "reconciliation_required") {
+        errors.push(commitRes.message);
+      }
+    } catch (err: any) {
+      const msg = `Studio reservation commit error: ${err?.message}`;
+      console.error(`[fulfillment] order ${(order as any).id} — ${msg}`);
+      errors.push(msg);
     }
   }
 
@@ -382,6 +400,14 @@ export async function recordPaymentFailure(userId: string, orderId: string, reas
   order.paymentStatus = "failed";
   if (reason) order.notes = `${order.notes ?? ""}\nPayment failed: ${reason}`.trim();
   await order.save();
+
+  // Release any reserved studio components back to catalogue
+  try {
+    await releaseStudioReservation(orderId, reason || "Payment failed / dismissed");
+  } catch (err) {
+    console.error(`[recordPaymentFailure] Studio release error:`, err);
+  }
+
   return { success: true };
 }
 

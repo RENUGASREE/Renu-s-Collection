@@ -93,7 +93,7 @@ export async function addCartItem(
 
   // Check for existing item with same product and same customization
   const existing = cart.items.find((i) => {
-    if (!i.productId.equals(productObjectId!) || i.savedForLater) return false;
+    if (!i.productId || !i.productId.equals(productObjectId!) || i.savedForLater) return false;
     
     // If neither has customization, they can be merged
     if (!i.customization && !input.customization) return true;
@@ -160,12 +160,46 @@ export async function clearCart(userId: string) {
   await cart.save();
 }
 
+export async function addStudioDesignToCart(
+  userId: string,
+  input: {
+    name: string;
+    unitPrice: number;
+    quantity?: number;
+    imageUrl?: string;
+    studioDesign: ICartItem["studioDesign"];
+  }
+) {
+  const cart = await getOrCreateCart(userId);
+  const qty = input.quantity && input.quantity > 0 ? input.quantity : 1;
+
+  const newItem: ICartItem = {
+    itemType: "custom_design",
+    sku: `STUDIO-${(input.studioDesign?.jewelleryType || "BRACELET").toUpperCase()}-${Date.now().toString().slice(-4)}`,
+    name: input.name || "Custom Studio Design",
+    imageUrl: input.imageUrl,
+    unitPrice: input.unitPrice,
+    quantity: qty,
+    studioDesign: input.studioDesign,
+    savedForLater: false,
+  };
+
+  cart.items.push(newItem);
+  await cart.save();
+  return cart.items.filter((i) => !i.savedForLater);
+}
+
 export function toLegacyCartItem(item: ICartItem & { _id?: Types.ObjectId }, index: number) {
   const id = item._id?.toString() ?? String(index);
-  const productType = item.sku.startsWith("BRC") ? "bracelet" : "chain";
+  const isCustomDesign = item.itemType === "custom_design" || !!item.studioDesign;
+  const productType = isCustomDesign
+    ? (item.studioDesign?.jewelleryType ?? "bracelet")
+    : (item.sku.startsWith("BRC") ? "bracelet" : "chain");
   return {
     id,
-    product_id: item.productId.toString(),
+    itemType: isCustomDesign ? "custom_design" : "product",
+    product_id: item.productId ? item.productId.toString() : undefined,
+    productId: item.productId ? item.productId.toString() : undefined,
     product_type: productType,
     name: item.name,
     price: item.unitPrice + (item.customization?.priceModifier ?? 0),
@@ -173,9 +207,11 @@ export function toLegacyCartItem(item: ICartItem & { _id?: Types.ObjectId }, ind
     image_url: item.imageUrl,
     imageUrl: item.imageUrl,
     customization: item.customization,
+    studioDesign: item.studioDesign,
     product: {
       name: item.name,
       image: item.imageUrl,
     },
   };
 }
+

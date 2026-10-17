@@ -9,7 +9,8 @@ import {
   Sliders, 
   Star, 
   ChevronRight,
-  ExternalLink
+  ExternalLink,
+  Sparkles
 } from "lucide-react";
 
 interface AdminNavProps {
@@ -29,6 +30,7 @@ export const AdminNav: React.FC<AdminNavProps> = ({ currentPath, className = "" 
     { href: "/admin/orders", label: "Orders", icon: ShoppingBag },
     { href: "/admin/customization", label: "Customization", icon: Sliders },
     { href: "/admin/reviews", label: "Reviews", icon: Star },
+    { href: "/admin/studio", label: "Create Your Own", icon: Sparkles },
   ];
 
   const isCurrent = (href: string, exact?: boolean) => {

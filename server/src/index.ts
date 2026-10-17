@@ -3,6 +3,7 @@ import { connectDatabase } from "./db/connection.js";
 import { env } from "./config/env.js";
 import { User } from "./models/User.js";
 import { hashPassword } from "./utils/password.js";
+import { initStudioDefaults } from "./services/studio.service.js";
 
 async function seedAdminUser() {
   try {
@@ -37,6 +38,9 @@ async function bootstrap() {
   
   // Seed admin user on startup
   await seedAdminUser();
+
+  // Initialize Create Your Own studio defaults safely and idempotently
+  await initStudioDefaults();
 
   const app = createApp();
 

@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { env } from "../config/env.js";
 import { Order } from "../models/Order.js";
 import { deductStockForOrder } from "../services/inventory.service.js";
+import { commitStudioReservation, releaseStudioReservation } from "../services/studio-inventory.service.js";
 import { clearCart } from "../services/cart.service.js";
 import { Coupon } from "../models/Coupon.js";
 
@@ -63,39 +64,46 @@ async function handlePaymentCaptured(payment: any) {
   const razorpayOrderId = payment.order_id;
   const razorpayPaymentId = payment.id;
 
-  // Find order by Razorpay order ID
-  const order = await Order.findOne({ razorpayOrderId: razorpayOrderId });
-  
-  if (!order) {
-    console.error(`Order not found for Razorpay order ID: ${razorpayOrderId}`);
-    return;
-  }
-
-  // Prevent duplicate processing
-  if (order.paymentStatus === "paid") {
-    console.log(`Order ${order.orderNumber} already processed, skipping`);
-    return;
-  }
-
-  // Update order
-  order.paymentStatus = "paid";
-  order.status = "processing";
-  order.razorpayPaymentId = razorpayPaymentId;
-  order.razorpaySignature = payment.razorpay_signature;
-  order.statusHistory.push({
-    status: "processing",
-    note: "Payment confirmed via Razorpay webhook",
-    changedAt: new Date(),
-  });
-
-  await order.save();
-
-  // Deduct stock
-  await deductStockForOrder(
-    order.items.map((i) => ({ productId: i.productId.toString(), quantity: i.quantity })),
-    order.id,
-    order.userId.toString()
+  // Atomic transition: only ONE concurrent caller (webhook or browser verification) wins
+  const order = await Order.findOneAndUpdate(
+    { razorpayOrderId, paymentStatus: { $ne: "paid" } },
+    {
+      $set: {
+        paymentStatus: "paid",
+        status: "processing",
+        razorpayPaymentId,
+        razorpaySignature: payment.razorpay_signature,
+      },
+      $push: {
+        statusHistory: {
+          status: "processing",
+          note: "Payment confirmed via Razorpay webhook",
+          changedAt: new Date(),
+        },
+      },
+    },
+    { new: true }
   );
+
+  if (!order) {
+    console.log(`Order with Razorpay order ID ${razorpayOrderId} already paid or not found, skipping webhook processing`);
+    return;
+  }
+
+  // Deduct stock for standard products
+  const productItems = order.items
+    .filter((i) => i.productId && (i as any).itemType !== "custom_design")
+    .map((i) => ({ productId: i.productId!.toString(), quantity: i.quantity }));
+  if (productItems.length > 0) {
+    await deductStockForOrder(
+      productItems,
+      order.id,
+      order.userId.toString()
+    );
+  }
+
+  // Commit studio reservation for custom jewelry components
+  await commitStudioReservation(order._id);
 
   // Update coupon usage if applicable
   if (order.couponCode) {
@@ -129,6 +137,10 @@ async function handlePaymentFailed(payment: any) {
   });
 
   await order.save();
+
+  // Release any reserved studio components back to catalogue
+  await releaseStudioReservation(order._id, `Webhook payment failure: ${errorDescription}`);
+
   console.log(`Payment failed for order ${order.orderNumber}: ${errorDescription}`);
 }
 

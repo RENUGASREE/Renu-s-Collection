@@ -32,7 +32,23 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
       notes,
       paymentMethod,
       couponCode,
+      confirmPriceChanges,
+      expectedTotal,
+      idempotencyKey,
     } = req.body;
+
+    const resolvedIdempotencyKey =
+      (typeof idempotencyKey === "string" && idempotencyKey.trim()) ||
+      (typeof req.headers["idempotency-key"] === "string" && req.headers["idempotency-key"].trim()) ||
+      (typeof req.headers["x-idempotency-key"] === "string" && req.headers["x-idempotency-key"].trim()) ||
+      undefined;
+
+    if (!resolvedIdempotencyKey) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required idempotency key. Please provide an idempotency key (idempotencyKey in body or Idempotency-Key header) to ensure safe order placement.",
+      });
+    }
 
     if (!shippingAddress || !email || !phone) {
       return res.status(400).json({
@@ -49,6 +65,9 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
       notes,
       payment_method: paymentMethod || "razorpay",
       couponCode,
+      confirmPriceChanges: Boolean(confirmPriceChanges),
+      expectedTotal: typeof expectedTotal === "number" ? expectedTotal : (expectedTotal ? Number(expectedTotal) : undefined),
+      idempotencyKey: resolvedIdempotencyKey,
     });
 
     return res.json({ success: true, data: order });
