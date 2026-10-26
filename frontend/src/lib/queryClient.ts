@@ -42,7 +42,7 @@ async function throwIfResNotOk(res: Response) {
 // Refresh queue to prevent multiple simultaneous refresh requests
 let refreshPromise: Promise<boolean> | null = null;
 
-async function refreshAccessToken(): Promise<boolean> {
+export async function refreshAccessToken(): Promise<boolean> {
   // If a refresh is already in progress, wait for it
   if (refreshPromise) {
     return refreshPromise;
@@ -54,13 +54,30 @@ async function refreshAccessToken(): Promise<boolean> {
         method: 'POST',
         credentials: 'include',
       });
-      if (!response.ok) return false;
+      if (!response.ok) {
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('authUser');
+        window.dispatchEvent(
+          new CustomEvent('auth:session_restored', { detail: { token: null, user: null } })
+        );
+        return false;
+      }
       const json = await response.json();
       if (json.success && json.data?.accessToken && json.data?.user) {
         localStorage.setItem('authToken', json.data.accessToken);
         localStorage.setItem('authUser', JSON.stringify(json.data.user));
+        window.dispatchEvent(
+          new CustomEvent('auth:session_restored', {
+            detail: { token: json.data.accessToken, user: json.data.user },
+          })
+        );
         return true;
       }
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('authUser');
+      window.dispatchEvent(
+        new CustomEvent('auth:session_restored', { detail: { token: null, user: null } })
+      );
       return false;
     } catch {
       return false;
@@ -78,6 +95,11 @@ export async function apiRequest(
   data?: unknown | undefined,
 ): Promise<Response> {
   const fullUrl = `${API_BASE_URL}${url}`;
+
+  // If a token refresh is currently in progress, wait for it before proceeding
+  if (refreshPromise && !url.includes('/api/v1/auth/')) {
+    await refreshPromise;
+  }
 
   const getHeaders = (token?: string | null): HeadersInit => {
     const headers: HeadersInit = {
@@ -111,18 +133,13 @@ export async function apiRequest(
   let token = localStorage.getItem('authToken');
   let res = await makeRequest(token);
 
-  // If 401, try to refresh token and retry once
-  if (res.status === 401 && token) {
+  // If 401 and not an auth endpoint, try to refresh token and retry once
+  if (res.status === 401 && !url.includes('/api/v1/auth/')) {
     const refreshed = await refreshAccessToken();
     if (refreshed) {
       token = localStorage.getItem('authToken');
       res = await makeRequest(token);
     } else {
-      // Refresh failed, clear auth state
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('authUser');
-      // Redirect to login on next navigation
-      window.location.href = '/login';
       throw new Error('Session expired. Please login again.');
     }
   }
@@ -137,6 +154,12 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
+    const path = queryKey.join("/");
+    // If a token refresh is in progress, wait for it before proceeding
+    if (refreshPromise && !path.includes("auth/")) {
+      await refreshPromise;
+    }
+
     let token = localStorage.getItem('authToken');
     const getHeaders = (tok?: string | null): HeadersInit => {
       const headers: HeadersInit = {
@@ -149,7 +172,7 @@ export const getQueryFn: <T>(options: {
     };
 
     const makeRequest = async (tok?: string | null): Promise<Response> => {
-      return fetch(`${API_BASE_URL}${queryKey.join("/")}`, {
+      return fetch(`${API_BASE_URL}${path}`, {
         headers: getHeaders(tok),
         credentials: "include",
       });
@@ -157,16 +180,13 @@ export const getQueryFn: <T>(options: {
 
     let res = await makeRequest(token);
 
-    // If 401, try to refresh token and retry once
-    if (res.status === 401 && token) {
+    // If 401 and not an auth endpoint, try to refresh token and retry once
+    if (res.status === 401 && !path.includes("auth/")) {
       const refreshed = await refreshAccessToken();
       if (refreshed) {
         token = localStorage.getItem('authToken');
         res = await makeRequest(token);
       } else {
-        // Refresh failed, clear auth state
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('authUser');
         if (unauthorizedBehavior === "returnNull") {
           return null;
         }

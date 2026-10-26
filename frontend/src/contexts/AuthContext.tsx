@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { API_BASE_URL } from '@/lib/queryClient';
+import { API_BASE_URL, refreshAccessToken } from '@/lib/queryClient';
 
 export interface AuthUser {
   id: string;
@@ -15,6 +15,19 @@ interface AuthContextType {
   login: (token: string, user: AuthUser) => void;
   logout: () => Promise<void>;
   refreshSession: () => Promise<boolean>;
+}
+
+function isTokenExpired(tokenString: string | null): boolean {
+  if (!tokenString) return true;
+  try {
+    const parts = tokenString.split('.');
+    if (parts.length !== 3) return true;
+    const payload = JSON.parse(atob(parts[1]));
+    // Expired or expiring within 60 seconds
+    return typeof payload.exp === 'number' && payload.exp * 1000 <= Date.now() + 60000;
+  } catch {
+    return true;
+  }
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -37,6 +50,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   });
   const [isLoading, setIsLoading] = useState(true);
 
+  // Sync React state across components when token is refreshed by queryClient
+  useEffect(() => {
+    const handleSessionRestored = (e: any) => {
+      const { token: newToken, user: newUser } = e.detail || {};
+      if (newToken && newUser) {
+        setToken(newToken);
+        setUser(newUser);
+      } else {
+        setToken(null);
+        setUser(null);
+      }
+    };
+
+    window.addEventListener('auth:session_restored', handleSessionRestored as any);
+    return () => {
+      window.removeEventListener('auth:session_restored', handleSessionRestored as any);
+    };
+  }, []);
+
   const persistAuth = (newToken: string, newUser: AuthUser) => {
     setToken(newToken);
     setUser(newUser);
@@ -49,21 +81,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const refreshSession = useCallback(async (): Promise<boolean> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-      if (!response.ok) return false;
-      const json = await response.json();
-      if (json.success && json.data?.accessToken && json.data?.user) {
-        persistAuth(json.data.accessToken, json.data.user);
-        return true;
-      }
-      return false;
-    } catch {
-      return false;
-    }
+    return refreshAccessToken();
   }, []);
 
   const logout = async () => {
@@ -80,22 +98,47 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setUser(null);
     localStorage.removeItem('authToken');
     localStorage.removeItem('authUser');
+    window.dispatchEvent(
+      new CustomEvent('auth:session_restored', { detail: { token: null, user: null } })
+    );
   };
 
   useEffect(() => {
+    let mounted = true;
+
     const init = async () => {
-      if (token && user) {
-        setIsLoading(false);
+      const currentToken = localStorage.getItem('authToken');
+      const currentUser = localStorage.getItem('authUser');
+
+      // 1. If we have a fresh, unexpired access token and user, proceed immediately
+      if (currentToken && currentUser && !isTokenExpired(currentToken)) {
+        if (mounted) setIsLoading(false);
         return;
       }
-      // Only attempt refresh if we have a token but no user (partial session)
-      if (token && !user) {
-        await refreshSession();
+
+      // 2. Otherwise (token missing or expired), attempt silent refresh from HTTP-only cookie
+      try {
+        const refreshed = await refreshAccessToken();
+        if (!refreshed && mounted) {
+          // Cookie missing or expired: clear any stale storage
+          setToken(null);
+          setUser(null);
+          localStorage.removeItem('authToken');
+          localStorage.removeItem('authUser');
+        }
+      } catch {
+        // Network error during startup, preserve current state
+      } finally {
+        if (mounted) setIsLoading(false);
       }
-      setIsLoading(false);
     };
+
     init();
-  }, [refreshSession, token, user]);
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   return (
     <AuthContext.Provider value={{ user, token, isLoading, login, logout, refreshSession }}>

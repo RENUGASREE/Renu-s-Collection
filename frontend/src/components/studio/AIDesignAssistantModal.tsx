@@ -29,6 +29,7 @@ import {
   type AIDesignSuggestion,
   type AIDesignPromptInput,
 } from "@/lib/studio/studioApi";
+import { getBeadAppearance } from "@/lib/studio/appearance";
 
 interface AIDesignAssistantModalProps {
   open: boolean;
@@ -404,26 +405,42 @@ export function AIDesignAssistantModal({
                       <div className="flex items-center gap-1 p-2 rounded-xl bg-[#F8F4F0] dark:bg-muted/40 border border-[#E6D8D0]/40 overflow-x-auto py-3">
                         {sug.beadSequence.map((b, bIdx) => {
                           const isCharmAnchor = sug.charms.some((c) => c.anchorIndex === bIdx);
-                          const colorMap: Record<string, string> = {
-                            pink: "bg-pink-300",
-                            purple: "bg-purple-400",
-                            black: "bg-zinc-800",
-                            brown: "bg-amber-700",
-                            blue: "bg-cyan-500",
-                            white: "bg-slate-100 border border-slate-300",
-                            silver: "bg-slate-300",
-                            gold: "bg-amber-400",
-                            clear: "bg-sky-100 border border-sky-300",
-                          };
-                          const colorKey = (b.color || "").toLowerCase();
-                          const beadColorClass = colorMap[colorKey] || "bg-rose-400";
+                          const appearance = getBeadAppearance(b);
+                          const diameterPx = Math.max(14, Math.min(24, Math.round((b.diameterMm || 8) * 1.8)));
 
                           return (
-                            <div key={bIdx} className="relative flex flex-col items-center shrink-0" title={`${b.displayName} (${b.diameterMm}mm)`}>
+                            <div
+                              key={bIdx}
+                              className="relative flex flex-col items-center shrink-0"
+                              title={`${b.displayName} (${b.diameterMm}mm)`}
+                            >
                               <div
-                                className={`w-4 h-4 rounded-full shadow-inner ${beadColorClass}`}
-                                style={{ width: `${Math.max(12, b.diameterMm * 1.8)}px`, height: `${Math.max(12, b.diameterMm * 1.8)}px` }}
-                              />
+                                className="rounded-full overflow-hidden shadow-inner flex items-center justify-center relative border border-black/10 dark:border-white/15"
+                                style={{
+                                  width: `${diameterPx}px`,
+                                  height: `${diameterPx}px`,
+                                  backgroundColor: appearance.color,
+                                }}
+                              >
+                                {appearance.imageSrc ? (
+                                  <img
+                                    src={appearance.imageSrc}
+                                    alt={b.displayName}
+                                    className="w-full h-full object-cover rounded-full"
+                                    loading="lazy"
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = "none";
+                                    }}
+                                  />
+                                ) : (
+                                  <div
+                                    className="w-full h-full rounded-full"
+                                    style={{
+                                      background: `radial-gradient(circle at 35% 30%, rgba(255,255,255,0.45), transparent 70%)`,
+                                    }}
+                                  />
+                                )}
+                              </div>
                               {isCharmAnchor && (
                                 <div className="absolute -bottom-2 text-[8px] text-[#B66F72] font-bold">
                                   ★

@@ -19,9 +19,18 @@ export function createApp() {
   app.use(helmet());
   app.use(compression());
   app.use(cookieParser());
+  const allowedOrigins = env.corsOrigins.map((o) => o.replace(/\/+$/, ""));
+
   app.use(
     cors({
-      origin: env.corsOrigins,
+      origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        const normalized = origin.replace(/\/+$/, "");
+        if (allowedOrigins.includes(normalized) || allowedOrigins.includes("*")) {
+          return callback(null, true);
+        }
+        return callback(new Error(`Origin ${origin} not allowed by CORS`));
+      },
       credentials: true,
     })
   );

@@ -8,13 +8,13 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, adminOnly = false }) => {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [showMessage, setShowMessage] = useState(false);
 
   useEffect(() => {
-    if (!user) {
+    if (!isLoading && !user) {
       setShowMessage(true);
       const timer = setTimeout(() => {
         // Redirect after showing message using router (respects basename)
@@ -22,7 +22,15 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, adminOnly = f
       }, 3000); // Show message for 3 seconds
       return () => clearTimeout(timer);
     }
-  }, [user, navigate]);
+  }, [user, isLoading, navigate]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-background text-foreground">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
 
   if (!user) {
     if (showMessage) {

@@ -5,25 +5,34 @@ import { env } from "../config/env.js";
 
 const REFRESH_COOKIE = "reyan_refresh_token";
 
-export function setRefreshCookie(res: Response, refreshToken: string): void {
-  res.cookie(REFRESH_COOKIE, refreshToken, {
+function getCookieOptions(res: Response) {
+  const req = (res as any).req as Request | undefined;
+  const isSecure = Boolean(
+    env.isProduction ||
+    req?.secure ||
+    req?.headers?.["x-forwarded-proto"] === "https"
+  );
+
+  return {
     httpOnly: true,
-    secure: env.isProduction,
-    sameSite: env.isProduction ? "none" : "lax",
-    maxAge: 7 * 24 * 60 * 60 * 1000,
+    secure: isSecure,
+    sameSite: (isSecure ? "none" : "lax") as "none" | "lax",
     path: "/",
     ...(env.COOKIE_DOMAIN ? { domain: env.COOKIE_DOMAIN } : {}),
+  };
+}
+
+export function setRefreshCookie(res: Response, refreshToken: string): void {
+  const opts = getCookieOptions(res);
+  res.cookie(REFRESH_COOKIE, refreshToken, {
+    ...opts,
+    maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 }
 
 export function clearRefreshCookie(res: Response): void {
-  res.clearCookie(REFRESH_COOKIE, {
-    httpOnly: true,
-    secure: env.isProduction,
-    sameSite: env.isProduction ? "none" : "lax",
-    path: "/",
-    ...(env.COOKIE_DOMAIN ? { domain: env.COOKIE_DOMAIN } : {}),
-  });
+  const opts = getCookieOptions(res);
+  res.clearCookie(REFRESH_COOKIE, opts);
 }
 
 function sendAuthResponse(res: Response, result: authService.AuthTokensResponse, status = 200) {

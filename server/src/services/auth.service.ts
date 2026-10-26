@@ -40,13 +40,22 @@ function sanitizeUser(user: IUser): AuthUserResponse {
   };
 }
 
-async function issueTokens(user: IUser): Promise<AuthTokensResponse> {
+async function issueTokens(user: IUser, isRotation = false): Promise<AuthTokensResponse> {
   const accessToken = signAccessToken({
     sub: user.id,
     email: user.email,
     role: user.role,
   });
   const refreshToken = signRefreshToken(user.id);
+
+  if (isRotation && user.refreshTokenHash) {
+    user.previousRefreshTokenHash = user.refreshTokenHash;
+    // 30 seconds grace period for concurrent in-flight requests or network delays
+    user.previousRefreshTokenExpiresAt = new Date(Date.now() + 30 * 1000);
+  } else {
+    user.previousRefreshTokenHash = undefined;
+    user.previousRefreshTokenExpiresAt = undefined;
+  }
 
   user.refreshTokenHash = await hashToken(refreshToken);
   user.lastLoginAt = new Date();
@@ -112,21 +121,51 @@ export async function refreshSession(refreshToken: string): Promise<AuthTokensRe
     throw new AppError("Invalid or expired refresh token", 401);
   }
 
-  const user = await User.findById(payload.sub).select("+refreshTokenHash");
+  const user = await User.findById(payload.sub).select(
+    "+refreshTokenHash +previousRefreshTokenHash +previousRefreshTokenExpiresAt"
+  );
   if (!user || !user.refreshTokenHash) {
     throw new AppError("Invalid refresh session", 401);
   }
 
-  const valid = await compareToken(refreshToken, user.refreshTokenHash);
+  let valid = await compareToken(refreshToken, user.refreshTokenHash);
+
+  // If token does not match current hash, check if it matches previous hash within 30s grace window
+  if (!valid && user.previousRefreshTokenHash && user.previousRefreshTokenExpiresAt) {
+    const isWithinGracePeriod = user.previousRefreshTokenExpiresAt.getTime() > Date.now();
+    if (isWithinGracePeriod) {
+      const matchesPrevious = await compareToken(refreshToken, user.previousRefreshTokenHash);
+      if (matchesPrevious) {
+        // Issue fresh access token without re-rotating or invalidating the active session
+        const accessToken = signAccessToken({
+          sub: user.id,
+          email: user.email,
+          role: user.role,
+        });
+        return {
+          user: sanitizeUser(user),
+          accessToken,
+          refreshToken,
+        };
+      }
+    }
+  }
+
   if (!valid) {
     throw new AppError("Invalid refresh session", 401);
   }
 
-  return issueTokens(user);
+  return issueTokens(user, true);
 }
 
 export async function logoutUser(userId: string): Promise<void> {
-  await User.findByIdAndUpdate(userId, { $unset: { refreshTokenHash: 1 } });
+  await User.findByIdAndUpdate(userId, {
+    $unset: {
+      refreshTokenHash: 1,
+      previousRefreshTokenHash: 1,
+      previousRefreshTokenExpiresAt: 1,
+    },
+  });
 }
 
 export async function forgotPassword(email: string): Promise<void> {

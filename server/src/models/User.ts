@@ -27,6 +27,8 @@ export interface IUser extends Document {
   addresses: IAddress[];
   isEmailVerified: boolean;
   refreshTokenHash?: string;
+  previousRefreshTokenHash?: string;
+  previousRefreshTokenExpiresAt?: Date;
   passwordResetToken?: string;
   passwordResetExpires?: Date;
   lastLoginAt?: Date;
@@ -71,6 +73,8 @@ const userSchema = new Schema<IUser>(
     addresses: [addressSchema],
     isEmailVerified: { type: Boolean, default: false },
     refreshTokenHash: { type: String, select: false },
+    previousRefreshTokenHash: { type: String, select: false },
+    previousRefreshTokenExpiresAt: { type: Date, select: false },
     passwordResetToken: { type: String, select: false },
     passwordResetExpires: { type: Date, select: false },
     lastLoginAt: Date,
