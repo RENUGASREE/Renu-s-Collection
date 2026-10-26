@@ -88,6 +88,9 @@ interface MaterialVariant {
   stock: number;
   lowStockThreshold: number;
   isActive: boolean;
+  reservedStock?: number;
+  committedStock?: number;
+  physicalStock?: number;
 }
 
 interface StudioMaterial {
@@ -233,7 +236,11 @@ export default function AdminStudio() {
   }, [showArchivedTypes]);
 
   useEffect(() => {
-    if (activeTab === "reservations") {
+    if (activeTab === "materials") {
+      fetchMaterials();
+    } else if (activeTab === "types") {
+      fetchJewelleryTypes(showArchivedTypes);
+    } else if (activeTab === "reservations") {
       fetchReservations();
     }
   }, [activeTab, filterReservationStatus]);
@@ -1081,7 +1088,7 @@ export default function AdminStudio() {
                                 <th className="py-2 px-2">Size / Label</th>
                                 <th className="py-2 px-2">Color / Finish</th>
                                 <th className="py-2 px-2">Unit</th>
-                                <th className="py-2 px-2">Stock Level</th>
+                                <th className="py-2 px-2">Stock (Available)</th>
                                 <th className="py-2 px-2 font-mono text-stone-500">Cost (Private)</th>
                                 <th className="py-2 px-2 font-semibold text-[#B66F72]">Selling Rate</th>
                                 <th className="py-2 px-2 text-right">Actions</th>
@@ -1102,15 +1109,25 @@ export default function AdminStudio() {
                                   </td>
                                   <td className="py-2.5 px-2 capitalize">{v.sellingUnit}</td>
                                   <td className="py-2.5 px-2">
-                                    <span
-                                      className={`font-medium ${
-                                        v.stock <= v.lowStockThreshold
-                                          ? "text-amber-600 dark:text-amber-400 font-bold"
-                                          : "text-emerald-700 dark:text-emerald-400"
-                                      }`}
-                                    >
-                                      {v.stock} units
-                                    </span>
+                                    <div className="flex flex-col">
+                                      <span
+                                        className={`font-medium ${
+                                          v.stock <= v.lowStockThreshold
+                                            ? "text-amber-600 dark:text-amber-400 font-bold"
+                                            : "text-emerald-700 dark:text-emerald-400"
+                                        }`}
+                                      >
+                                        {v.stock} available
+                                      </span>
+                                      {((v.committedStock || 0) > 0 || (v.reservedStock || 0) > 0) && (
+                                        <span className="text-[10px] text-[#756861] dark:text-muted-foreground">
+                                          {v.committedStock ? `${v.committedStock} committed` : ""}
+                                          {v.committedStock && v.reservedStock ? " · " : ""}
+                                          {v.reservedStock ? `${v.reservedStock} held in checkout` : ""}
+                                          {` (${v.physicalStock ?? v.stock} physical)`}
+                                        </span>
+                                      )}
+                                    </div>
                                   </td>
                                   <td className="py-2.5 px-2 font-mono text-stone-500">₹{v.purchaseCost}</td>
                                   <td className="py-2.5 px-2 font-semibold text-[#B66F72] dark:text-primary">

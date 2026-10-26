@@ -404,17 +404,53 @@ export async function listAdminMaterials(
     }
 
     const skip = (Number(page) - 1) * Number(limit);
-    const [materials, total] = await Promise.all([
+    const [materials, total, activeReservations] = await Promise.all([
       StudioMaterial.find(query)
         .sort({ sortOrder: 1, createdAt: -1 })
         .skip(skip)
         .limit(Number(limit)),
       StudioMaterial.countDocuments(query),
+      StudioReservation.find({
+        status: { $in: ["reserved", "committed"] },
+      }).select("items status").lean(),
     ]);
+
+    // Aggregate active reservations by SKU to report committed and checkout-held stock
+    const reservationCountsBySku: Record<string, { reserved: number; committed: number }> = {};
+    for (const resDoc of activeReservations) {
+      for (const item of resDoc.items || []) {
+        const sku = item.sku?.toUpperCase();
+        if (sku) {
+          if (!reservationCountsBySku[sku]) {
+            reservationCountsBySku[sku] = { reserved: 0, committed: 0 };
+          }
+          if (resDoc.status === "reserved") {
+            reservationCountsBySku[sku].reserved += item.quantity;
+          } else if (resDoc.status === "committed") {
+            reservationCountsBySku[sku].committed += item.quantity;
+          }
+        }
+      }
+    }
+
+    const data = materials.map((m) => {
+      const doc = m.toObject ? m.toObject() : JSON.parse(JSON.stringify(m));
+      doc.variants = (doc.variants || []).map((v: any) => {
+        const sku = v.sku?.toUpperCase();
+        const resInfo = reservationCountsBySku[sku] || { reserved: 0, committed: 0 };
+        return {
+          ...v,
+          reservedStock: resInfo.reserved,
+          committedStock: resInfo.committed,
+          physicalStock: (v.stock || 0) + resInfo.reserved + resInfo.committed,
+        };
+      });
+      return doc;
+    });
 
     res.json({
       success: true,
-      data: materials,
+      data,
       meta: {
         page: Number(page),
         limit: Number(limit),

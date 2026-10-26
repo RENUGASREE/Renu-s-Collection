@@ -104,6 +104,7 @@ export async function apiRequest(
       headers,
       body: data ? JSON.stringify(data) : undefined,
       credentials: "include",
+      cache: "no-store",
     });
   };
 
