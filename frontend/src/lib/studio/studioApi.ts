@@ -151,15 +151,21 @@ export interface JewelleryTypeReadiness {
   slug: string;
   displayName: string;
   description?: string;
+  imageUrl?: string;
+  displayOrder?: number;
+  isEnabled?: boolean;
+  isPublished?: boolean;
+  isArchived?: boolean;
   designerStatus: "available" | "coming_soon" | "maintenance";
   supportedConstructionTypes: string[];
   eligibleMaterialCount: number;
+  inStockVariantCount?: number;
   hasDesignRule: boolean;
   hasMakingCharge: boolean;
   templateCount: number;
   isFullyReady: boolean;
   gapAnalysis: {
-    materialsStatus: "stocked" | "lacking_catalogue_components";
+    materialsStatus: "stocked" | "out_of_stock" | "lacking_catalogue_components";
     materialsDetail: string;
     rulesStatus: "active" | "missing_construction_rule";
     pricingStatus: "active" | "missing_craftsmanship_fee";
@@ -167,12 +173,92 @@ export interface JewelleryTypeReadiness {
   };
 }
 
-export async function fetchJewelleryTypesReadiness(): Promise<JewelleryTypeReadiness[]> {
-  const res = await apiRequest("GET", "/api/v1/studio/jewellery-types/readiness");
+export async function fetchJewelleryTypesReadiness(adminView: boolean = false): Promise<JewelleryTypeReadiness[]> {
+  const url = adminView
+    ? "/api/v1/studio/admin/jewellery-types/readiness"
+    : "/api/v1/studio/jewellery-types/readiness";
+  const res = await apiRequest("GET", url);
   if (!res.ok) throw new Error(`Readiness check failed: ${res.status}`);
   const json = await res.json();
   if (!json.success) throw new Error("Failed to load studio readiness report");
   return json.data as JewelleryTypeReadiness[];
+}
+
+export async function createJewelleryType(input: {
+  slug: string;
+  displayName: string;
+  description?: string;
+  imageUrl?: string;
+  displayOrder?: number;
+  isEnabled?: boolean;
+  isPublished?: boolean;
+  designerStatus?: "available" | "coming_soon" | "maintenance";
+  supportedConstructionTypes?: string[];
+}) {
+  const res = await apiRequest("POST", "/api/v1/studio/admin/jewellery-types", input);
+  const json = await res.json();
+  if (!res.ok || !json.success) {
+    throw new Error(json.message || `Failed to create category (${res.status})`);
+  }
+  return json.data;
+}
+
+export async function updateJewelleryType(
+  slug: string,
+  input: {
+    displayName?: string;
+    description?: string;
+    imageUrl?: string;
+    displayOrder?: number;
+    isEnabled?: boolean;
+    isPublished?: boolean;
+    isArchived?: boolean;
+    designerStatus?: "available" | "coming_soon" | "maintenance";
+    supportedConstructionTypes?: string[];
+  }
+) {
+  const res = await apiRequest("PATCH", `/api/v1/studio/admin/jewellery-types/${encodeURIComponent(slug)}`, input);
+  const json = await res.json();
+  if (!res.ok || !json.success) {
+    throw new Error(json.message || `Failed to update category (${res.status})`);
+  }
+  return json.data;
+}
+
+export async function deleteJewelleryType(slug: string) {
+  const res = await apiRequest("DELETE", `/api/v1/studio/admin/jewellery-types/${encodeURIComponent(slug)}`);
+  const json = await res.json();
+  if (!res.ok || !json.success) {
+    throw new Error(json.message || `Failed to delete category (${res.status})`);
+  }
+  return json;
+}
+
+export async function archiveJewelleryType(slug: string) {
+  const res = await apiRequest("POST", `/api/v1/studio/admin/jewellery-types/${encodeURIComponent(slug)}/archive`);
+  const json = await res.json();
+  if (!res.ok || !json.success) {
+    throw new Error(json.message || `Failed to archive category (${res.status})`);
+  }
+  return json.data;
+}
+
+export async function restoreJewelleryType(slug: string) {
+  const res = await apiRequest("POST", `/api/v1/studio/admin/jewellery-types/${encodeURIComponent(slug)}/restore`);
+  const json = await res.json();
+  if (!res.ok || !json.success) {
+    throw new Error(json.message || `Failed to restore category (${res.status})`);
+  }
+  return json.data;
+}
+
+export async function deleteStudioMaterial(id: string) {
+  const res = await apiRequest("DELETE", `/api/v1/studio/admin/materials/${encodeURIComponent(id)}`);
+  const json = await res.json();
+  if (!res.ok || !json.success) {
+    throw new Error(json.message || `Failed to delete material (${res.status})`);
+  }
+  return json;
 }
 
 export async function fetchMaterialsForType(jewelleryType: string): Promise<PublicMaterial[]> {

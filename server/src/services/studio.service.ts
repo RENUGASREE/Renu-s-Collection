@@ -12,64 +12,57 @@ import { Types } from "mongoose";
 // 1. SAFE IDEMPOTENT INITIALIZATION
 // ============================================================================
 
+export const KNOWN_SAMPLE_MATERIAL_CODES = [
+  "MAT-ROSE-QUARTZ",
+  "MAT-AMETHYST",
+  "MAT-BLACK-ONYX",
+  "MAT-TIGER-EYE",
+  "MAT-TURQUOISE",
+  "MAT-PEARL",
+  "MAT-LAVA",
+  "MAT-CLEAR-QUARTZ",
+  "MAT-SPACER-SILVER",
+  "MAT-CHARM-STAR",
+  "MAT-CHARM-LOTUS",
+];
+
+export const KNOWN_SAMPLE_TEMPLATE_SLUGS = [
+  "celestial-harmony",
+  "grounding-earth",
+];
+
 export async function initStudioDefaults(): Promise<void> {
   try {
-    // A. Default Jewellery Types
-    const defaultTypes = [
+    // A. Base Bracelet Category template (only inserted if database has no bracelet record)
+    await JewelleryType.findOneAndUpdate(
+      { slug: "bracelet" },
       {
-        slug: "bracelet",
-        displayName: "Bracelets",
-        description: "Design bespoke handcrafted elastic bead and custom gemstone bracelets.",
-        displayOrder: 1,
-        isEnabled: true,
-        designerStatus: "available" as const,
-        supportedConstructionTypes: ["elastic_bead"],
-      },
-      {
-        slug: "earrings",
-        displayName: "Kundan Stone Earrings",
-        description: "Bespoke Kundan stud and drop earrings with customizable stone shapes, colors, and hooks.",
-        displayOrder: 2,
-        isEnabled: true,
-        designerStatus: "coming_soon" as const,
-        supportedConstructionTypes: ["drop_stud", "kundan_earring"],
-      },
-      {
-        slug: "bangles",
-        displayName: "Kundan Stone Bangles",
-        description: "Personalized Kundan stone bangles with calibrated sizing (2.4, 2.6, 2.8) and stone arrangements.",
-        displayOrder: 3,
-        isEnabled: true,
-        designerStatus: "coming_soon" as const,
-        supportedConstructionTypes: ["rigid_bangle", "kundan_bangle"],
-      },
-      {
-        slug: "chain_necklace",
-        displayName: "Custom Chains & Necklaces",
-        description: "Custom chains and statement necklaces with artisanal pendants, charms, and accents.",
-        displayOrder: 4,
-        isEnabled: true,
-        designerStatus: "coming_soon" as const,
-        supportedConstructionTypes: ["chain_pendant"],
-      },
-    ];
-
-    for (const typeData of defaultTypes) {
-      await JewelleryType.findOneAndUpdate(
-        { slug: typeData.slug },
-        {
-          $setOnInsert: { slug: typeData.slug, displayOrder: typeData.displayOrder, isEnabled: typeData.isEnabled },
-          $set: {
-            displayName: typeData.displayName,
-            description: typeData.description,
-            supportedConstructionTypes: typeData.supportedConstructionTypes,
-          },
+        $setOnInsert: {
+          slug: "bracelet",
+          displayName: "Bracelets",
+          description: "Design bespoke handcrafted elastic bead and custom gemstone bracelets.",
+          imageUrl: "https://images.unsplash.com/photo-1611591475878-1a51187494c8?auto=format&fit=crop&w=800&q=80",
+          displayOrder: 1,
+          isEnabled: true,
+          isPublished: false,
+          isArchived: false,
+          designerStatus: "coming_soon" as const,
+          supportedConstructionTypes: ["elastic_bead"],
         },
-        { upsert: true, new: true }
-      );
-    }
+      },
+      { upsert: true, new: true }
+    );
 
-    // B. Default Elastic Bead Bracelet Design Rule
+    // B. Ensure legacy predefined types, if already in DB with no publication status, default to UNPUBLISHED
+    await JewelleryType.updateMany(
+      {
+        slug: { $in: ["bracelet", "earrings", "bangles", "chain_necklace"] },
+        isPublished: { $exists: false },
+      },
+      { $set: { isPublished: false, isArchived: false, designerStatus: "coming_soon" } }
+    );
+
+    // C. Default Elastic Bead Bracelet Design Rule
     await DesignRule.findOneAndUpdate(
       { jewelleryType: "bracelet", constructionType: "elastic_bead" },
       {
@@ -96,7 +89,7 @@ export async function initStudioDefaults(): Promise<void> {
       { upsert: true, new: true }
     );
 
-    // C. Default Making Charge for Elastic Bead Bracelet
+    // D. Default Making Charge for Elastic Bead Bracelet
     await MakingCharge.findOneAndUpdate(
       { jewelleryType: "bracelet", constructionType: "elastic_bead" },
       {
@@ -117,388 +110,6 @@ export async function initStudioDefaults(): Promise<void> {
       },
       { upsert: true, new: true }
     );
-    // D. Seed Core Handcrafted Studio Materials if collection is empty
-    const materialCount = await StudioMaterial.countDocuments();
-    if (materialCount === 0) {
-      const defaultMaterials = [
-        {
-          name: "Natural Rose Quartz",
-          code: "MAT-ROSE-QUARTZ",
-          description: "Gentle blush pink natural rose quartz beads, celebrated as the stone of unconditional love and heart harmony.",
-          materialType: "stone",
-          imageUrl: "/logo.png",
-          allowedJewelleryTypes: ["bracelet"],
-          isActive: true,
-          sortOrder: 1,
-          variants: [
-            {
-              sku: "BEAD-RQ-8MM",
-              color: "Pink",
-              finish: "Polished",
-              sizeLabel: "8mm Round",
-              dimensionsMm: { diameterMm: 8, holeDiameterMm: 1 },
-              sellingUnit: "piece",
-              purchaseCost: 20,
-              sellingRate: 45,
-              stock: 500,
-              lowStockThreshold: 20,
-              isActive: true,
-            },
-            {
-              sku: "BEAD-RQ-6MM",
-              color: "Pink",
-              finish: "Polished",
-              sizeLabel: "6mm Round",
-              dimensionsMm: { diameterMm: 6, holeDiameterMm: 1 },
-              sellingUnit: "piece",
-              purchaseCost: 15,
-              sellingRate: 35,
-              stock: 500,
-              lowStockThreshold: 20,
-              isActive: true,
-            },
-          ],
-        },
-        {
-          name: "Grade-A Amethyst",
-          code: "MAT-AMETHYST",
-          description: "Deep regal purple natural amethyst beads, known for tranquility, intuition, and spiritual balance.",
-          materialType: "stone",
-          imageUrl: "/logo.png",
-          allowedJewelleryTypes: ["bracelet"],
-          isActive: true,
-          sortOrder: 2,
-          variants: [
-            {
-              sku: "BEAD-AME-8MM",
-              color: "Purple",
-              finish: "Polished",
-              sizeLabel: "8mm Round",
-              dimensionsMm: { diameterMm: 8, holeDiameterMm: 1 },
-              sellingUnit: "piece",
-              purchaseCost: 25,
-              sellingRate: 55,
-              stock: 450,
-              lowStockThreshold: 20,
-              isActive: true,
-            },
-          ],
-        },
-        {
-          name: "Matte Black Onyx",
-          code: "MAT-BLACK-ONYX",
-          description: "Velvety smooth matte black onyx beads providing sleek grounding energy and timeless modern style.",
-          materialType: "stone",
-          imageUrl: "/logo.png",
-          allowedJewelleryTypes: ["bracelet"],
-          isActive: true,
-          sortOrder: 3,
-          variants: [
-            {
-              sku: "BEAD-ONYX-8MM",
-              color: "Black",
-              finish: "Matte",
-              sizeLabel: "8mm Round",
-              dimensionsMm: { diameterMm: 8, holeDiameterMm: 1 },
-              sellingUnit: "piece",
-              purchaseCost: 18,
-              sellingRate: 40,
-              stock: 600,
-              lowStockThreshold: 20,
-              isActive: true,
-            },
-          ],
-        },
-        {
-          name: "Golden Tiger Eye",
-          code: "MAT-TIGER-EYE",
-          description: "Rich chatoyant golden-brown tiger eye beads, inspiring courage, vitality, and focused confidence.",
-          materialType: "stone",
-          imageUrl: "/logo.png",
-          allowedJewelleryTypes: ["bracelet"],
-          isActive: true,
-          sortOrder: 4,
-          variants: [
-            {
-              sku: "BEAD-TIG-8MM",
-              color: "Brown",
-              finish: "Chatoyant",
-              sizeLabel: "8mm Round",
-              dimensionsMm: { diameterMm: 8, holeDiameterMm: 1 },
-              sellingUnit: "piece",
-              purchaseCost: 22,
-              sellingRate: 50,
-              stock: 400,
-              lowStockThreshold: 20,
-              isActive: true,
-            },
-          ],
-        },
-        {
-          name: "Natural Turquoise",
-          code: "MAT-TURQUOISE",
-          description: "Striking ocean-cyan natural turquoise beads with organic copper veining, representing wisdom and serenity.",
-          materialType: "stone",
-          imageUrl: "/logo.png",
-          allowedJewelleryTypes: ["bracelet"],
-          isActive: true,
-          sortOrder: 5,
-          variants: [
-            {
-              sku: "BEAD-TRQ-8MM",
-              color: "Blue",
-              finish: "Smooth",
-              sizeLabel: "8mm Round",
-              dimensionsMm: { diameterMm: 8, holeDiameterMm: 1 },
-              sellingUnit: "piece",
-              purchaseCost: 30,
-              sellingRate: 65,
-              stock: 350,
-              lowStockThreshold: 20,
-              isActive: true,
-            },
-          ],
-        },
-        {
-          name: "Freshwater Pearl",
-          code: "MAT-PEARL",
-          description: "Luminous white freshwater baroque pearl beads offering refined artisanal elegance and classic charm.",
-          materialType: "bead",
-          imageUrl: "/logo.png",
-          allowedJewelleryTypes: ["bracelet"],
-          isActive: true,
-          sortOrder: 6,
-          variants: [
-            {
-              sku: "BEAD-PRL-8MM",
-              color: "White",
-              finish: "Luster",
-              sizeLabel: "8mm Round",
-              dimensionsMm: { diameterMm: 8, holeDiameterMm: 1 },
-              sellingUnit: "piece",
-              purchaseCost: 35,
-              sellingRate: 75,
-              stock: 300,
-              lowStockThreshold: 15,
-              isActive: true,
-            },
-          ],
-        },
-        {
-          name: "Volcanic Lava Stone",
-          code: "MAT-LAVA",
-          description: "Porous tactile charcoal-black volcanic basalt stone beads, naturally receptive to essential oils.",
-          materialType: "stone",
-          imageUrl: "/logo.png",
-          allowedJewelleryTypes: ["bracelet"],
-          isActive: true,
-          sortOrder: 7,
-          variants: [
-            {
-              sku: "BEAD-LAV-8MM",
-              color: "Black",
-              finish: "Porous",
-              sizeLabel: "8mm Round",
-              dimensionsMm: { diameterMm: 8, holeDiameterMm: 1 },
-              sellingUnit: "piece",
-              purchaseCost: 15,
-              sellingRate: 35,
-              stock: 500,
-              lowStockThreshold: 20,
-              isActive: true,
-            },
-          ],
-        },
-        {
-          name: "Clear Crystal Quartz",
-          code: "MAT-CLEAR-QUARTZ",
-          description: "Faceted transparent natural rock crystal quartz beads reflecting light with pure crystalline sparkle.",
-          materialType: "stone",
-          imageUrl: "/logo.png",
-          allowedJewelleryTypes: ["bracelet"],
-          isActive: true,
-          sortOrder: 8,
-          variants: [
-            {
-              sku: "BEAD-CQ-8MM",
-              color: "Clear",
-              finish: "Faceted",
-              sizeLabel: "8mm Faceted",
-              dimensionsMm: { diameterMm: 8, holeDiameterMm: 1 },
-              sellingUnit: "piece",
-              purchaseCost: 20,
-              sellingRate: 48,
-              stock: 400,
-              lowStockThreshold: 20,
-              isActive: true,
-            },
-          ],
-        },
-        {
-          name: "Sterling Silver Spacer Rondelle",
-          code: "MAT-SPACER-SILVER",
-          description: "Artisanal sterling silver-plated ribbed rondelle spacer beads for rhythm and textural accents.",
-          materialType: "spacer",
-          imageUrl: "/logo.png",
-          allowedJewelleryTypes: ["bracelet"],
-          isActive: true,
-          sortOrder: 9,
-          variants: [
-            {
-              sku: "SPC-SLV-4MM",
-              color: "Silver",
-              finish: "Polished",
-              sizeLabel: "4mm Rondelle",
-              dimensionsMm: { diameterMm: 4, holeDiameterMm: 1 },
-              sellingUnit: "piece",
-              purchaseCost: 12,
-              sellingRate: 28,
-              stock: 800,
-              lowStockThreshold: 50,
-              isActive: true,
-            },
-          ],
-        },
-        {
-          name: "Celestial Star Charm",
-          code: "MAT-CHARM-STAR",
-          description: "Delicately cast five-point celestial star drop charm in bright sterling silver finish.",
-          materialType: "charm",
-          imageUrl: "/logo.png",
-          allowedJewelleryTypes: ["bracelet"],
-          isActive: true,
-          sortOrder: 10,
-          variants: [
-            {
-              sku: "CHM-STAR-SLV",
-              color: "Silver",
-              finish: "Bright Silver",
-              sizeLabel: "12mm Drop",
-              dimensionsMm: { lengthMm: 12, widthMm: 10, attachmentSizeMm: 4 },
-              sellingUnit: "piece",
-              purchaseCost: 65,
-              sellingRate: 150,
-              stock: 150,
-              lowStockThreshold: 10,
-              isActive: true,
-            },
-          ],
-        },
-        {
-          name: "Sacred Lotus Charm",
-          code: "MAT-CHARM-LOTUS",
-          description: "Intricately detailed blooming lotus flower charm in polished warm gold brass finish.",
-          materialType: "charm",
-          imageUrl: "/logo.png",
-          allowedJewelleryTypes: ["bracelet"],
-          isActive: true,
-          sortOrder: 11,
-          variants: [
-            {
-              sku: "CHM-LOTUS-GLD",
-              color: "Gold",
-              finish: "Warm Gold",
-              sizeLabel: "14mm Drop",
-              dimensionsMm: { lengthMm: 14, widthMm: 12, attachmentSizeMm: 4 },
-              sellingUnit: "piece",
-              purchaseCost: 75,
-              sellingRate: 175,
-              stock: 120,
-              lowStockThreshold: 10,
-              isActive: true,
-            },
-          ],
-        },
-      ];
-
-      for (const matData of defaultMaterials) {
-        await StudioMaterial.findOneAndUpdate(
-          { code: matData.code },
-          { $setOnInsert: matData },
-          { upsert: true, new: true }
-        );
-      }
-    }
-
-    // E. Seed Starter Design Templates if collection is empty
-    const templateCount = await DesignTemplate.countDocuments();
-    if (templateCount === 0) {
-      const defaultTemplates = [
-        {
-          slug: "celestial-harmony",
-          name: "Celestial Harmony",
-          description: "Romantic rose quartz and freshwater pearls paired with silver spacers and a celestial star charm.",
-          wristMm: 160,
-          isPublished: true,
-          sortOrder: 1,
-          beadSequence: [
-            { variantSku: "BEAD-RQ-8MM", displayName: "Natural Rose Quartz · 8mm", imageUrl: "/logo.png" },
-            { variantSku: "BEAD-PRL-8MM", displayName: "Freshwater Pearl · 8mm", imageUrl: "/logo.png" },
-            { variantSku: "SPC-SLV-4MM", displayName: "Sterling Silver Spacer · 4mm", imageUrl: "/logo.png" },
-            { variantSku: "BEAD-RQ-8MM", displayName: "Natural Rose Quartz · 8mm", imageUrl: "/logo.png" },
-            { variantSku: "BEAD-PRL-8MM", displayName: "Freshwater Pearl · 8mm", imageUrl: "/logo.png" },
-            { variantSku: "BEAD-RQ-8MM", displayName: "Natural Rose Quartz · 8mm", imageUrl: "/logo.png" },
-            { variantSku: "BEAD-PRL-8MM", displayName: "Freshwater Pearl · 8mm", imageUrl: "/logo.png" },
-            { variantSku: "SPC-SLV-4MM", displayName: "Sterling Silver Spacer · 4mm", imageUrl: "/logo.png" },
-            { variantSku: "BEAD-RQ-8MM", displayName: "Natural Rose Quartz · 8mm", imageUrl: "/logo.png" },
-            { variantSku: "BEAD-PRL-8MM", displayName: "Freshwater Pearl · 8mm", imageUrl: "/logo.png" },
-            { variantSku: "BEAD-RQ-8MM", displayName: "Natural Rose Quartz · 8mm", imageUrl: "/logo.png" },
-            { variantSku: "BEAD-PRL-8MM", displayName: "Freshwater Pearl · 8mm", imageUrl: "/logo.png" },
-            { variantSku: "SPC-SLV-4MM", displayName: "Sterling Silver Spacer · 4mm", imageUrl: "/logo.png" },
-            { variantSku: "BEAD-RQ-8MM", displayName: "Natural Rose Quartz · 8mm", imageUrl: "/logo.png" },
-            { variantSku: "BEAD-PRL-8MM", displayName: "Freshwater Pearl · 8mm", imageUrl: "/logo.png" },
-            { variantSku: "BEAD-RQ-8MM", displayName: "Natural Rose Quartz · 8mm", imageUrl: "/logo.png" },
-            { variantSku: "BEAD-PRL-8MM", displayName: "Freshwater Pearl · 8mm", imageUrl: "/logo.png" },
-            { variantSku: "SPC-SLV-4MM", displayName: "Sterling Silver Spacer · 4mm", imageUrl: "/logo.png" },
-            { variantSku: "BEAD-RQ-8MM", displayName: "Natural Rose Quartz · 8mm", imageUrl: "/logo.png" },
-            { variantSku: "BEAD-PRL-8MM", displayName: "Freshwater Pearl · 8mm", imageUrl: "/logo.png" },
-          ],
-          charms: [
-            { anchorVariantSku: "BEAD-RQ-8MM", variantSku: "CHM-STAR-SLV", displayName: "Celestial Star Charm", imageUrl: "/logo.png" },
-          ],
-        },
-        {
-          slug: "earthy-focus",
-          name: "Earthy Focus & Strength",
-          description: "Grounding matte black onyx and golden tiger eye beads for vitality, clarity, and daily confidence.",
-          wristMm: 160,
-          isPublished: true,
-          sortOrder: 2,
-          beadSequence: [
-            { variantSku: "BEAD-ONYX-8MM", displayName: "Matte Black Onyx · 8mm", imageUrl: "/logo.png" },
-            { variantSku: "BEAD-TIG-8MM", displayName: "Golden Tiger Eye · 8mm", imageUrl: "/logo.png" },
-            { variantSku: "BEAD-ONYX-8MM", displayName: "Matte Black Onyx · 8mm", imageUrl: "/logo.png" },
-            { variantSku: "BEAD-TIG-8MM", displayName: "Golden Tiger Eye · 8mm", imageUrl: "/logo.png" },
-            { variantSku: "BEAD-ONYX-8MM", displayName: "Matte Black Onyx · 8mm", imageUrl: "/logo.png" },
-            { variantSku: "BEAD-TIG-8MM", displayName: "Golden Tiger Eye · 8mm", imageUrl: "/logo.png" },
-            { variantSku: "BEAD-ONYX-8MM", displayName: "Matte Black Onyx · 8mm", imageUrl: "/logo.png" },
-            { variantSku: "BEAD-TIG-8MM", displayName: "Golden Tiger Eye · 8mm", imageUrl: "/logo.png" },
-            { variantSku: "BEAD-ONYX-8MM", displayName: "Matte Black Onyx · 8mm", imageUrl: "/logo.png" },
-            { variantSku: "BEAD-TIG-8MM", displayName: "Golden Tiger Eye · 8mm", imageUrl: "/logo.png" },
-            { variantSku: "BEAD-ONYX-8MM", displayName: "Matte Black Onyx · 8mm", imageUrl: "/logo.png" },
-            { variantSku: "BEAD-TIG-8MM", displayName: "Golden Tiger Eye · 8mm", imageUrl: "/logo.png" },
-            { variantSku: "BEAD-ONYX-8MM", displayName: "Matte Black Onyx · 8mm", imageUrl: "/logo.png" },
-            { variantSku: "BEAD-TIG-8MM", displayName: "Golden Tiger Eye · 8mm", imageUrl: "/logo.png" },
-            { variantSku: "BEAD-ONYX-8MM", displayName: "Matte Black Onyx · 8mm", imageUrl: "/logo.png" },
-            { variantSku: "BEAD-TIG-8MM", displayName: "Golden Tiger Eye · 8mm", imageUrl: "/logo.png" },
-            { variantSku: "BEAD-ONYX-8MM", displayName: "Matte Black Onyx · 8mm", imageUrl: "/logo.png" },
-            { variantSku: "BEAD-TIG-8MM", displayName: "Golden Tiger Eye · 8mm", imageUrl: "/logo.png" },
-            { variantSku: "BEAD-ONYX-8MM", displayName: "Matte Black Onyx · 8mm", imageUrl: "/logo.png" },
-            { variantSku: "BEAD-TIG-8MM", displayName: "Golden Tiger Eye · 8mm", imageUrl: "/logo.png" },
-            { variantSku: "BEAD-ONYX-8MM", displayName: "Matte Black Onyx · 8mm", imageUrl: "/logo.png" },
-          ],
-          charms: [],
-        },
-      ];
-
-      for (const t of defaultTemplates) {
-        await DesignTemplate.findOneAndUpdate(
-          { slug: t.slug },
-          { $setOnInsert: t },
-          { upsert: true, new: true }
-        );
-      }
-    }
   } catch (err) {
     console.error("Studio initialization error (non-fatal):", err);
   }
@@ -512,15 +123,21 @@ export interface JewelleryTypeReadiness {
   slug: string;
   displayName: string;
   description?: string;
+  imageUrl?: string;
+  displayOrder: number;
+  isEnabled: boolean;
+  isPublished: boolean;
+  isArchived: boolean;
   designerStatus: "available" | "coming_soon" | "maintenance";
   supportedConstructionTypes: string[];
   eligibleMaterialCount: number;
+  inStockVariantCount: number;
   hasDesignRule: boolean;
   hasMakingCharge: boolean;
   templateCount: number;
   isFullyReady: boolean;
   gapAnalysis: {
-    materialsStatus: "stocked" | "lacking_catalogue_components";
+    materialsStatus: "stocked" | "out_of_stock" | "lacking_catalogue_components";
     materialsDetail: string;
     rulesStatus: "active" | "missing_construction_rule";
     pricingStatus: "active" | "missing_craftsmanship_fee";
@@ -528,17 +145,27 @@ export interface JewelleryTypeReadiness {
   };
 }
 
-export async function getStudioReadinessReport(): Promise<JewelleryTypeReadiness[]> {
-  const types = await JewelleryType.find({ isEnabled: true }).sort({ displayOrder: 1 }).lean();
+export async function getStudioReadinessReport(isAdmin: boolean = false): Promise<JewelleryTypeReadiness[]> {
+  const filter: any = isAdmin
+    ? { isArchived: { $ne: true } }
+    : { isPublished: true, isEnabled: { $ne: false }, isArchived: { $ne: true } };
+
+  const types = await JewelleryType.find(filter).sort({ displayOrder: 1, createdAt: 1 }).lean();
   const report: JewelleryTypeReadiness[] = [];
 
   for (const t of types) {
-    const eligibleCount = await StudioMaterial.countDocuments({
+    const materials = await StudioMaterial.find({
       isActive: true,
       allowedJewelleryTypes: t.slug,
-    });
+    }).lean();
 
-    const primaryConstruction = t.supportedConstructionTypes[0] || "";
+    const eligibleCount = materials.length;
+    const inStockVariantCount = materials.reduce(
+      (sum, m) => sum + (m.variants || []).filter((v) => v.isActive && v.stock > 0).length,
+      0
+    );
+
+    const primaryConstruction = (t.supportedConstructionTypes && t.supportedConstructionTypes[0]) || "";
 
     const [rule, makingCharge, templateCount] = await Promise.all([
       primaryConstruction
@@ -550,57 +177,76 @@ export async function getStudioReadinessReport(): Promise<JewelleryTypeReadiness
       DesignTemplate.countDocuments({ jewelleryType: t.slug, isPublished: true }),
     ]);
 
+    const hasMaterials = eligibleCount > 0;
+    const hasStock = inStockVariantCount > 0;
     const hasDesignRule = Boolean(rule);
     const hasMakingCharge = Boolean(makingCharge);
-    const isFullyReady = eligibleCount > 0 && hasDesignRule && hasMakingCharge && t.designerStatus === "available";
+    const isPublished = Boolean(t.isPublished);
+    const isAvailable = t.designerStatus === "available";
 
+    const isFullyReady =
+      hasMaterials &&
+      hasStock &&
+      hasDesignRule &&
+      hasMakingCharge &&
+      isAvailable &&
+      isPublished &&
+      t.isEnabled !== false &&
+      !t.isArchived;
+
+    // Dynamic gap analysis details based on live catalogue state
+    let materialsStatus: "stocked" | "out_of_stock" | "lacking_catalogue_components" = "stocked";
     let materialsDetail = "";
-    let summary = "";
 
-    if (t.slug === "bracelet") {
-      materialsDetail = `${eligibleCount} active gemstone beads, spacers, and charms configured.`;
-      summary = isFullyReady
-        ? "Interactive 2D Elastic Bead Bracelet Designer is live and fully calibrated."
-        : "Bracelet studio components available.";
-    } else if (t.slug === "earrings") {
-      materialsDetail =
-        eligibleCount > 0
-          ? `${eligibleCount} eligible materials linked.`
-          : "Lacking Kundan setting collets, stone cabochons, and earring hook findings in the catalogue.";
-      summary =
-        "Kundan stone earrings require dedicated collet settings and hook findings in the catalogue before interactive designing can be enabled.";
-    } else if (t.slug === "bangles") {
-      materialsDetail =
-        eligibleCount > 0
-          ? `${eligibleCount} eligible materials linked.`
-          : "Lacking rigid bangle metal frames and Kundan stone inlays in the catalogue.";
-      summary =
-        "Kundan stone bangles require rigid circular frames (2.4/2.6/2.8) and inlay stone materials in the catalogue before interactive designing can be enabled.";
-    } else if (t.slug === "chain_necklace") {
-      materialsDetail =
-        eligibleCount > 0
-          ? `${eligibleCount} eligible materials linked.`
-          : "Lacking spooled chain links and clasp findings in the catalogue.";
-      summary =
-        "Custom chains require spooled link materials and clasp findings in the catalogue before interactive assembling can be enabled.";
+    if (!hasMaterials) {
+      materialsStatus = "lacking_catalogue_components";
+      materialsDetail = "No active catalogue materials configured for this category yet.";
+    } else if (!hasStock) {
+      materialsStatus = "out_of_stock";
+      materialsDetail = `${eligibleCount} material(s) configured, but all variants are currently out of stock.`;
     } else {
-      materialsDetail = `${eligibleCount} eligible materials configured.`;
-      summary = "Jewellery type under technical development.";
+      materialsStatus = "stocked";
+      materialsDetail = `${eligibleCount} active material(s) with ${inStockVariantCount} in-stock variant(s).`;
+    }
+
+    let summary = "";
+    if (isFullyReady) {
+      summary = `${t.displayName} studio is fully calibrated, stocked, and available for customer orders.`;
+    } else if (!isPublished) {
+      summary = `${t.displayName} is currently saved as unpublished in the Admin Studio.`;
+    } else if (!isAvailable) {
+      summary = `${t.displayName} is marked as ${t.designerStatus.replace("_", " ")} while catalogue components are prepared.`;
+    } else if (!hasMaterials) {
+      summary = `Awaiting active materials to be catalogued in Admin Studio.`;
+    } else if (!hasStock) {
+      summary = `Awaiting inventory replenishment for active components.`;
+    } else if (!hasDesignRule) {
+      summary = `Awaiting construction calibration rules in Admin Studio.`;
+    } else if (!hasMakingCharge) {
+      summary = `Awaiting craftsmanship making charges in Admin Studio.`;
+    } else {
+      summary = `Jewellery category configuration in progress.`;
     }
 
     report.push({
       slug: t.slug,
       displayName: t.displayName,
       description: t.description,
+      imageUrl: t.imageUrl,
+      displayOrder: t.displayOrder,
+      isEnabled: t.isEnabled,
+      isPublished: t.isPublished,
+      isArchived: Boolean(t.isArchived),
       designerStatus: t.designerStatus,
-      supportedConstructionTypes: t.supportedConstructionTypes,
+      supportedConstructionTypes: t.supportedConstructionTypes || [],
       eligibleMaterialCount: eligibleCount,
+      inStockVariantCount,
       hasDesignRule,
       hasMakingCharge,
       templateCount,
       isFullyReady,
       gapAnalysis: {
-        materialsStatus: eligibleCount > 0 ? "stocked" : "lacking_catalogue_components",
+        materialsStatus,
         materialsDetail,
         rulesStatus: hasDesignRule ? "active" : "missing_construction_rule",
         pricingStatus: hasMakingCharge ? "active" : "missing_craftsmanship_fee",
@@ -726,10 +372,22 @@ export async function calculateDesignPrice(params: {
 }): Promise<DesignPriceQuote> {
   const { jewelleryType, constructionType, components, selectedServiceCharges = [] } = params;
 
-  // 1. Verify Jewellery Type exists and is active
-  const jType = await JewelleryType.findOne({ slug: jewelleryType, isEnabled: true });
+  // 1. Authoritative category & status verification
+  const jType = await JewelleryType.findOne({
+    slug: jewelleryType,
+    isPublished: true,
+    isEnabled: { $ne: false },
+    isArchived: { $ne: true },
+  });
   if (!jType) {
-    throw new AppError(`Jewellery type "${jewelleryType}" is not supported or active`, 400);
+    throw new AppError(`Jewellery category "${jewelleryType}" is not published or active for custom orders`, 404);
+  }
+
+  if (jType.designerStatus !== "available") {
+    throw new AppError(
+      `Jewellery category "${jType.displayName}" is currently marked as ${jType.designerStatus.replace("_", " ")} and not open for orders`,
+      400
+    );
   }
 
   if (!jType.supportedConstructionTypes.includes(constructionType)) {
@@ -739,7 +397,35 @@ export async function calculateDesignPrice(params: {
     );
   }
 
-  // 2. Validate component selection array
+  // 2. Enforce active construction DesignRule and MakingCharge (readiness requirements)
+  const [rule, makingChargeConfig] = await Promise.all([
+    DesignRule.findOne({
+      jewelleryType,
+      constructionType,
+      isActive: true,
+    }),
+    MakingCharge.findOne({
+      jewelleryType,
+      constructionType,
+      isActive: true,
+    }),
+  ]);
+
+  if (!rule) {
+    throw new AppError(
+      `Design calibration rule for "${jType.displayName}" (${constructionType}) is not configured. This category is not yet ready for orders.`,
+      400
+    );
+  }
+
+  if (!makingChargeConfig) {
+    throw new AppError(
+      `Craftsmanship making charges for "${jType.displayName}" (${constructionType}) are not configured. This category is not yet ready for orders.`,
+      400
+    );
+  }
+
+  // 3. Validate component selection array
   if (!Array.isArray(components) || components.length === 0) {
     throw new AppError("At least one component is required to calculate pricing", 400);
   }
@@ -757,7 +443,7 @@ export async function calculateDesignPrice(params: {
     aggregatedMap.set(c.variantSku, (aggregatedMap.get(c.variantSku) || 0) + qty);
   }
 
-  // 3. Retrieve authoritative variant and material data
+  // 4. Retrieve authoritative variant and material data
   const skus = Array.from(aggregatedMap.keys());
   const materials = await StudioMaterial.find({
     "variants.sku": { $in: skus },
@@ -783,9 +469,23 @@ export async function calculateDesignPrice(params: {
       );
     }
 
+    // Verify component materialType against DesignRule allowed types
+    if (rule.allowedMaterialTypes && rule.allowedMaterialTypes.length > 0) {
+      if (!rule.allowedMaterialTypes.includes(mat.materialType)) {
+        throw new AppError(
+          `Component type "${mat.materialType}" (${mat.name}) is not permitted under construction rules for ${jType.displayName}`,
+          400
+        );
+      }
+    }
+
     const variant = mat.variants.find((v) => v.sku === sku);
     if (!variant || !variant.isActive) {
       throw new AppError(`Variant "${sku}" is inactive or unavailable`, 400);
+    }
+
+    if (typeof variant.stock === "number" && variant.stock <= 0) {
+      throw new AppError(`Component variant "${variant.sizeLabel || sku}" of "${mat.name}" is currently out of stock`, 400);
     }
 
     // Safe monetary calculation in Rupees (2 decimal places)
@@ -816,17 +516,22 @@ export async function calculateDesignPrice(params: {
     });
   }
 
+  // 5. Validate total component count against the design rule
+  if (
+    (typeof rule.minComponents === "number" && totalComponentQuantity < rule.minComponents) ||
+    (typeof rule.maxComponents === "number" && totalComponentQuantity > rule.maxComponents)
+  ) {
+    throw new AppError(
+      `Component count (${totalComponentQuantity}) must be between ${rule.minComponents} and ${rule.maxComponents} for ${jType.displayName}`,
+      400
+    );
+  }
+
   componentSubtotal = Math.round(componentSubtotal * 100) / 100;
 
-  // 4. Retrieve making charges
-  const makingChargeConfig = await MakingCharge.findOne({
-    jewelleryType,
-    constructionType,
-    isActive: true,
-  });
-
-  const baseFee = makingChargeConfig ? Number(makingChargeConfig.baseFee) : 0;
-  const activeServiceCharges = makingChargeConfig?.serviceCharges || [];
+  // 6. Calculate craftsmanship making charges
+  const baseFee = Number(makingChargeConfig.baseFee) || 0;
+  const activeServiceCharges = makingChargeConfig.serviceCharges || [];
 
   const matchedServiceCharges: Array<{ name: string; fee: number }> = [];
   let serviceChargesTotal = 0;
@@ -1045,14 +750,39 @@ export async function deleteUserDesign(userId: string, id: string) {
 // ============================================================================
 
 export async function getDesignTemplates(onlyPublished = true) {
-  const query = onlyPublished ? { isPublished: true } : {};
-  return DesignTemplate.find(query).sort({ sortOrder: 1, createdAt: -1 }).lean();
+  if (onlyPublished) {
+    const publishedTypes = await JewelleryType.find({
+      isPublished: true,
+      isEnabled: { $ne: false },
+      isArchived: { $ne: true },
+    }).select("slug").lean();
+    const publishedSlugs = publishedTypes.map((t) => t.slug.toLowerCase());
+    return DesignTemplate.find({
+      isPublished: true,
+      jewelleryType: { $in: publishedSlugs },
+    }).sort({ sortOrder: 1, createdAt: -1 }).lean();
+  }
+  return DesignTemplate.find({}).sort({ sortOrder: 1, createdAt: -1 }).lean();
 }
 
-export async function getDesignTemplateBySlug(slug: string) {
+export async function getDesignTemplateBySlug(slug: string, isAdmin = false) {
   const template = await DesignTemplate.findOne({ slug: slug.toLowerCase() }).lean();
   if (!template) {
     throw new AppError("Design template not found", 404);
+  }
+  if (!isAdmin) {
+    if (!template.isPublished) {
+      throw new AppError("Design template not found", 404);
+    }
+    const jType = await JewelleryType.findOne({
+      slug: template.jewelleryType?.toLowerCase(),
+      isPublished: true,
+      isEnabled: { $ne: false },
+      isArchived: { $ne: true },
+    });
+    if (!jType) {
+      throw new AppError("Design template is currently unavailable", 404);
+    }
   }
   return template;
 }
@@ -1140,6 +870,36 @@ export async function addDesignToUserCart(
     components,
     selectedServiceCharges: input.selectedServiceCharges || [],
   });
+
+  // 2. Validate sizing and charm limits against the design rule
+  const rule = await DesignRule.findOne({
+    jewelleryType: input.jewelleryType.toLowerCase(),
+    constructionType: input.constructionType.toLowerCase(),
+    isActive: true,
+  });
+  if (rule) {
+    if (typeof input.wristMm === "number") {
+      if (typeof rule.minWristMm === "number" && input.wristMm < rule.minWristMm) {
+        throw new AppError(
+          `Wrist size (${input.wristMm}mm) cannot be less than the minimum of ${rule.minWristMm}mm`,
+          400
+        );
+      }
+      if (typeof rule.maxWristMm === "number" && input.wristMm > rule.maxWristMm) {
+        throw new AppError(
+          `Wrist size (${input.wristMm}mm) cannot exceed the maximum of ${rule.maxWristMm}mm`,
+          400
+        );
+      }
+    }
+    const charmCount = (input.charms || []).length;
+    if (typeof rule.maxCharms === "number" && charmCount > rule.maxCharms) {
+      throw new AppError(
+        `Number of charms (${charmCount}) exceeds the maximum allowed (${rule.maxCharms})`,
+        400
+      );
+    }
+  }
 
   // 2. Build thumbnail image from first bead with an image, or input.imageUrl
   let displayImage = input.imageUrl;

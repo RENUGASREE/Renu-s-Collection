@@ -155,6 +155,12 @@ export default function Admin() {
       description: "Ratings, feedback, and moderation",
       icon: Star,
       path: "/admin/reviews"
+    },
+    {
+      title: "Create Your Own Studio",
+      description: "Dynamic categories, materials, calibration rules & fees",
+      icon: Sparkles,
+      path: "/admin/studio"
     }
   ];
 

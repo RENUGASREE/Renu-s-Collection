@@ -50,6 +50,7 @@ export interface IStudioMaterial extends Document {
   renderAssetUrl?: string;
   additionalImages: string[];
   allowedJewelleryTypes: string[];
+  supportedConstructionTypes?: string[];
   isActive: boolean;
   sortOrder: number;
   variants: IMaterialVariant[];
@@ -157,6 +158,10 @@ const studioMaterialSchema = new Schema<IStudioMaterial>(
       type: [String],
       default: [],
       index: true,
+    },
+    supportedConstructionTypes: {
+      type: [String],
+      default: [],
     },
     isActive: {
       type: Boolean,

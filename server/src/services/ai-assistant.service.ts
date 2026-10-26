@@ -1,6 +1,7 @@
 import { StudioMaterial, IStudioMaterial } from "../models/StudioMaterial.js";
+import { JewelleryType } from "../models/JewelleryType.js";
 import { DesignRule } from "../models/DesignRule.js";
-import { calculateDesignPrice, initStudioDefaults } from "./studio.service.js";
+import { calculateDesignPrice } from "./studio.service.js";
 import { AppError } from "../middleware/errorHandler.js";
 import { env } from "../config/env.js";
 import crypto from "crypto";
@@ -109,24 +110,37 @@ export async function generateDesignSuggestions(
   const wristMm = Number(input.wristMm) && input.wristMm! >= 120 && input.wristMm! <= 240 ? input.wristMm! : 160;
   const userBudget = input.budget && input.budget > 0 ? input.budget : undefined;
 
-  // 1. Fetch active materials eligible for the selected jewellery type
-  let rawMaterials = await StudioMaterial.find({
+  // 1. Verify category is published, active, and open for designer orders
+  const jType = await JewelleryType.findOne({
+    slug: selectedType,
+    isPublished: true,
+    isEnabled: { $ne: false },
+    isArchived: { $ne: true },
+  });
+
+  if (!jType) {
+    throw new AppError(
+      `Jewellery category "${selectedType}" is not published or currently unavailable for custom orders.`,
+      404
+    );
+  }
+
+  if (jType.designerStatus !== "available") {
+    throw new AppError(
+      `Jewellery category "${jType.displayName}" is currently marked as ${jType.designerStatus.replace("_", " ")} and not open for orders.`,
+      400
+    );
+  }
+
+  // 2. Fetch active materials eligible for the selected jewellery type
+  const rawMaterials = await StudioMaterial.find({
     isActive: true,
     allowedJewelleryTypes: selectedType,
   }).lean();
 
-  if ((!rawMaterials || rawMaterials.length === 0) && selectedType === "bracelet") {
-    // Self-healing: initialize defaults if catalogue is not yet seeded
-    await initStudioDefaults();
-    rawMaterials = await StudioMaterial.find({
-      isActive: true,
-      allowedJewelleryTypes: "bracelet",
-    }).lean();
-  }
-
   if (!rawMaterials || rawMaterials.length === 0) {
     throw new AppError(
-      `No active catalogue materials found for "${selectedType}" in the studio library. Design assistance requires stocked components.`,
+      `No active catalogue materials found for "${selectedType}" in the studio library. Design assistance requires stocked components managed through the Admin Studio.`,
       404
     );
   }
@@ -150,7 +164,7 @@ export async function generateDesignSuggestions(
 
   for (const m of rawMaterials) {
     for (const v of m.variants || []) {
-      if (!v.isActive) continue;
+      if (!v.isActive || typeof v.stock !== "number" || v.stock <= 0) continue;
       const ctx: ActiveMaterialContext = {
         material: m as any,
         sku: v.sku,
@@ -174,7 +188,31 @@ export async function generateDesignSuggestions(
   }
 
   if (beadOptions.length === 0) {
-    throw new AppError("No active bracelet beads found in the studio catalogue.", 404);
+    throw new AppError(`No in-stock beads or gemstones currently available for "${selectedType}" in the studio inventory.`, 404);
+  }
+
+  // Detect specific charm requests to prevent ungrounded substitutions
+  const promptLower = prompt.toLowerCase();
+  const charmRegex = /(?:([a-z0-9-]+)\s+(?:shaped\s+)?charm)|(?:charm\s+with\s+([a-z0-9-]+))|(?:initial\s+([a-z]))|(?:letter\s+([a-z]))/i;
+  const match = promptLower.match(charmRegex);
+  const rawKeyword = match ? (match[1] || match[2] || match[3] || match[4])?.trim().toLowerCase() : null;
+  const ignoredWords = new Set(["a", "an", "the", "with", "and", "gold", "silver", "custom", "little", "cute", "small"]);
+  const requestedCharmKeyword = rawKeyword && !ignoredWords.has(rawKeyword) ? rawKeyword : null;
+
+  let unavailableCharmInfo: { requestedKeyword: string } | undefined = undefined;
+  if (requestedCharmKeyword) {
+    const hasMatchingCharm = charmOptions.some((c) => {
+      const name = c.name.toLowerCase();
+      const sku = c.sku.toLowerCase();
+      if (requestedCharmKeyword.length === 1) {
+        const letterRegex = new RegExp(`(^|[\\s-_])${requestedCharmKeyword}([\\s-_]|$)`, "i");
+        return letterRegex.test(name) || letterRegex.test(sku);
+      }
+      return name.includes(requestedCharmKeyword) || sku.includes(requestedCharmKeyword);
+    });
+    if (!hasMatchingCharm) {
+      unavailableCharmInfo = { requestedKeyword: requestedCharmKeyword };
+    }
   }
 
   // 4. Try external AI provider if configured in environment, with strict grounding
@@ -199,7 +237,7 @@ export async function generateDesignSuggestions(
       });
 
       if (aiSuggestions && aiSuggestions.length > 0) {
-        // Validate every suggestion against actual catalogue & compute authoritative prices
+        const constructionType = rule?.constructionType || "elastic_bead";
         const validated = await validateAndPriceSuggestions(
           aiSuggestions,
           beadOptions,
@@ -209,7 +247,10 @@ export async function generateDesignSuggestions(
           minBeads,
           maxBeads,
           maxCharms,
-          true // isAiGenerated = true
+          selectedType,
+          constructionType,
+          true, // isAiGenerated = true
+          unavailableCharmInfo
         );
         if (validated.length > 0) {
           return validated;
@@ -226,7 +267,10 @@ export async function generateDesignSuggestions(
   }
 
   // 5. Native Catalogue-Grounded Recommendation Engine (always works, 100% grounded)
+  const constructionType = rule?.constructionType || "elastic_bead";
   return buildCatalogueGroundedSuggestions({
+    jewelleryType: selectedType,
+    constructionType,
     prompt,
     occasion: input.occasion,
     colorTheme: input.colorTheme,
@@ -276,7 +320,8 @@ CRITICAL CATALOGUE INTEGRITY RULES:
 3. 'beadSequence' must be an array of valid bead/spacer SKUs in exact stringing order.
 4. 'charms' must be an array of objects: { sku: string, anchorIndex: number } (anchorIndex is 0-indexed position in beadSequence). Maximum 2 charms.
 5. Provide a warm, authentic Indian artisan description and a clear 'matchReason' explaining why this fits their requested occasion/colors.
-6. Return STRICTLY valid JSON conforming to the requested schema. No markdown code fences.`;
+6. Return STRICTLY valid JSON conforming to the requested schema. No markdown code fences.
+7. CRITICAL CHARM GROUNDING: If the customer requests a specific charm motif, initial, or letter (e.g. "R charm", "evil eye charm") and that exact charm does NOT exist in the catalogue list, DO NOT substitute an arbitrary charm (such as a star). Return an empty charms array ("charms": []) and explicitly state in both description and matchReason that the requested charm is currently unavailable in the studio catalogue.`;
 
   const userQuery = `Customer Request: "${params.prompt}"
 Occasion: ${params.occasion || "Versatile wear"}
@@ -354,6 +399,8 @@ JSON Schema:
 // ============================================================================
 
 function buildCatalogueGroundedSuggestions(params: {
+  jewelleryType: string;
+  constructionType: string;
   prompt: string;
   occasion?: string;
   colorTheme?: string;
@@ -401,7 +448,42 @@ function buildCatalogueGroundedSuggestions(params: {
   const accentBead = sortedBeads[2] || params.beadOptions[2] || primaryBead;
 
   const spacer = params.spacerOptions[0];
-  const charm = params.charmOptions[0];
+
+  // Grounded Charm Detection:
+  // Only pick a charm if the customer specifically requested a matching charm, or requested charms in general.
+  // Never substitute an arbitrary charm when a specific unavailable motif was requested.
+  const promptLower = params.prompt.toLowerCase();
+  const charmRegex = /(?:([a-z0-9-]+)\s+(?:shaped\s+)?charm)|(?:charm\s+with\s+([a-z0-9-]+))|(?:initial\s+([a-z]))|(?:letter\s+([a-z]))/i;
+  const match = promptLower.match(charmRegex);
+  const rawKeyword = match ? (match[1] || match[2] || match[3] || match[4])?.trim().toLowerCase() : null;
+  const ignoredWords = new Set(["a", "an", "the", "with", "and", "gold", "silver", "custom", "little", "cute", "small"]);
+  const requestedKeyword = rawKeyword && !ignoredWords.has(rawKeyword) ? rawKeyword : null;
+
+  let matchedCharm: ActiveMaterialContext | null = null;
+  let isUnavailableCharmRequested = false;
+
+  if (requestedKeyword) {
+    const found = params.charmOptions.find((c) => {
+      const name = c.name.toLowerCase();
+      const sku = c.sku.toLowerCase();
+      if (requestedKeyword.length === 1) {
+        const letterRegex = new RegExp(`(^|[\\s-_])${requestedKeyword}([\\s-_]|$)`, "i");
+        return letterRegex.test(name) || letterRegex.test(sku);
+      }
+      return name.includes(requestedKeyword) || sku.includes(requestedKeyword);
+    });
+    if (found) {
+      matchedCharm = found;
+    } else {
+      isUnavailableCharmRequested = true;
+    }
+  } else if (promptLower.includes("charm")) {
+    matchedCharm = params.charmOptions[0] || null;
+  }
+
+  const charmUnavailableNotice = isUnavailableCharmRequested && requestedKeyword
+    ? ` Note: The requested "${requestedKeyword.toUpperCase()}" charm is currently unavailable in our studio catalogue. This arrangement focuses on your requested gemstones without an ungrounded charm substitution.`
+    : "";
 
   const proposals: Array<{
     name: string;
@@ -435,15 +517,15 @@ function buildCatalogueGroundedSuggestions(params: {
     }
 
     const charmsSkus: Array<{ sku: string; anchorIndex: number }> = [];
-    if (charm && beadSeq.length > 5) {
-      charmsSkus.push({ sku: charm.sku, anchorIndex: Math.floor(beadSeq.length / 2) });
+    if (matchedCharm && beadSeq.length > 5) {
+      charmsSkus.push({ sku: matchedCharm.sku, anchorIndex: Math.floor(beadSeq.length / 2) });
     }
 
     proposals.push({
       name: `${primaryBead.name} & ${secondaryBead.name} Harmony`,
       tagline: "Artisanal symmetry celebrating balance and natural gemstone brilliance",
-      description: `Handcrafted with ${primaryBead.name} paired harmoniously with ${secondaryBead.name}, calibrated comfortably for a ${params.wristMm}mm wrist.`,
-      matchReason: `Selected for its balanced aesthetic matching your interest in ${primaryBead.color || "natural"} tones, suitable for ${params.occasion || "everyday elegance"}.`,
+      description: `Handcrafted with ${primaryBead.name} paired harmoniously with ${secondaryBead.name}, calibrated comfortably for a ${params.wristMm}mm wrist.${matchedCharm ? ` Accented with our ${matchedCharm.name}.` : ""}${charmUnavailableNotice}`,
+      matchReason: `Selected for its balanced aesthetic matching your interest in ${primaryBead.color || "natural"} tones, suitable for ${params.occasion || "everyday elegance"}.${charmUnavailableNotice}`,
       style: params.style || "Classic Harmony",
       occasion: params.occasion || "Versatile",
       colorTheme: params.colorTheme || `${primaryBead.color || "Natural"} & ${secondaryBead.color || "Earthy"}`,
@@ -503,15 +585,15 @@ function buildCatalogueGroundedSuggestions(params: {
     }
 
     const charmsSkus: Array<{ sku: string; anchorIndex: number }> = [];
-    if (charm && beadSeq.length > 6) {
-      charmsSkus.push({ sku: charm.sku, anchorIndex: Math.floor(beadSeq.length / 2) });
+    if (matchedCharm && beadSeq.length > 6) {
+      charmsSkus.push({ sku: matchedCharm.sku, anchorIndex: Math.floor(beadSeq.length / 2) });
     }
 
     proposals.push({
       name: `${primaryBead.name} Celestial Ensemble`,
       tagline: "Expressive multi-stone artisanal arrangement rich in color and texture",
-      description: `A vibrant symphony blending ${primaryBead.name}, ${accentBead.name}, and ${secondaryBead.name} with focal centerpiece detailing.`,
-      matchReason: `Crafted for celebratory or expressive moments, offering striking depth that complements your color preference.`,
+      description: `A vibrant symphony blending ${primaryBead.name}, ${accentBead.name}, and ${secondaryBead.name} with focal centerpiece detailing.${matchedCharm ? ` Accented with our ${matchedCharm.name}.` : ""}${charmUnavailableNotice}`,
+      matchReason: `Crafted for celebratory or expressive moments, offering striking depth that complements your color preference.${charmUnavailableNotice}`,
       style: "Artisan Statement",
       occasion: params.occasion || "Celebration & Evening",
       colorTheme: "Multi-stone Palette",
@@ -539,7 +621,10 @@ function buildCatalogueGroundedSuggestions(params: {
     params.minBeads,
     params.maxBeads,
     params.maxCharms,
-    false // isAiGenerated = false (catalogue-curated fallback)
+    params.jewelleryType,
+    params.constructionType,
+    false, // isAiGenerated = false (catalogue-curated fallback)
+    isUnavailableCharmRequested && requestedKeyword ? { requestedKeyword } : undefined
   );
 }
 
@@ -556,7 +641,10 @@ async function validateAndPriceSuggestions(
   minBeads: number,
   maxBeads: number,
   maxCharms: number,
-  isAiGenerated = false
+  jewelleryType: string,
+  constructionType: string,
+  isAiGenerated = false,
+  unavailableCharm?: { requestedKeyword: string }
 ): Promise<AIDesignSuggestion[]> {
   const allVariantsMap = new Map<string, ActiveMaterialContext>();
   for (const opt of [...beads, ...spacers, ...charms]) {
@@ -613,7 +701,7 @@ async function validateAndPriceSuggestions(
 
     // 2. Validate charms
     const validatedCharms: SuggestionCharm[] = [];
-    if (Array.isArray(raw.charms)) {
+    if (!unavailableCharm && Array.isArray(raw.charms)) {
       for (const ch of raw.charms) {
         if (validatedCharms.length >= maxCharms) break;
         const sku = typeof ch.sku === "string" ? ch.sku.trim().toUpperCase() : "";
@@ -649,25 +737,38 @@ async function validateAndPriceSuggestions(
     try {
       // Authoritative pricing from active Studio price service
       const quote = await calculateDesignPrice({
-        jewelleryType: "bracelet",
-        constructionType: "elastic_bead",
+        jewelleryType,
+        constructionType,
         components: componentInputs,
       });
+
+      let description =
+        raw.description ||
+        (isAiGenerated
+          ? "Designed in consultation with our AI Jewelry Artisan."
+          : "Curated handcrafted studio design.");
+      let matchReason =
+        raw.matchReason ||
+        (isAiGenerated
+          ? "Curated based on your selected aesthetic and gemstone preferences."
+          : "Hand-selected by studio artisans based on your aesthetic preferences.");
+
+      if (unavailableCharm) {
+        const notice = ` Note: The requested "${unavailableCharm.requestedKeyword.toUpperCase()}" charm is currently unavailable in our studio catalogue. This arrangement focuses on your requested gemstones without an ungrounded charm substitution.`;
+        if (!description.toLowerCase().includes("unavailable")) {
+          description += notice;
+        }
+        if (!matchReason.toLowerCase().includes("unavailable")) {
+          matchReason += notice;
+        }
+      }
 
       results.push({
         id: `ai_${crypto.randomUUID().slice(0, 8)}`,
         name: raw.name.slice(0, 80),
         tagline: raw.tagline || (isAiGenerated ? "Handcrafted AI bespoke design" : "Handcrafted studio design"),
-        description:
-          raw.description ||
-          (isAiGenerated
-            ? "Designed in consultation with our AI Jewelry Artisan."
-            : "Curated handcrafted studio design."),
-        matchReason:
-          raw.matchReason ||
-          (isAiGenerated
-            ? "Curated based on your selected aesthetic and gemstone preferences."
-            : "Hand-selected by studio artisans based on your aesthetic preferences."),
+        description,
+        matchReason,
         style: raw.style || "Artisanal Elegance",
         occasion: raw.occasion || "Versatile",
         colorTheme: raw.colorTheme || "Harmonious",

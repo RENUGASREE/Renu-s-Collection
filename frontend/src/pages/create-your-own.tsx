@@ -84,18 +84,24 @@ export default function CreateYourOwnLanding() {
                 slug: t.slug,
                 displayName: t.displayName,
                 description: t.description,
+                imageUrl: t.imageUrl,
+                displayOrder: t.displayOrder,
+                isEnabled: t.isEnabled,
+                isPublished: t.isPublished,
+                isArchived: t.isArchived,
                 designerStatus: t.designerStatus,
                 supportedConstructionTypes: t.supportedConstructionTypes || [],
-                eligibleMaterialCount: t.slug === "bracelet" ? 11 : 0,
-                hasDesignRule: t.slug === "bracelet",
-                hasMakingCharge: t.slug === "bracelet",
-                templateCount: t.slug === "bracelet" ? 2 : 0,
+                eligibleMaterialCount: 0,
+                inStockVariantCount: 0,
+                hasDesignRule: false,
+                hasMakingCharge: false,
+                templateCount: 0,
                 isFullyReady: t.designerStatus === "available",
                 gapAnalysis: {
-                  materialsStatus: t.slug === "bracelet" ? "stocked" : "lacking_catalogue_components",
-                  materialsDetail: t.slug === "bracelet" ? "Stocked" : "Awaiting catalogue components",
-                  rulesStatus: t.slug === "bracelet" ? "active" : "missing_construction_rule",
-                  pricingStatus: t.slug === "bracelet" ? "active" : "missing_craftsmanship_fee",
+                  materialsStatus: "stocked",
+                  materialsDetail: "Checking catalogue components...",
+                  rulesStatus: "active",
+                  pricingStatus: "active",
                   summary: t.description || "",
                 },
               }))
@@ -110,7 +116,7 @@ export default function CreateYourOwnLanding() {
     return () => { cancelled = true; };
   }, []);
 
-  const liveCount = types.filter((t) => t.designerStatus === "available").length;
+  const liveCount = types.filter((t) => t.designerStatus === "available" && t.isFullyReady).length;
 
   return (
     <div className="min-h-screen bg-[#FBF7F3] dark:bg-background text-[#342824] dark:text-foreground">
@@ -150,16 +156,15 @@ export default function CreateYourOwnLanding() {
                 <>
                   <ShieldCheck className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
                   <span>
-                    <strong>Elastic Bead Bracelet designer is now live.</strong>{" "}
-                    More jewellery types coming soon.
+                    <strong>Artisanal Studio is open for bespoke creations.</strong>{" "}
+                    Select an available category below to begin crafting.
                   </span>
                 </>
               ) : (
                 <>
                   <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
                   <span>
-                    <strong>Coming Soon:</strong> Interactive designers are
-                    under development.
+                    <strong>Bespoke Studios:</strong> Currently preparing authentic gemstone materials and calibration rules.
                   </span>
                 </>
               )}
@@ -197,14 +202,15 @@ export default function CreateYourOwnLanding() {
               </ul>
             </Card>
 
-            {/* AI — future */}
+            {/* AI Assistant */}
             <Card className="rounded-2xl border border-[#E6D8D0] dark:border-border bg-white dark:bg-card p-6 sm:p-8 shadow-xs relative overflow-hidden">
               <div className="absolute top-4 right-4">
                 <Badge
                   variant="outline"
-                  className="text-[10px] uppercase font-semibold border-amber-300 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300"
+                  className="text-[10px] uppercase font-semibold border-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 flex items-center gap-1"
                 >
-                  Coming in Phase 4
+                  <Sparkles className="w-3 h-3" />
+                  Active Assistant
                 </Badge>
               </div>
               <div className="w-12 h-12 rounded-xl bg-[#B99A72]/15 flex items-center justify-center text-[#B99A72] mb-5">
@@ -255,12 +261,35 @@ export default function CreateYourOwnLanding() {
                 Loading bespoke categories…
               </p>
             </div>
+          ) : types.length === 0 ? (
+            <div className="py-16 text-center max-w-md mx-auto border border-[#E6D8D0] dark:border-border rounded-2xl p-8 bg-white dark:bg-card">
+              <Sparkles className="w-8 h-8 mx-auto text-[#B66F72] mb-3 opacity-60" />
+              <h3 className="font-playfair text-xl font-semibold mb-2">No Categories Currently Published</h3>
+              <p className="text-xs text-[#756861] dark:text-muted-foreground mb-6">
+                Our bespoke customisation studio is currently preparing fresh seasonal selections. Please explore our handcrafted ready-to-wear collections in the meantime.
+              </p>
+              <Link to="/products">
+                <Button className="rounded-xl bg-[#B66F72] hover:bg-[#95565A] text-white text-xs">
+                  Browse Collections
+                </Button>
+              </Link>
+            </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div
+              className={`grid grid-cols-1 ${
+                types.length === 1
+                  ? "max-w-md mx-auto"
+                  : types.length === 2
+                  ? "sm:grid-cols-2 max-w-2xl mx-auto gap-6"
+                  : types.length === 3
+                  ? "sm:grid-cols-2 lg:grid-cols-3 max-w-5xl mx-auto gap-6"
+                  : "sm:grid-cols-2 lg:grid-cols-4 gap-6"
+              }`}
+            >
               {types.map((type) => {
                 const img =
-                  TYPE_IMAGES[type.slug] ?? TYPE_IMAGES.bracelet;
-                const isAvailable = type.designerStatus === "available";
+                  type.imageUrl || TYPE_IMAGES[type.slug] || TYPE_IMAGES.bracelet;
+                const isAvailable = type.designerStatus === "available" && type.isFullyReady;
                 const route = TYPE_ROUTES[type.slug];
 
                 return (
@@ -284,7 +313,7 @@ export default function CreateYourOwnLanding() {
                             variant="secondary"
                             className="bg-white/90 dark:bg-card/90 text-[#756861] dark:text-muted-foreground backdrop-blur-xs text-[10px] uppercase font-semibold tracking-wider border border-[#E6D8D0] dark:border-border"
                           >
-                            Coming Soon
+                            {type.designerStatus === "available" ? "In Preparation" : "Coming Soon"}
                           </Badge>
                         )}
                         <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-black/60 text-white backdrop-blur-xs">

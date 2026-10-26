@@ -9,7 +9,16 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, getAssetUrl } from "@/lib/queryClient";
-import { fetchJewelleryTypesReadiness, type JewelleryTypeReadiness } from "@/lib/studio/studioApi";
+import {
+  fetchJewelleryTypesReadiness,
+  type JewelleryTypeReadiness,
+  createJewelleryType,
+  updateJewelleryType,
+  deleteJewelleryType,
+  archiveJewelleryType,
+  restoreJewelleryType,
+  deleteStudioMaterial,
+} from "@/lib/studio/studioApi";
 import {
   Sparkles,
   Layers,
@@ -29,7 +38,10 @@ import {
   Sliders,
   AlertCircle,
   Eye,
-  EyeOff
+  EyeOff,
+  Archive,
+  ArchiveRestore,
+  Info,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -46,8 +58,12 @@ interface JewelleryType {
   slug: string;
   displayName: string;
   description?: string;
+  imageUrl?: string;
   displayOrder: number;
   isEnabled: boolean;
+  isPublished: boolean;
+  isArchived?: boolean;
+  archivedAt?: string;
   designerStatus: "available" | "coming_soon" | "maintenance";
   supportedConstructionTypes: string[];
 }
@@ -129,6 +145,25 @@ export default function AdminStudio() {
   // State: Jewellery Types
   const [jewelleryTypes, setJewelleryTypes] = useState<JewelleryType[]>([]);
   const [loadingTypes, setLoadingTypes] = useState(false);
+  const [showArchivedTypes, setShowArchivedTypes] = useState(false);
+  const [showTypeModal, setShowTypeModal] = useState(false);
+  const [editingType, setEditingType] = useState<JewelleryType | null>(null);
+  const [typeForm, setTypeForm] = useState({
+    slug: "",
+    displayName: "",
+    description: "",
+    imageUrl: "",
+    displayOrder: 0,
+    isPublished: false,
+    designerStatus: "coming_soon" as "available" | "coming_soon" | "maintenance",
+    supportedConstructionTypes: "elastic_bead",
+  });
+  const [deletingTypeSlug, setDeletingTypeSlug] = useState<string | null>(null);
+  const [categoryConflictMsg, setCategoryConflictMsg] = useState<string | null>(null);
+
+  // Material Deletion State
+  const [deletingMaterial, setDeletingMaterial] = useState<StudioMaterial | null>(null);
+  const [materialConflictMsg, setMaterialConflictMsg] = useState<string | null>(null);
 
   // State: Materials & Variants
   const [materials, setMaterials] = useState<StudioMaterial[]>([]);
@@ -193,9 +228,9 @@ export default function AdminStudio() {
   const [filterReservationStatus, setFilterReservationStatus] = useState<string>("all");
 
   useEffect(() => {
-    fetchJewelleryTypes();
+    fetchJewelleryTypes(showArchivedTypes);
     fetchMaterials();
-  }, []);
+  }, [showArchivedTypes]);
 
   useEffect(() => {
     if (activeTab === "reservations") {
@@ -219,12 +254,15 @@ export default function AdminStudio() {
   // API LOADERS
   // ==========================================================================
 
-  const fetchJewelleryTypes = async () => {
+  const fetchJewelleryTypes = async (includeArchived = showArchivedTypes) => {
     try {
       setLoadingTypes(true);
+      const url = includeArchived
+        ? "/api/v1/studio/admin/jewellery-types?includeArchived=true"
+        : "/api/v1/studio/admin/jewellery-types";
       const [res, readiness] = await Promise.all([
-        apiRequest("GET", "/api/v1/studio/admin/jewellery-types"),
-        fetchJewelleryTypesReadiness(),
+        apiRequest("GET", url),
+        fetchJewelleryTypesReadiness(true),
       ]);
       const json = await res.json();
       if (json.success) setJewelleryTypes(json.data);
@@ -337,14 +375,151 @@ export default function AdminStudio() {
   // JEWELLERY TYPE ACTIONS
   // ==========================================================================
 
+  const handleOpenCreateType = () => {
+    setEditingType(null);
+    setTypeForm({
+      slug: "",
+      displayName: "",
+      description: "",
+      imageUrl: "",
+      displayOrder: (jewelleryTypes.length + 1) * 10,
+      isPublished: false,
+      designerStatus: "coming_soon",
+      supportedConstructionTypes: "elastic_bead",
+    });
+    setCategoryConflictMsg(null);
+    setShowTypeModal(true);
+  };
+
+  const handleOpenEditType = (type: JewelleryType) => {
+    setEditingType(type);
+    setTypeForm({
+      slug: type.slug,
+      displayName: type.displayName,
+      description: type.description || "",
+      imageUrl: type.imageUrl || "",
+      displayOrder: type.displayOrder ?? 0,
+      isPublished: !!type.isPublished,
+      designerStatus: type.designerStatus,
+      supportedConstructionTypes: (type.supportedConstructionTypes || []).join(", "),
+    });
+    setCategoryConflictMsg(null);
+    setShowTypeModal(true);
+  };
+
+  const handleSaveType = async () => {
+    try {
+      if (!typeForm.displayName.trim()) {
+        toast({ title: "Validation Error", description: "Display name is required.", variant: "destructive" });
+        return;
+      }
+
+      const constructions = typeForm.supportedConstructionTypes
+        .split(",")
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean);
+
+      if (constructions.length === 0) {
+        toast({ title: "Validation Error", description: "At least one supported construction type is required.", variant: "destructive" });
+        return;
+      }
+
+      if (editingType) {
+        await updateJewelleryType(editingType.slug, {
+          displayName: typeForm.displayName.trim(),
+          description: typeForm.description.trim(),
+          imageUrl: typeForm.imageUrl.trim() || undefined,
+          displayOrder: Number(typeForm.displayOrder) || 0,
+          isPublished: typeForm.isPublished,
+          designerStatus: typeForm.designerStatus,
+          supportedConstructionTypes: constructions,
+        });
+        toast({ title: "Category Updated", description: `Updated ${typeForm.displayName}.` });
+      } else {
+        if (!typeForm.slug.trim()) {
+          toast({ title: "Validation Error", description: "Category slug is required.", variant: "destructive" });
+          return;
+        }
+        await createJewelleryType({
+          slug: typeForm.slug.trim().toLowerCase(),
+          displayName: typeForm.displayName.trim(),
+          description: typeForm.description.trim(),
+          imageUrl: typeForm.imageUrl.trim() || undefined,
+          displayOrder: Number(typeForm.displayOrder) || 0,
+          isPublished: typeForm.isPublished,
+          designerStatus: typeForm.designerStatus,
+          supportedConstructionTypes: constructions,
+        });
+        toast({ title: "Category Created", description: `Created category ${typeForm.displayName}.` });
+      }
+
+      setShowTypeModal(false);
+      setEditingType(null);
+      fetchJewelleryTypes();
+    } catch (err: any) {
+      toast({ title: "Save Failed", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleArchiveType = async (slug: string) => {
+    try {
+      await archiveJewelleryType(slug);
+      toast({ title: "Category Archived", description: `Archived ${slug}. It is hidden from customer catalogue.` });
+      fetchJewelleryTypes();
+    } catch (err: any) {
+      toast({ title: "Archive Failed", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleRestoreType = async (slug: string) => {
+    try {
+      await restoreJewelleryType(slug);
+      toast({ title: "Category Restored", description: `Restored ${slug}.` });
+      fetchJewelleryTypes();
+    } catch (err: any) {
+      toast({ title: "Restore Failed", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleDeleteType = async () => {
+    if (!deletingTypeSlug) return;
+    try {
+      setCategoryConflictMsg(null);
+      await deleteJewelleryType(deletingTypeSlug);
+      toast({ title: "Category Deleted", description: `Deleted category ${deletingTypeSlug}.` });
+      setDeletingTypeSlug(null);
+      fetchJewelleryTypes();
+    } catch (err: any) {
+      setCategoryConflictMsg(
+        err.message ||
+          "Cannot delete category referenced by materials, orders, or saved designs. Please archive it instead."
+      );
+    }
+  };
+
   const handleUpdateTypeStatus = async (slug: string, updates: Partial<JewelleryType>) => {
     try {
-      const res = await apiRequest("PATCH", `/api/v1/studio/admin/jewellery-types/${slug}`, updates);
-      if (!res.ok) throw new Error("Update failed");
+      await updateJewelleryType(slug, updates);
       toast({ title: "Category Updated", description: `Updated settings for ${slug}.` });
       fetchJewelleryTypes();
     } catch (err: any) {
       toast({ title: "Update Failed", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleDeleteMaterial = async () => {
+    if (!deletingMaterial) return;
+    try {
+      setMaterialConflictMsg(null);
+      await deleteStudioMaterial(deletingMaterial._id);
+      toast({ title: "Material Deleted", description: `Deleted material ${deletingMaterial.name}.` });
+      setDeletingMaterial(null);
+      fetchMaterials();
+    } catch (err: any) {
+      setMaterialConflictMsg(
+        err.message ||
+          "Cannot delete material referenced by customer orders, saved designs, or reservations. Please deactivate it instead."
+      );
     }
   };
 
@@ -717,10 +892,11 @@ export default function AdminStudio() {
                   className="h-9 px-3 text-xs rounded-xl border border-[#E6D8D0] dark:border-border bg-white dark:bg-card text-[#342824] dark:text-foreground"
                 >
                   <option value="all">All Categories</option>
-                  <option value="bracelet">Bracelets Eligible</option>
-                  <option value="chain_necklace">Chains Eligible</option>
-                  <option value="earrings">Earrings Eligible</option>
-                  <option value="bangles">Bangles Eligible</option>
+                  {jewelleryTypes.map((t) => (
+                    <option key={t.slug} value={t.slug}>
+                      {t.displayName} Eligible
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -816,6 +992,19 @@ export default function AdminStudio() {
                       </div>
 
                       <div className="flex items-center gap-2 shrink-0">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setDeletingMaterial(mat);
+                            setMaterialConflictMsg(null);
+                          }}
+                          className="h-8 w-8 p-0 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl"
+                          title="Delete Material"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+
                         <Button
                           size="sm"
                           variant="outline"
@@ -989,140 +1178,296 @@ export default function AdminStudio() {
         {/* TAB 2: JEWELLERY TYPES & READINESS */}
         {activeTab === "types" && (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {jewelleryTypes.map((type) => {
-                const readiness = readinessList.find((r) => r.slug === type.slug);
-                return (
-                  <Card key={type.slug} className="rounded-2xl border border-[#E6D8D0] dark:border-border bg-white dark:bg-card p-6 shadow-xs flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-start justify-between gap-4 mb-3">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-playfair text-xl font-semibold text-[#342824] dark:text-foreground">
-                              {type.displayName}
-                            </h3>
-                            <Badge
-                              variant="outline"
-                              className={
-                                type.designerStatus === "available"
-                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-800 text-[10px]"
-                                  : "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-800 text-[10px]"
-                              }
-                            >
-                              {type.designerStatus === "available" ? "Active" : "Coming Soon"}
-                            </Badge>
-                          </div>
-                          <span className="text-xs font-mono text-[#756861]">slug: {type.slug}</span>
-                        </div>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white dark:bg-card p-4 rounded-2xl border border-[#E6D8D0] dark:border-border">
+              <div>
+                <h3 className="font-playfair text-lg font-semibold text-[#342824] dark:text-foreground">
+                  Jewellery Categories & Readiness
+                </h3>
+                <p className="text-xs text-[#756861] dark:text-muted-foreground mt-0.5">
+                  Manage dynamic studio categories, publication status, construction models, and catalogue readiness.
+                </p>
+              </div>
 
-                        <select
-                          value={type.designerStatus}
-                          onChange={(e) => handleUpdateTypeStatus(type.slug, { designerStatus: e.target.value as any })}
-                          className="text-xs rounded-lg border border-[#E6D8D0] dark:border-border bg-[#FBF7F3] dark:bg-background h-8 px-2"
-                        >
-                          <option value="available">Available</option>
-                          <option value="coming_soon">Coming Soon</option>
-                          <option value="maintenance">Maintenance</option>
-                        </select>
-                      </div>
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 cursor-pointer text-xs text-[#756861] select-none">
+                  <input
+                    type="checkbox"
+                    checked={showArchivedTypes}
+                    onChange={(e) => setShowArchivedTypes(e.target.checked)}
+                    className="w-4 h-4 rounded accent-[#B66F72]"
+                  />
+                  <span>Show Archived</span>
+                </label>
 
-                      <p className="text-xs text-[#756861] dark:text-muted-foreground mb-4 leading-relaxed">
-                        {type.description}
-                      </p>
-
-                      {/* Live Readiness Breakdown */}
-                      <div className="p-3 rounded-xl bg-[#FBF7F3] dark:bg-background/60 border border-[#E6D8D0]/70 dark:border-border/70 space-y-2 mb-4 text-xs">
-                        <span className="text-[10px] uppercase font-semibold text-[#B99A72] tracking-wider block">Live Studio Readiness</span>
-                        <div className="grid grid-cols-3 gap-2 text-center pt-1">
-                          <div className="bg-white dark:bg-card p-2 rounded-lg border border-[#E6D8D0]/50 dark:border-border/50">
-                            <span className="text-[10px] text-[#756861] block">Materials</span>
-                            <span className="font-bold text-sm text-[#342824] dark:text-foreground">
-                              {readiness?.eligibleMaterialCount ?? 0}
-                            </span>
-                            <span className="text-[9px] text-[#756861] block">Components</span>
-                          </div>
-                          <div className="bg-white dark:bg-card p-2 rounded-lg border border-[#E6D8D0]/50 dark:border-border/50">
-                            <span className="text-[10px] text-[#756861] block">Design Rules</span>
-                            <span className={`font-semibold text-xs mt-1 block ${readiness?.hasDesignRule ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
-                              {readiness?.hasDesignRule ? "Configured ✓" : "Missing ✗"}
-                            </span>
-                          </div>
-                          <div className="bg-white dark:bg-card p-2 rounded-lg border border-[#E6D8D0]/50 dark:border-border/50">
-                            <span className="text-[10px] text-[#756861] block">Making Fee</span>
-                            <span className={`font-semibold text-xs mt-1 block ${readiness?.hasMakingCharge ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
-                              {readiness?.hasMakingCharge ? "Configured ✓" : "Missing ✗"}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Gaps Alert */}
-                        {readiness?.gapAnalysis && !readiness.isFullyReady && (
-                          <div className="mt-2 pt-2 border-t border-[#E6D8D0]/50 dark:border-border/50 text-[11px] text-amber-800 dark:text-amber-300">
-                            <div className="flex items-center gap-1.5 font-semibold text-[11px] mb-1">
-                              <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
-                              <span>Catalogue Readiness Gap:</span>
-                            </div>
-                            <p className="text-[10px] text-amber-700 dark:text-amber-400 pl-1 leading-relaxed">
-                              {readiness.gapAnalysis.materialsDetail}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="space-y-2 text-xs">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[#756861]">Supported Constructions:</span>
-                          <span className="font-mono">{type.supportedConstructionTypes.join(", ") || "None"}</span>
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                          <span className="text-[#756861]">Published in Customer Studio:</span>
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={type.isEnabled}
-                              onChange={(e) => handleUpdateTypeStatus(type.slug, { isEnabled: e.target.checked })}
-                              className="w-4 h-4 rounded accent-[#B66F72]"
-                            />
-                            <span className="font-medium">{type.isEnabled ? "Enabled" : "Disabled"}</span>
-                          </label>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Quick navigation to configure rules & pricing */}
-                    <div className="pt-4 mt-4 border-t border-[#E6D8D0]/60 dark:border-border/60 flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setSelectedRuleType(type.slug);
-                          setSelectedRuleConstruction(type.supportedConstructionTypes[0] || "default");
-                          setActiveTab("rules");
-                        }}
-                        className="flex-1 text-xs h-8 border-[#E6D8D0] dark:border-border"
-                      >
-                        <Sliders className="w-3 h-3 mr-1.5" />
-                        Configure Rules
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setSelectedPricingType(type.slug);
-                          setSelectedPricingConstruction(type.supportedConstructionTypes[0] || "default");
-                          setActiveTab("pricing");
-                        }}
-                        className="flex-1 text-xs h-8 border-[#E6D8D0] dark:border-border"
-                      >
-                        <DollarSign className="w-3 h-3 mr-1.5" />
-                        Configure Fees
-                      </Button>
-                    </div>
-                  </Card>
-                );
-              })}
+                <Button
+                  onClick={handleOpenCreateType}
+                  className="bg-[#B66F72] hover:bg-[#95565A] text-white text-xs rounded-xl h-9 px-4 flex items-center gap-1.5 shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Category</span>
+                </Button>
+              </div>
             </div>
+
+            {loadingTypes ? (
+              <div className="py-20 text-center">
+                <div className="w-8 h-8 rounded-full border-2 border-[#B66F72] border-t-transparent animate-spin mx-auto mb-3" />
+                <p className="text-xs text-[#756861]">Loading categories...</p>
+              </div>
+            ) : jewelleryTypes.length === 0 ? (
+              <Card className="p-12 text-center rounded-2xl border border-[#E6D8D0] dark:border-border bg-white dark:bg-card">
+                <Sliders className="w-10 h-10 text-[#B99A72] opacity-60 mx-auto mb-3" />
+                <h3 className="font-playfair text-lg font-semibold">No Categories Configured</h3>
+                <p className="text-xs text-[#756861] mt-1 max-w-sm mx-auto">
+                  Click "Add Category" above to create and publish jewellery types.
+                </p>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {jewelleryTypes.map((type) => {
+                  const readiness = readinessList.find((r) => r.slug === type.slug);
+                  return (
+                    <Card
+                      key={type.slug}
+                      className={`rounded-2xl border bg-white dark:bg-card p-6 shadow-xs flex flex-col justify-between transition-all ${
+                        type.isArchived
+                          ? "border-amber-300 dark:border-amber-800/60 opacity-80 bg-amber-50/20"
+                          : "border-[#E6D8D0] dark:border-border"
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-start justify-between gap-4 mb-3">
+                          <div className="flex items-start gap-3">
+                            {type.imageUrl && (
+                              <img
+                                src={getAssetUrl(type.imageUrl)}
+                                alt={type.displayName}
+                                className="w-12 h-12 rounded-xl object-cover border border-[#E6D8D0] dark:border-border shrink-0 bg-stone-50"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = "/placeholders/placeholder.png";
+                                }}
+                              />
+                            )}
+                            <div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h3 className="font-playfair text-xl font-semibold text-[#342824] dark:text-foreground">
+                                  {type.displayName}
+                                </h3>
+                                <Badge
+                                  variant="outline"
+                                  className={
+                                    type.isPublished
+                                      ? "bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px]"
+                                      : "bg-stone-50 text-stone-600 border-stone-200 text-[10px]"
+                                  }
+                                >
+                                  {type.isPublished ? "Published" : "Unpublished"}
+                                </Badge>
+                                {type.isArchived && (
+                                  <Badge
+                                    variant="outline"
+                                    className="bg-amber-50 text-amber-800 border-amber-300 text-[10px]"
+                                  >
+                                    Archived
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className="text-xs font-mono text-[#756861]">slug: {type.slug}</span>
+                                <span className="text-xs text-[#756861]">·</span>
+                                <span className="text-xs text-[#756861]">Order: {type.displayOrder ?? 0}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleOpenEditType(type)}
+                              className="h-8 w-8 p-0 text-stone-500 hover:text-[#B66F72] rounded-xl"
+                              title="Edit Category Details"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </Button>
+
+                            {type.isArchived ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleRestoreType(type.slug)}
+                                className="h-8 text-xs border-[#E6D8D0] rounded-xl text-emerald-700 hover:bg-emerald-50"
+                                title="Restore Category"
+                              >
+                                <ArchiveRestore className="w-3.5 h-3.5 mr-1" />
+                                <span>Restore</span>
+                              </Button>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleArchiveType(type.slug)}
+                                className="h-8 text-xs border-amber-200 rounded-xl text-amber-700 hover:bg-amber-50"
+                                title="Archive Category"
+                              >
+                                <Archive className="w-3.5 h-3.5 mr-1" />
+                                <span>Archive</span>
+                              </Button>
+                            )}
+
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setDeletingTypeSlug(type.slug);
+                                setCategoryConflictMsg(null);
+                              }}
+                              className="h-8 w-8 p-0 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl"
+                              title="Delete Category"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+
+                        <p className="text-xs text-[#756861] dark:text-muted-foreground mb-4 leading-relaxed">
+                          {type.description || "No description provided."}
+                        </p>
+
+                        {/* Live Readiness Breakdown */}
+                        <div className="p-3 rounded-xl bg-[#FBF7F3] dark:bg-background/60 border border-[#E6D8D0]/70 dark:border-border/70 space-y-2 mb-4 text-xs">
+                          <span className="text-[10px] uppercase font-semibold text-[#B99A72] tracking-wider block">
+                            Live Studio Readiness
+                          </span>
+                          <div className="grid grid-cols-3 gap-2 text-center pt-1">
+                            <div className="bg-white dark:bg-card p-2 rounded-lg border border-[#E6D8D0]/50 dark:border-border/50">
+                              <span className="text-[10px] text-[#756861] block">Materials</span>
+                              <span className="font-bold text-sm text-[#342824] dark:text-foreground">
+                                {readiness?.eligibleMaterialCount ?? 0}
+                              </span>
+                              <span className="text-[9px] text-[#756861] block">
+                                {readiness?.inStockVariantCount ?? 0} in stock
+                              </span>
+                            </div>
+                            <div className="bg-white dark:bg-card p-2 rounded-lg border border-[#E6D8D0]/50 dark:border-border/50">
+                              <span className="text-[10px] text-[#756861] block">Design Rules</span>
+                              <span
+                                className={`font-semibold text-xs mt-1 block ${
+                                  readiness?.hasDesignRule
+                                    ? "text-emerald-600 dark:text-emerald-400"
+                                    : "text-amber-600 dark:text-amber-400"
+                                }`}
+                              >
+                                {readiness?.hasDesignRule ? "Configured ✓" : "Missing ✗"}
+                              </span>
+                            </div>
+                            <div className="bg-white dark:bg-card p-2 rounded-lg border border-[#E6D8D0]/50 dark:border-border/50">
+                              <span className="text-[10px] text-[#756861] block">Making Fee</span>
+                              <span
+                                className={`font-semibold text-xs mt-1 block ${
+                                  readiness?.hasMakingCharge
+                                    ? "text-emerald-600 dark:text-emerald-400"
+                                    : "text-amber-600 dark:text-amber-400"
+                                }`}
+                              >
+                                {readiness?.hasMakingCharge ? "Configured ✓" : "Missing ✗"}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Gaps Alert */}
+                          {readiness?.gapAnalysis && !readiness.isFullyReady && (
+                            <div className="mt-2 pt-2 border-t border-[#E6D8D0]/50 dark:border-border/50 text-[11px] text-amber-800 dark:text-amber-300">
+                              <div className="flex items-center gap-1.5 font-semibold text-[11px] mb-1">
+                                <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                                <span>Catalogue Readiness Gap:</span>
+                              </div>
+                              <p className="text-[10px] text-amber-700 dark:text-amber-400 pl-1 leading-relaxed">
+                                {readiness.gapAnalysis.materialsDetail}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="space-y-2 text-xs">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[#756861]">Supported Constructions:</span>
+                            <span className="font-mono text-[11px]">
+                              {(type.supportedConstructionTypes || []).join(", ") || "None"}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <span className="text-[#756861]">Designer Status:</span>
+                            <select
+                              value={type.designerStatus}
+                              onChange={(e) =>
+                                handleUpdateTypeStatus(type.slug, { designerStatus: e.target.value as any })
+                              }
+                              className="text-xs rounded-lg border border-[#E6D8D0] dark:border-border bg-[#FBF7F3] dark:bg-background h-8 px-2"
+                            >
+                              <option value="available">Available</option>
+                              <option value="coming_soon">Coming Soon</option>
+                              <option value="maintenance">Maintenance</option>
+                            </select>
+                          </div>
+
+                          <div className="flex items-center justify-between pt-1">
+                            <span className="text-[#756861]">Published in Customer Studio:</span>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={!!type.isPublished}
+                                onChange={(e) =>
+                                  handleUpdateTypeStatus(type.slug, {
+                                    isPublished: e.target.checked,
+                                    isEnabled: e.target.checked,
+                                  })
+                                }
+                                className="w-4 h-4 rounded accent-[#B66F72]"
+                              />
+                              <span className="font-medium">
+                                {type.isPublished ? "Published (Live)" : "Unpublished (Draft)"}
+                              </span>
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Quick navigation to configure rules & pricing */}
+                      <div className="pt-4 mt-4 border-t border-[#E6D8D0]/60 dark:border-border/60 flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setSelectedRuleType(type.slug);
+                            setSelectedRuleConstruction(type.supportedConstructionTypes?.[0] || "default");
+                            setActiveTab("rules");
+                          }}
+                          className="flex-1 text-xs h-8 border-[#E6D8D0] dark:border-border"
+                        >
+                          <Sliders className="w-3 h-3 mr-1.5" />
+                          Configure Rules
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setSelectedPricingType(type.slug);
+                            setSelectedPricingConstruction(type.supportedConstructionTypes?.[0] || "default");
+                            setActiveTab("pricing");
+                          }}
+                          className="flex-1 text-xs h-8 border-[#E6D8D0] dark:border-border"
+                        >
+                          <DollarSign className="w-3 h-3 mr-1.5" />
+                          Configure Fees
+                        </Button>
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
@@ -1682,12 +2027,7 @@ export default function AdminStudio() {
                 <div className="space-y-1.5 pt-2">
                   <Label>Eligible Jewellery Types</Label>
                   <div className="grid grid-cols-2 gap-2">
-                    {[
-                      { slug: "bracelet", label: "Bracelets" },
-                      { slug: "chain_necklace", label: "Chains & Necklaces" },
-                      { slug: "earrings", label: "Earrings" },
-                      { slug: "bangles", label: "Bangles" },
-                    ].map((t) => (
+                    {jewelleryTypes.map((t) => (
                       <label key={t.slug} className="flex items-center gap-2 p-2 rounded-lg border cursor-pointer text-xs">
                         <input
                           type="checkbox"
@@ -1707,7 +2047,7 @@ export default function AdminStudio() {
                           }}
                           className="accent-[#B66F72]"
                         />
-                        <span>{t.label}</span>
+                        <span>{t.displayName}</span>
                       </label>
                     ))}
                   </div>
@@ -1876,6 +2216,259 @@ export default function AdminStudio() {
               >
                 Disable Component
               </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* MODAL: ADD / EDIT JEWELLERY CATEGORY */}
+        {showTypeModal && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <Card className="max-w-lg w-full bg-white dark:bg-card rounded-2xl border border-[#E6D8D0] shadow-xl p-6 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between pb-4 border-b border-[#E6D8D0] dark:border-border">
+                <div>
+                  <h3 className="font-playfair text-xl font-semibold">
+                    {editingType ? "Edit Jewellery Category" : "Add Jewellery Category"}
+                  </h3>
+                  <p className="text-xs text-[#756861] dark:text-muted-foreground mt-0.5">
+                    {editingType
+                      ? `Update configuration for ${editingType.displayName}`
+                      : "Introduce a new bespoke jewellery category to the studio"}
+                  </p>
+                </div>
+                <Button size="sm" variant="ghost" onClick={() => setShowTypeModal(false)} className="h-7 w-7 p-0">
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+
+              <div className="space-y-4 pt-4 text-xs">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label>Category Identifier (Slug)</Label>
+                    <Input
+                      placeholder="e.g. kundan_earrings"
+                      value={typeForm.slug}
+                      disabled={!!editingType}
+                      onChange={(e) =>
+                        setTypeForm({ ...typeForm, slug: e.target.value.toLowerCase().replace(/\s+/g, "_") })
+                      }
+                    />
+                    <span className="text-[10px] text-muted-foreground">Unique system key</span>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label>Display Name</Label>
+                    <Input
+                      placeholder="e.g. Kundan Stone Earrings"
+                      value={typeForm.displayName}
+                      onChange={(e) => setTypeForm({ ...typeForm, displayName: e.target.value })}
+                    />
+                    <span className="text-[10px] text-muted-foreground">Customer-facing title</span>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <Label>Description</Label>
+                  <textarea
+                    rows={2}
+                    value={typeForm.description}
+                    onChange={(e) => setTypeForm({ ...typeForm, description: e.target.value })}
+                    className="w-full p-2 rounded-lg border border-[#E6D8D0] dark:border-border text-xs bg-white dark:bg-background"
+                    placeholder="Artisanal description of this bespoke category..."
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label>Category Image URL</Label>
+                  <Input
+                    placeholder="e.g. /assets/categories/earrings.jpg or https://..."
+                    value={typeForm.imageUrl}
+                    onChange={(e) => setTypeForm({ ...typeForm, imageUrl: e.target.value })}
+                  />
+                  {typeForm.imageUrl && (
+                    <img
+                      src={getAssetUrl(typeForm.imageUrl)}
+                      alt="Category Preview"
+                      className="w-16 h-16 rounded-lg object-cover border mt-1"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = "/placeholders/placeholder.png";
+                      }}
+                    />
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label>Display Order</Label>
+                    <Input
+                      type="number"
+                      value={typeForm.displayOrder}
+                      onChange={(e) => setTypeForm({ ...typeForm, displayOrder: Number(e.target.value) })}
+                    />
+                    <span className="text-[10px] text-muted-foreground">Lower numbers appear first</span>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label>Designer Status</Label>
+                    <select
+                      value={typeForm.designerStatus}
+                      onChange={(e) =>
+                        setTypeForm({ ...typeForm, designerStatus: e.target.value as any })
+                      }
+                      className="w-full h-9 px-3 rounded-lg border border-[#E6D8D0] dark:border-border bg-white dark:bg-background text-xs"
+                    >
+                      <option value="available">Available</option>
+                      <option value="coming_soon">Coming Soon</option>
+                      <option value="maintenance">Maintenance</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <Label>Supported Construction Types (comma-separated)</Label>
+                  <Input
+                    placeholder="e.g. elastic_bead, wire_wrap, kundan_setting"
+                    value={typeForm.supportedConstructionTypes}
+                    onChange={(e) => setTypeForm({ ...typeForm, supportedConstructionTypes: e.target.value })}
+                  />
+                  <span className="text-[10px] text-muted-foreground">
+                    Comma separated identifiers: elastic_bead, wire_wrap, kundan_setting, link_chain
+                  </span>
+                </div>
+
+                <div className="pt-2 border-t border-[#E6D8D0]/60 dark:border-border/60">
+                  <label className="flex items-center gap-2 cursor-pointer text-xs">
+                    <input
+                      type="checkbox"
+                      checked={typeForm.isPublished}
+                      onChange={(e) => setTypeForm({ ...typeForm, isPublished: e.target.checked })}
+                      className="w-4 h-4 rounded accent-[#B66F72]"
+                    />
+                    <div>
+                      <span className="font-semibold block">Publish to Customer Studio</span>
+                      <span className="text-[11px] text-[#756861] dark:text-muted-foreground block">
+                        When unpublished, customers cannot view or browse this category.
+                      </span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-6 mt-4 border-t border-[#E6D8D0] dark:border-border">
+                <Button variant="outline" size="sm" onClick={() => setShowTypeModal(false)}>
+                  Cancel
+                </Button>
+                <Button size="sm" onClick={handleSaveType} className="bg-[#B66F72] hover:bg-[#95565A] text-white">
+                  {editingType ? "Save Changes" : "Create Category"}
+                </Button>
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {/* DIALOG: CONFIRM DELETE CATEGORY */}
+        <AlertDialog open={!!deletingTypeSlug} onOpenChange={(open) => !open && setDeletingTypeSlug(null)}>
+          <AlertDialogContent className="rounded-2xl border border-[#E6D8D0] bg-white dark:bg-card">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="font-playfair text-lg text-rose-700">
+                Delete Jewellery Category?
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-xs text-[#756861] dark:text-muted-foreground space-y-2">
+                <p>
+                  Permanently deleting category <strong className="font-mono">{deletingTypeSlug}</strong> removes it from the studio catalogue.
+                </p>
+                {categoryConflictMsg && (
+                  <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs mt-2">
+                    <div className="flex items-center gap-1.5 font-semibold text-amber-800 mb-1">
+                      <AlertCircle className="w-4 h-4 text-amber-600" />
+                      <span>Deletion Blocked (Integrity Safeguard)</span>
+                    </div>
+                    <p>{categoryConflictMsg}</p>
+                    <p className="mt-2 text-[11px] text-amber-700 font-medium">
+                      Recommended: Archive this category instead to hide it safely without breaking existing customer designs or orders.
+                    </p>
+                  </div>
+                )}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="text-xs rounded-xl">Cancel</AlertDialogCancel>
+              {categoryConflictMsg ? (
+                <Button
+                  onClick={() => {
+                    if (deletingTypeSlug) handleArchiveType(deletingTypeSlug);
+                    setDeletingTypeSlug(null);
+                  }}
+                  className="bg-amber-600 hover:bg-amber-700 text-white text-xs rounded-xl"
+                >
+                  Archive Category Instead
+                </Button>
+              ) : (
+                <AlertDialogAction
+                  onClick={handleDeleteType}
+                  className="bg-rose-600 hover:bg-rose-700 text-white text-xs rounded-xl"
+                >
+                  Delete Category
+                </AlertDialogAction>
+              )}
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* DIALOG: CONFIRM DELETE MATERIAL */}
+        <AlertDialog open={!!deletingMaterial} onOpenChange={(open) => !open && setDeletingMaterial(null)}>
+          <AlertDialogContent className="rounded-2xl border border-[#E6D8D0] bg-white dark:bg-card">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="font-playfair text-lg text-rose-700">
+                Delete Shared Material?
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-xs text-[#756861] dark:text-muted-foreground space-y-2">
+                <p>
+                  Permanently deleting material <strong className="font-semibold">{deletingMaterial?.name}</strong> (<span className="font-mono">{deletingMaterial?.code}</span>) and its SKU variants.
+                </p>
+                {materialConflictMsg && (
+                  <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs mt-2">
+                    <div className="flex items-center gap-1.5 font-semibold text-amber-800 mb-1">
+                      <AlertCircle className="w-4 h-4 text-amber-600" />
+                      <span>Deletion Blocked (Integrity Safeguard)</span>
+                    </div>
+                    <p>{materialConflictMsg}</p>
+                    <p className="mt-2 text-[11px] text-amber-700 font-medium">
+                      Recommended: Set this material to "Inactive" so it is hidden from future designs while historical records remain intact.
+                    </p>
+                  </div>
+                )}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="text-xs rounded-xl">Cancel</AlertDialogCancel>
+              {materialConflictMsg ? (
+                <Button
+                  onClick={async () => {
+                    if (deletingMaterial) {
+                      try {
+                        await apiRequest("PATCH", `/api/v1/studio/admin/materials/${deletingMaterial._id}`, {
+                          isActive: false,
+                        });
+                        toast({ title: "Material Deactivated", description: `${deletingMaterial.name} is now inactive.` });
+                        fetchMaterials();
+                      } catch (err: any) {
+                        toast({ title: "Deactivate Failed", description: err.message, variant: "destructive" });
+                      }
+                    }
+                    setDeletingMaterial(null);
+                  }}
+                  className="bg-amber-600 hover:bg-amber-700 text-white text-xs rounded-xl"
+                >
+                  Deactivate Material Instead
+                </Button>
+              ) : (
+                <AlertDialogAction
+                  onClick={handleDeleteMaterial}
+                  className="bg-rose-600 hover:bg-rose-700 text-white text-xs rounded-xl"
+                >
+                  Delete Material
+                </AlertDialogAction>
+              )}
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>

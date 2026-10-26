@@ -48,6 +48,7 @@ export const createMaterialSchema = z.object({
   renderAssetUrl: mediaUrlSchema.optional(),
   additionalImages: z.array(mediaUrlSchema).optional().default([]),
   allowedJewelleryTypes: z.array(z.string().min(1)).min(1),
+  supportedConstructionTypes: z.array(z.string().min(1)).optional().default([]),
   isActive: z.boolean().optional().default(true),
   sortOrder: z.number().int().optional().default(0),
   variants: z.array(createVariantSchema).optional().default([]),
@@ -55,11 +56,32 @@ export const createMaterialSchema = z.object({
 
 export const updateMaterialSchema = createMaterialSchema.partial();
 
-export const updateJewelleryTypeSchema = z.object({
-  displayName: z.string().min(1).max(100).optional(),
+export const createJewelleryTypeSchema = z.object({
+  slug: z
+    .string()
+    .min(2)
+    .max(64)
+    .trim()
+    .toLowerCase()
+    .regex(/^[a-z0-9_-]+$/, "Slug must only contain lowercase letters, numbers, hyphens, and underscores"),
+  displayName: z.string().min(1).max(100).trim(),
   description: z.string().max(1000).optional(),
+  imageUrl: mediaUrlSchema.optional(),
+  displayOrder: z.number().int().optional().default(0),
+  isEnabled: z.boolean().optional().default(true),
+  isPublished: z.boolean().optional().default(false),
+  designerStatus: z.enum(["available", "coming_soon", "maintenance"]).optional().default("coming_soon"),
+  supportedConstructionTypes: z.array(z.string().min(1)).optional().default([]),
+});
+
+export const updateJewelleryTypeSchema = z.object({
+  displayName: z.string().min(1).max(100).trim().optional(),
+  description: z.string().max(1000).optional(),
+  imageUrl: mediaUrlSchema.optional(),
   displayOrder: z.number().int().optional(),
   isEnabled: z.boolean().optional(),
+  isPublished: z.boolean().optional(),
+  isArchived: z.boolean().optional(),
   designerStatus: z.enum(["available", "coming_soon", "maintenance"]).optional(),
   supportedConstructionTypes: z.array(z.string().min(1)).optional(),
 });

@@ -6,8 +6,12 @@ export interface IJewelleryType extends Document {
   slug: string;
   displayName: string;
   description?: string;
+  imageUrl?: string;
   displayOrder: number;
   isEnabled: boolean;
+  isPublished: boolean;
+  isArchived: boolean;
+  archivedAt?: Date;
   designerStatus: DesignerStatus;
   supportedConstructionTypes: string[];
   createdAt: Date;
@@ -33,6 +37,10 @@ const jewelleryTypeSchema = new Schema<IJewelleryType>(
       type: String,
       trim: true,
     },
+    imageUrl: {
+      type: String,
+      trim: true,
+    },
     displayOrder: {
       type: Number,
       default: 0,
@@ -41,6 +49,19 @@ const jewelleryTypeSchema = new Schema<IJewelleryType>(
       type: Boolean,
       default: true,
       index: true,
+    },
+    isPublished: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    isArchived: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    archivedAt: {
+      type: Date,
     },
     designerStatus: {
       type: String,
@@ -56,6 +77,7 @@ const jewelleryTypeSchema = new Schema<IJewelleryType>(
   { timestamps: true }
 );
 
+jewelleryTypeSchema.index({ isPublished: 1, isArchived: 1, displayOrder: 1 });
 jewelleryTypeSchema.index({ isEnabled: 1, displayOrder: 1 });
 
 export const JewelleryType: Model<IJewelleryType> =

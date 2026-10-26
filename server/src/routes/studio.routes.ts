@@ -7,6 +7,7 @@ import {
   updateMaterialSchema,
   createVariantSchema,
   updateVariantSchema,
+  createJewelleryTypeSchema,
   updateJewelleryTypeSchema,
   upsertDesignRuleSchema,
   upsertMakingChargeSchema,
@@ -113,12 +114,41 @@ router.get(
   studioController.listJewelleryTypes
 );
 
+router.post(
+  "/admin/jewellery-types",
+  requireAuth,
+  requireAdmin,
+  validateBody(createJewelleryTypeSchema),
+  studioController.createJewelleryType
+);
+
 router.patch(
   "/admin/jewellery-types/:slug",
   requireAuth,
   requireAdmin,
   validateBody(updateJewelleryTypeSchema),
   studioController.updateJewelleryType
+);
+
+router.delete(
+  "/admin/jewellery-types/:slug",
+  requireAuth,
+  requireAdmin,
+  studioController.deleteJewelleryType
+);
+
+router.post(
+  "/admin/jewellery-types/:slug/archive",
+  requireAuth,
+  requireAdmin,
+  studioController.archiveJewelleryType
+);
+
+router.post(
+  "/admin/jewellery-types/:slug/restore",
+  requireAuth,
+  requireAdmin,
+  studioController.restoreJewelleryType
 );
 
 // Materials Management
@@ -151,6 +181,13 @@ router.patch(
   requireAdmin,
   validateBody(updateMaterialSchema),
   studioController.updateMaterial
+);
+
+router.delete(
+  "/admin/materials/:id",
+  requireAuth,
+  requireAdmin,
+  studioController.deleteMaterial
 );
 
 // Material Variant Management

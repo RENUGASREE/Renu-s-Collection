@@ -39,32 +39,32 @@ interface AIDesignAssistantModalProps {
 
 const QUICK_PROMPTS = [
   {
-    label: "🌸 Rose Quartz & Pearl",
-    prompt: "Romantic rose quartz and freshwater pearls for an anniversary dinner",
+    label: "🌸 Romantic Pastel Charm",
+    prompt: "Delicate blush pink tones and freshwater pearls for an anniversary dinner",
     occasion: "wedding",
     colorTheme: "rose_gold",
   },
   {
-    label: "🌿 Earthy Tiger Eye & Onyx",
-    prompt: "Grounding golden tiger eye and matte black onyx for focus and daily wear",
+    label: "🌿 Earthy Mineral & Onyx",
+    prompt: "Warm golden earth gemstone tones and matte dark beads for focus and daily wear",
     occasion: "daily_wear",
     colorTheme: "earthy",
   },
   {
-    label: "🌊 Ocean Turquoise & Silver",
-    prompt: "Vibrant ocean turquoise paired with sterling silver spacers and star charm",
+    label: "🌊 Ocean Breeze & Silver",
+    prompt: "Vibrant ocean turquoise hues paired with bright sterling silver spacers and accent charm",
     occasion: "party",
     colorTheme: "ocean_blue",
   },
   {
-    label: "✨ Spiritual Amethyst & Lotus",
-    prompt: "Regal purple amethyst and clear quartz for meditation with a sacred lotus charm",
+    label: "✨ Royal Gemstone & Lotus",
+    prompt: "Deep royal purple gemstone beads with clear quartz and a sacred lotus charm",
     occasion: "spiritual",
     colorTheme: "purple",
   },
   {
-    label: "🖤 Minimalist Black Luxe",
-    prompt: "Sleek all-black matte onyx and volcanic lava stone with subtle silver accents under ₹1,200",
+    label: "🖤 Minimalist Luxe Noir",
+    prompt: "Sleek all-black matte stone and textured accents with subtle silver details",
     occasion: "office",
     colorTheme: "black_silver",
     budget: 1200,

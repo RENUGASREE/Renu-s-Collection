@@ -4,6 +4,9 @@ import { StudioMaterial } from "../models/StudioMaterial.js";
 import { DesignRule } from "../models/DesignRule.js";
 import { MakingCharge } from "../models/MakingCharge.js";
 import { StudioReservation } from "../models/StudioReservation.js";
+import { Order } from "../models/Order.js";
+import { SavedDesign } from "../models/SavedDesign.js";
+import { DesignTemplate } from "../models/DesignTemplate.js";
 import {
   calculateDesignPrice,
   toPublicMaterial,
@@ -38,7 +41,16 @@ export async function listJewelleryTypes(
 ): Promise<void> {
   try {
     const isAdmin = req.user?.role === "admin";
-    const filter = isAdmin ? {} : { isEnabled: true };
+    const includeArchived = req.query.includeArchived === "true";
+
+    let filter: any;
+    if (isAdmin) {
+      filter = includeArchived ? {} : { isArchived: { $ne: true } };
+    } else {
+      // Customer view: only published, enabled, and non-archived categories
+      filter = { isPublished: true, isEnabled: { $ne: false }, isArchived: { $ne: true } };
+    }
+
     const types = await JewelleryType.find(filter).sort({ displayOrder: 1, createdAt: 1 });
     res.json({ success: true, data: types });
   } catch (error) {
@@ -47,13 +59,71 @@ export async function listJewelleryTypes(
 }
 
 export async function getJewelleryTypesReadiness(
-  _req: Request,
+  req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
-    const report = await getStudioReadinessReport();
+    const isAdmin = req.user?.role === "admin";
+    const report = await getStudioReadinessReport(isAdmin);
     res.json({ success: true, data: report });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function createJewelleryType(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const {
+      slug,
+      displayName,
+      description,
+      imageUrl,
+      displayOrder,
+      isEnabled,
+      isPublished,
+      designerStatus,
+      supportedConstructionTypes,
+    } = req.body;
+
+    const normalizedSlug = slug.toLowerCase().trim();
+    const existing = await JewelleryType.findOne({ slug: normalizedSlug });
+    if (existing) {
+      throw new AppError(`A jewellery category with slug "${normalizedSlug}" already exists`, 409);
+    }
+
+    const targetPublished = Boolean(isPublished);
+    const targetStatus = designerStatus || "coming_soon";
+
+    if (targetPublished && targetStatus === "available") {
+      throw new AppError(
+        `New categories must be created in "Coming Soon" or unpublished status first so materials, construction rules, and making charges can be configured before publishing.`,
+        400
+      );
+    }
+
+    const type = await JewelleryType.create({
+      slug: normalizedSlug,
+      displayName,
+      description,
+      imageUrl,
+      displayOrder: displayOrder ?? 0,
+      isEnabled: isEnabled !== undefined ? isEnabled : true,
+      isPublished: isPublished !== undefined ? isPublished : false, // Default to unpublished
+      isArchived: false,
+      designerStatus: designerStatus || "coming_soon",
+      supportedConstructionTypes: supportedConstructionTypes || [],
+    });
+
+    res.status(201).json({
+      success: true,
+      data: type,
+      message: `Jewellery category "${displayName}" created successfully`,
+    });
   } catch (error) {
     next(error);
   }
@@ -66,9 +136,72 @@ export async function updateJewelleryType(
 ): Promise<void> {
   try {
     const { slug } = req.params;
+    const normalizedSlug = slug.toLowerCase();
+    const updates = { ...req.body };
+
+    const current = await JewelleryType.findOne({ slug: normalizedSlug });
+    if (!current) {
+      throw new AppError(`Jewellery type "${slug}" was not found`, 404);
+    }
+
+    // If isPublished is being set, keep isEnabled in sync for compatibility
+    if (updates.isPublished !== undefined && updates.isEnabled === undefined) {
+      updates.isEnabled = updates.isPublished;
+    }
+
+    const targetPublished = updates.isPublished !== undefined ? updates.isPublished : current.isPublished;
+    const targetStatus = updates.designerStatus !== undefined ? updates.designerStatus : current.designerStatus;
+
+    // Server-enforced readiness:
+    // If the category is being marked as published and available for customer orders,
+    // verify that required active materials, stock, DesignRule, and MakingCharge exist.
+    if (targetPublished && targetStatus === "available") {
+      const activeMaterials = await StudioMaterial.find({
+        isActive: true,
+        allowedJewelleryTypes: normalizedSlug,
+      }).lean();
+
+      const inStockVariantCount = activeMaterials.reduce(
+        (sum, m) => sum + (m.variants || []).filter((v) => v.isActive && v.stock > 0).length,
+        0
+      );
+
+      const constructions = updates.supportedConstructionTypes || current.supportedConstructionTypes || [];
+      const primaryConstruction = constructions[0] || "";
+
+      const [hasRule, hasCharge] = await Promise.all([
+        primaryConstruction
+          ? DesignRule.findOne({ jewelleryType: normalizedSlug, constructionType: primaryConstruction, isActive: true }).lean()
+          : null,
+        primaryConstruction
+          ? MakingCharge.findOne({ jewelleryType: normalizedSlug, constructionType: primaryConstruction, isActive: true }).lean()
+          : null,
+      ]);
+
+      const missing: string[] = [];
+      if (activeMaterials.length === 0) {
+        missing.push("at least one active catalogue material");
+      } else if (inStockVariantCount === 0) {
+        missing.push("at least one in-stock material variant");
+      }
+      if (!hasRule) {
+        missing.push(`an active construction DesignRule for "${primaryConstruction || "default"}"`);
+      }
+      if (!hasCharge) {
+        missing.push(`an active craftsmanship MakingCharge for "${primaryConstruction || "default"}"`);
+      }
+
+      if (missing.length > 0) {
+        throw new AppError(
+          `Cannot publish "${current.displayName}" as available. It is missing: ${missing.join(", ")}. Please configure and calibrate these requirements before publishing.`,
+          400
+        );
+      }
+    }
+
     const type = await JewelleryType.findOneAndUpdate(
-      { slug: slug.toLowerCase() },
-      { $set: req.body },
+      { slug: normalizedSlug },
+      { $set: updates },
       { new: true, runValidators: true }
     );
 
@@ -77,6 +210,107 @@ export async function updateJewelleryType(
     }
 
     res.json({ success: true, data: type, message: "Jewellery type updated successfully" });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function deleteJewelleryType(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { slug } = req.params;
+    const normalizedSlug = slug.toLowerCase();
+
+    const category = await JewelleryType.findOne({ slug: normalizedSlug });
+    if (!category) {
+      throw new AppError(`Jewellery category "${slug}" was not found`, 404);
+    }
+
+    // Safety checks: verify that no materials, saved designs, templates, reservations, or orders reference this category
+    const [materialCount, savedCount, templateCount, reservationCount, orderCount] = await Promise.all([
+      StudioMaterial.countDocuments({ allowedJewelleryTypes: normalizedSlug }),
+      SavedDesign.countDocuments({ jewelleryType: normalizedSlug }),
+      DesignTemplate.countDocuments({ jewelleryType: normalizedSlug }),
+      StudioReservation.countDocuments({ "components.jewelleryType": normalizedSlug }),
+      Order.countDocuments({ "items.customDesign.jewelleryType": normalizedSlug }),
+    ]);
+
+    const reasons: string[] = [];
+    if (materialCount > 0) reasons.push(`${materialCount} material(s)`);
+    if (savedCount > 0) reasons.push(`${savedCount} customer saved design(s)`);
+    if (templateCount > 0) reasons.push(`${templateCount} design template(s)`);
+    if (reservationCount > 0) reasons.push(`${reservationCount} stock reservation(s)`);
+    if (orderCount > 0) reasons.push(`${orderCount} historical order(s)`);
+
+    if (reasons.length > 0) {
+      throw new AppError(
+        `Cannot delete category "${category.displayName}" because it is referenced by: ${reasons.join(", ")}. Please archive or unpublish this category instead to protect historical records.`,
+        409
+      );
+    }
+
+    await JewelleryType.deleteOne({ _id: category._id });
+    res.json({
+      success: true,
+      message: `Jewellery category "${category.displayName}" deleted successfully`,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function archiveJewelleryType(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { slug } = req.params;
+    const category = await JewelleryType.findOneAndUpdate(
+      { slug: slug.toLowerCase() },
+      { $set: { isArchived: true, isPublished: false, archivedAt: new Date() } },
+      { new: true }
+    );
+
+    if (!category) {
+      throw new AppError(`Jewellery category "${slug}" was not found`, 404);
+    }
+
+    res.json({
+      success: true,
+      data: category,
+      message: `Category "${category.displayName}" has been archived and unpublished.`,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function restoreJewelleryType(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { slug } = req.params;
+    const category = await JewelleryType.findOneAndUpdate(
+      { slug: slug.toLowerCase() },
+      { $set: { isArchived: false }, $unset: { archivedAt: 1 } },
+      { new: true }
+    );
+
+    if (!category) {
+      throw new AppError(`Jewellery category "${slug}" was not found`, 404);
+    }
+
+    res.json({
+      success: true,
+      data: category,
+      message: `Category "${category.displayName}" has been restored.`,
+    });
   } catch (error) {
     next(error);
   }
@@ -100,7 +334,17 @@ export async function listMaterials(
     if (!isAdmin) {
       query.isActive = true;
       if (jewelleryType) {
-        query.allowedJewelleryTypes = jewelleryType;
+        const jTypeSlug = String(jewelleryType).toLowerCase().trim();
+        const jType = await JewelleryType.findOne({
+          slug: jTypeSlug,
+          isPublished: true,
+          isEnabled: { $ne: false },
+          isArchived: { $ne: true },
+        });
+        if (!jType) {
+          throw new AppError(`Jewellery category "${jewelleryType}" is currently unavailable`, 404);
+        }
+        query.allowedJewelleryTypes = jTypeSlug;
       }
     } else {
       if (jewelleryType) {
@@ -363,6 +607,54 @@ export async function deleteVariant(
   }
 }
 
+export async function deleteMaterial(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { id } = req.params;
+    const material = await StudioMaterial.findById(id);
+    if (!material) {
+      throw new AppError("Material not found", 404);
+    }
+
+    const skus = (material.variants || []).map((v) => v.sku);
+
+    // Safeguard: Check if any variant SKU is used in historical orders, saved designs, or reservations
+    const [orderCount, savedCount, reservationCount] = await Promise.all([
+      Order.countDocuments({ "items.customDesign.beadSequence.variantSku": { $in: skus } }),
+      SavedDesign.countDocuments({
+        $or: [
+          { "beadSequence.variantSku": { $in: skus } },
+          { "charms.variantSku": { $in: skus } },
+        ],
+      }),
+      StudioReservation.countDocuments({ "components.variantSku": { $in: skus } }),
+    ]);
+
+    const reasons: string[] = [];
+    if (orderCount > 0) reasons.push(`${orderCount} historical order(s)`);
+    if (savedCount > 0) reasons.push(`${savedCount} saved design(s)`);
+    if (reservationCount > 0) reasons.push(`${reservationCount} stock reservation(s)`);
+
+    if (reasons.length > 0) {
+      throw new AppError(
+        `Cannot permanently delete material "${material.name}" because its variants (${skus.join(", ")}) are referenced by: ${reasons.join(", ")}. Please deactivate or archive it instead to protect historical records.`,
+        409
+      );
+    }
+
+    await StudioMaterial.findByIdAndDelete(id);
+    res.json({
+      success: true,
+      message: `Material "${material.name}" and its variants have been safely removed.`,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 // ============================================================================
 // DESIGN RULES & MAKING CHARGES CONTROLLERS
 // ============================================================================
@@ -380,6 +672,15 @@ export async function getDesignRule(
       constructionType: constructionType.toLowerCase(),
     };
     if (!isAdmin) {
+      const jType = await JewelleryType.findOne({
+        slug: jewelleryType.toLowerCase(),
+        isPublished: true,
+        isEnabled: { $ne: false },
+        isArchived: { $ne: true },
+      });
+      if (!jType) {
+        throw new AppError(`Jewellery category "${jewelleryType}" is not available`, 404);
+      }
       filter.isActive = true;
     }
 
@@ -436,6 +737,15 @@ export async function getMakingCharge(
       constructionType: constructionType.toLowerCase(),
     };
     if (!isAdmin) {
+      const jType = await JewelleryType.findOne({
+        slug: jewelleryType.toLowerCase(),
+        isPublished: true,
+        isEnabled: { $ne: false },
+        isArchived: { $ne: true },
+      });
+      if (!jType) {
+        throw new AppError(`Jewellery category "${jewelleryType}" is not available`, 404);
+      }
       filter.isActive = true;
     }
 
@@ -620,7 +930,8 @@ export async function getTemplate(
 ): Promise<void> {
   try {
     const { slug } = req.params;
-    const template = await getDesignTemplateBySlug(slug);
+    const isAdmin = req.user?.role === "admin";
+    const template = await getDesignTemplateBySlug(slug, isAdmin);
     res.json({ success: true, data: template });
   } catch (error) {
     next(error);

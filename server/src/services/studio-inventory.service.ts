@@ -1,5 +1,14 @@
 import mongoose, { Types } from "mongoose";
-import { StudioMaterial, StudioReservation, Order, type IStudioReservation, type StudioReservationStatus } from "../models/index.js";
+import {
+  StudioMaterial,
+  StudioReservation,
+  Order,
+  JewelleryType,
+  DesignRule,
+  MakingCharge,
+  type IStudioReservation,
+  type StudioReservationStatus,
+} from "../models/index.js";
 import { AppError } from "../middleware/errorHandler.js";
 import { env } from "../config/env.js";
 
@@ -98,6 +107,52 @@ export function aggregateCustomDesignComponents(
 export async function validateCustomDesignStock(
   cartItems: Array<any>
 ): Promise<Record<string, VerifiedComponent>> {
+  // 1. Verify jewellery category readiness for all custom designs
+  for (const item of cartItems) {
+    if (item.itemType === "product") continue;
+    if (item.itemType === "custom_design" || item.studioDesign) {
+      const sd = item.studioDesign;
+      if (!sd) continue;
+      if (sd.jewelleryType) {
+        const jTypeSlug = String(sd.jewelleryType).toLowerCase().trim();
+        const jType = await JewelleryType.findOne({ slug: jTypeSlug });
+        if (!jType || !jType.isPublished || jType.isEnabled === false || jType.isArchived) {
+          throw new AppError(
+            `Jewellery category "${sd.jewelleryType}" is currently unavailable or in preparation.`,
+            400
+          );
+        }
+        if (jType.designerStatus !== "available") {
+          throw new AppError(
+            `Jewellery category "${jType.displayName || sd.jewelleryType}" is currently not available for custom orders.`,
+            400
+          );
+        }
+
+        const constructionType = sd.constructionType ? String(sd.constructionType).toLowerCase().trim() : undefined;
+        const ruleFilter: any = { jewelleryType: jTypeSlug, isActive: true };
+        if (constructionType) ruleFilter.constructionType = constructionType;
+        const rule = await DesignRule.findOne(ruleFilter);
+        if (!rule) {
+          throw new AppError(
+            `Jewellery category "${jType.displayName}" lacks an active manufacturing design rule.`,
+            400
+          );
+        }
+
+        const chargeFilter: any = { jewelleryType: jTypeSlug, isActive: true };
+        if (constructionType) chargeFilter.constructionType = constructionType;
+        const charge = await MakingCharge.findOne(chargeFilter);
+        if (!charge) {
+          throw new AppError(
+            `Jewellery category "${jType.displayName}" lacks configured craftsmanship making charges.`,
+            400
+          );
+        }
+      }
+    }
+  }
+
   const aggregated = aggregateCustomDesignComponents(cartItems);
   const skus = Object.keys(aggregated);
   if (skus.length === 0) return {};
