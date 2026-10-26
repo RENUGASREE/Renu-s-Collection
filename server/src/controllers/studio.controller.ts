@@ -326,40 +326,31 @@ export async function listMaterials(
   next: NextFunction
 ): Promise<void> {
   try {
-    const isAdmin = req.user?.role === "admin";
-    const { jewelleryType, materialType, isActive, search, page = 1, limit = 50 } = req.query as any;
+    const { jewelleryType, materialType, search, page = 1, limit = 50 } = req.query as any;
 
-    const query: any = {};
+    const query: any = { isActive: true };
 
-    if (!isAdmin) {
-      query.isActive = true;
-      if (jewelleryType) {
-        const jTypeSlug = String(jewelleryType).toLowerCase().trim();
-        const jType = await JewelleryType.findOne({
-          slug: jTypeSlug,
-          isPublished: true,
-          isEnabled: { $ne: false },
-          isArchived: { $ne: true },
-        });
-        if (!jType) {
-          throw new AppError(`Jewellery category "${jewelleryType}" is currently unavailable`, 404);
-        }
-        query.allowedJewelleryTypes = jTypeSlug;
+    if (jewelleryType) {
+      const jTypeSlug = String(jewelleryType).toLowerCase().trim();
+      const jType = await JewelleryType.findOne({
+        slug: jTypeSlug,
+        isPublished: true,
+        isEnabled: { $ne: false },
+        isArchived: { $ne: true },
+      });
+      if (!jType) {
+        throw new AppError(`Jewellery category "${jewelleryType}" is currently unavailable`, 404);
       }
-    } else {
-      if (jewelleryType) {
-        query.allowedJewelleryTypes = jewelleryType;
-      }
-      if (materialType) {
-        query.materialType = materialType;
-      }
-      if (typeof isActive !== "undefined") {
-        query.isActive = isActive === "true";
-      }
-      if (search && typeof search === "string" && search.trim()) {
-        const regex = new RegExp(search.trim(), "i");
-        query.$or = [{ name: regex }, { code: regex }, { "variants.sku": regex }];
-      }
+      query.allowedJewelleryTypes = jTypeSlug;
+    }
+
+    if (materialType) {
+      query.materialType = materialType;
+    }
+
+    if (search && typeof search === "string" && search.trim()) {
+      const regex = new RegExp(search.trim(), "i");
+      query.$or = [{ name: regex }, { code: regex }, { "variants.sku": regex }];
     }
 
     const skip = (Number(page) - 1) * Number(limit);
@@ -371,11 +362,59 @@ export async function listMaterials(
       StudioMaterial.countDocuments(query),
     ]);
 
-    const data = isAdmin ? materials : materials.map((m) => toPublicMaterial(m));
+    const data = materials.map((m) => toPublicMaterial(m));
 
     res.json({
       success: true,
       data,
+      meta: {
+        page: Number(page),
+        limit: Number(limit),
+        total,
+        totalPages: Math.ceil(total / Number(limit)),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function listAdminMaterials(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { jewelleryType, materialType, isActive, search, page = 1, limit = 50 } = req.query as any;
+
+    const query: any = {};
+
+    if (jewelleryType) {
+      query.allowedJewelleryTypes = jewelleryType;
+    }
+    if (materialType) {
+      query.materialType = materialType;
+    }
+    if (typeof isActive !== "undefined") {
+      query.isActive = isActive === "true";
+    }
+    if (search && typeof search === "string" && search.trim()) {
+      const regex = new RegExp(search.trim(), "i");
+      query.$or = [{ name: regex }, { code: regex }, { "variants.sku": regex }];
+    }
+
+    const skip = (Number(page) - 1) * Number(limit);
+    const [materials, total] = await Promise.all([
+      StudioMaterial.find(query)
+        .sort({ sortOrder: 1, createdAt: -1 })
+        .skip(skip)
+        .limit(Number(limit)),
+      StudioMaterial.countDocuments(query),
+    ]);
+
+    res.json({
+      success: true,
+      data: materials,
       meta: {
         page: Number(page),
         limit: Number(limit),
@@ -395,15 +434,33 @@ export async function getMaterial(
 ): Promise<void> {
   try {
     const { id } = req.params;
-    const isAdmin = req.user?.role === "admin";
     const material = await StudioMaterial.findById(id);
 
-    if (!material || (!isAdmin && !material.isActive)) {
+    if (!material || !material.isActive) {
       throw new AppError("Studio material not found", 404);
     }
 
-    const data = isAdmin ? material : toPublicMaterial(material);
+    const data = toPublicMaterial(material);
     res.json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getAdminMaterial(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { id } = req.params;
+    const material = await StudioMaterial.findById(id);
+
+    if (!material) {
+      throw new AppError("Studio material not found", 404);
+    }
+
+    res.json({ success: true, data: material });
   } catch (error) {
     next(error);
   }

@@ -299,8 +299,8 @@ export function toPublicMaterial(mat: IStudioMaterial): PublicStudioMaterial {
       dimensionsMm: v.dimensionsMm,
       sellingUnit: v.sellingUnit,
       sellingRate: v.sellingRate,
-      inStock: v.stock > 0,
-      stock: v.stock,
+      inStock: typeof v.stock === "number" ? v.stock > 0 : false,
+      stock: typeof v.stock === "number" ? v.stock : 0,
     }));
 
   return {

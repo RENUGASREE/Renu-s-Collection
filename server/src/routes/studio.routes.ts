@@ -157,7 +157,7 @@ router.get(
   requireAuth,
   requireAdmin,
   validateQuery(materialQuerySchema),
-  studioController.listMaterials
+  studioController.listAdminMaterials
 );
 
 router.post(
@@ -172,7 +172,7 @@ router.get(
   "/admin/materials/:id",
   requireAuth,
   requireAdmin,
-  studioController.getMaterial
+  studioController.getAdminMaterial
 );
 
 router.patch(

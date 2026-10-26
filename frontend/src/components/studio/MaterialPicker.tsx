@@ -15,8 +15,9 @@ const BEAD_TYPES = ["bead", "stone", "spacer"];
 const CHARM_TYPE = "charm";
 
 function stockLabel(v: PublicVariant): { text: string; cls: string } {
-  if (!v.inStock) return { text: "Out of stock", cls: "text-red-500" };
-  if (v.stock !== undefined && v.stock <= 5) return { text: `Low (${v.stock})`, cls: "text-amber-600" };
+  const isAvailable = typeof v.stock === "number" ? v.stock > 0 : Boolean(v.inStock);
+  if (!isAvailable) return { text: "Out of stock", cls: "text-red-500" };
+  if (typeof v.stock === "number" && v.stock <= 5) return { text: `Low (${v.stock})`, cls: "text-amber-600" };
   return { text: "In stock", cls: "text-emerald-700" };
 }
 
@@ -67,7 +68,8 @@ function VariantPill({
 }) {
   const { text: stockText, cls: stockCls } = stockLabel(variant);
   const nonStd = kind === "bead" && isNonStandardSize(variant, rule);
-  const disabled = !variant.inStock;
+  const isAvailable = typeof variant.stock === "number" ? variant.stock > 0 : Boolean(variant.inStock);
+  const disabled = !isAvailable;
 
   return (
     <button

@@ -51,7 +51,7 @@ function resolveDraft(
 ): { design: BraceletDesign | null; warning: DraftWarning | null } {
   if (!draft) return { design: null, warning: null };
 
-  const matById = new Map(materials.map((m) => [m.id, m]));
+  const matById = new Map(materials.map((m) => [m.id || (m as any)._id, m]));
   const variantBySku = new Map<string, { material: PublicMaterial; variant: PublicVariant }>();
   for (const m of materials) {
     for (const v of m.variants) {
@@ -65,7 +65,7 @@ function resolveDraft(
   // Re-derive all bead data from the live catalogue — never trust stored prices/dimensions
   for (const item of draft.beadSequence) {
     const found = variantBySku.get(item.variantSku);
-    if (!found || !matById.has(item.materialId)) {
+    if (!found || (!matById.has(item.materialId) && !matById.has(found.material.id) && !matById.has((found.material as any)._id))) {
       orphanedItems.push(item.variantSku);
       continue;
     }
@@ -77,7 +77,7 @@ function resolveDraft(
     }
     resolvedBeads.push({
       instanceId: item.instanceId,
-      materialId: m.id,
+      materialId: m.id || (m as any)._id,
       variantSku: v.sku,
       materialType: m.materialType,
       diameterMm: v.dimensionsMm?.diameterMm ?? 0,
@@ -331,7 +331,7 @@ export default function BraceletDesigner() {
       if (found) {
         resolvedBeads.push({
           instanceId: crypto.randomUUID(),
-          materialId: found.material.id,
+          materialId: found.material.id || (found.material as any)._id,
           variantSku: found.variant.sku,
           materialType: found.material.materialType,
           diameterMm: found.variant.dimensionsMm?.diameterMm ?? 8,
@@ -376,7 +376,7 @@ export default function BraceletDesigner() {
         if (found) {
           resolvedBeads.push({
             instanceId: crypto.randomUUID(),
-            materialId: found.material.id,
+            materialId: found.material.id || (found.material as any)._id,
             variantSku: found.variant.sku,
             materialType: found.material.materialType,
             diameterMm: found.variant.dimensionsMm?.diameterMm ?? b.diameterMm ?? 8,
@@ -400,7 +400,7 @@ export default function BraceletDesigner() {
           resolvedCharms.push({
             instanceId: crypto.randomUUID(),
             anchorInstanceId: anchorBead.instanceId,
-            materialId: found.material.id,
+            materialId: found.material.id || (found.material as any)._id,
             variantSku: found.variant.sku,
             renderAssetUrl: found.material.renderAssetUrl,
             imageUrl: found.material.imageUrl || c.imageUrl,
@@ -469,6 +469,7 @@ export default function BraceletDesigner() {
 
   const handleSelectVariant = useCallback(
     (material: PublicMaterial, variant: PublicVariant, kind: "bead" | "charm") => {
+      const matId = material.id || (material as any)._id;
       if (kind === "charm") {
         if (!design.selectedInstanceId || !design.beadSequence.some(b => b.instanceId === design.selectedInstanceId)) {
           toast({
@@ -479,7 +480,7 @@ export default function BraceletDesigner() {
           return;
         }
         const charm: Omit<CharmAttachment, "instanceId" | "anchorInstanceId"> = {
-          materialId: material.id,
+          materialId: matId,
           variantSku: variant.sku,
           renderAssetUrl: material.renderAssetUrl,
           imageUrl: material.imageUrl,
@@ -491,7 +492,7 @@ export default function BraceletDesigner() {
 
       // Build the BeadPlacement base (no instanceId yet — edit ops generate it)
       const beadBase: Omit<BeadPlacement, "instanceId"> = {
-        materialId: material.id,
+        materialId: matId,
         variantSku: variant.sku,
         materialType: material.materialType,
         diameterMm: variant.dimensionsMm?.diameterMm ?? 0,
