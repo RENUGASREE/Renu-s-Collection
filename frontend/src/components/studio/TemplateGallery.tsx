@@ -19,11 +19,145 @@ import {
   fetchDesignTemplates,
   DesignTemplate,
 } from "@/lib/studio/studioApi";
+import { getBeadAppearance } from "@/lib/studio/appearance";
 
 interface TemplateGalleryProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSelectTemplate: (template: DesignTemplate) => void;
+}
+
+function TemplateCardVisual({ template }: { template: DesignTemplate }) {
+  const [imgFailed, setImgFailed] = useState(false);
+  const beadCount = template.beadSequence?.length || 0;
+
+  if (template.thumbnailUrl && !imgFailed) {
+    return (
+      <div className="w-full h-36 rounded-xl overflow-hidden bg-stone-100 dark:bg-muted mb-3 relative group border border-[#E6D8D0]/60 dark:border-border">
+        <img
+          src={template.thumbnailUrl}
+          alt={template.name}
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          onError={() => setImgFailed(true)}
+        />
+      </div>
+    );
+  }
+
+  if (beadCount === 0) {
+    return (
+      <div className="w-full h-36 rounded-xl bg-gradient-to-br from-[#FAF6F2] to-[#EFE7DF] dark:from-muted/40 dark:to-muted/20 flex items-center justify-center mb-3 border border-[#E6D8D0]/60 dark:border-border">
+        <Layers className="w-8 h-8 text-[#B66F72]/40" />
+      </div>
+    );
+  }
+
+  const svgSize = 148;
+  const center = svgSize / 2;
+  const ringRadius = 50;
+  const beadRadius = Math.max(3.8, Math.min(8.2, (2 * Math.PI * ringRadius) / (beadCount * 2.35)));
+
+  return (
+    <div className="w-full h-36 rounded-xl bg-gradient-to-br from-[#FAF6F2] via-[#F5EEE7] to-[#EBE0D5] dark:from-stone-900/60 dark:via-stone-900/40 dark:to-stone-950/80 flex items-center justify-center mb-3 relative overflow-hidden border border-[#E6D8D0]/80 dark:border-border shadow-inner">
+      <svg
+        viewBox={`0 0 ${svgSize} ${svgSize}`}
+        className="w-32 h-32 drop-shadow-md select-none"
+      >
+        {/* Elastic ring guide */}
+        <circle
+          cx={center}
+          cy={center}
+          r={ringRadius}
+          fill="none"
+          stroke="rgba(120, 90, 75, 0.22)"
+          strokeWidth="1.2"
+          strokeDasharray="3 3"
+        />
+
+        {/* Gemstone beads */}
+        {template.beadSequence.map((b, idx) => {
+          const angle = (idx / beadCount) * 2 * Math.PI - Math.PI / 2;
+          const cx = center + ringRadius * Math.cos(angle);
+          const cy = center + ringRadius * Math.sin(angle);
+          const app = getBeadAppearance({
+            variantSku: b.variantSku,
+            displayName: b.displayName,
+            imageUrl: b.imageUrl,
+          });
+
+          return (
+            <g key={idx}>
+              {/* Soft shadow */}
+              <circle
+                cx={cx}
+                cy={cy + 0.6}
+                r={beadRadius}
+                fill="rgba(0,0,0,0.2)"
+              />
+              {/* Gemstone body */}
+              <circle
+                cx={cx}
+                cy={cy}
+                r={beadRadius}
+                fill={app.color}
+                stroke="rgba(0,0,0,0.18)"
+                strokeWidth="0.6"
+              />
+              {/* 3D Highlight */}
+              <circle
+                cx={cx - beadRadius * 0.3}
+                cy={cy - beadRadius * 0.3}
+                r={beadRadius * 0.38}
+                fill="rgba(255,255,255,0.65)"
+              />
+              {/* Secondary Reflection */}
+              <circle
+                cx={cx + beadRadius * 0.25}
+                cy={cy + beadRadius * 0.25}
+                r={beadRadius * 0.2}
+                fill="rgba(255,255,255,0.25)"
+              />
+            </g>
+          );
+        })}
+
+        {/* Charms if any */}
+        {(template.charms || []).map((c, cIdx) => {
+          const anchorIdx = template.beadSequence.findIndex(
+            (b) => b.variantSku.toUpperCase() === c.anchorVariantSku.toUpperCase()
+          );
+          const angle = anchorIdx >= 0 ? (anchorIdx / beadCount) * 2 * Math.PI - Math.PI / 2 : Math.PI / 2;
+          const dropDist = ringRadius + beadRadius + 6;
+          const dropX = center + dropDist * Math.cos(angle);
+          const dropY = center + dropDist * Math.sin(angle);
+
+          return (
+            <g key={`charm-${cIdx}`}>
+              <line
+                x1={center + (ringRadius + beadRadius) * Math.cos(angle)}
+                y1={center + (ringRadius + beadRadius) * Math.sin(angle)}
+                x2={dropX}
+                y2={dropY}
+                stroke="#B8860B"
+                strokeWidth="1"
+              />
+              <circle cx={dropX} cy={dropY} r={3.6} fill="#DAA520" stroke="#8B6508" strokeWidth="0.8" />
+              <text x={dropX} y={dropY + 2.2} fontSize="5.5" textAnchor="middle" fill="#FFFFFF" fontWeight="bold">
+                ★
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+
+      {/* Floating Center Badge */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <span className="text-[10px] font-mono tracking-wider font-semibold text-[#756861]/80 dark:text-muted-foreground/80 bg-white/75 dark:bg-card/75 px-2 py-0.5 rounded-full border border-stone-200/60 dark:border-border/60 shadow-xs backdrop-blur-xs">
+          {beadCount} beads
+        </span>
+      </div>
+    </div>
+  );
 }
 
 export function TemplateGallery({
@@ -110,25 +244,18 @@ export function TemplateGallery({
               const charmCount = tpl.charms?.length || 0;
               const hasTestItems = tpl.beadSequence?.some((b) => b.variantSku?.startsWith("TEST-"));
 
+              const uniqueBeadTypes = Array.from(
+                new Map(tpl.beadSequence.map((b) => [b.variantSku, b])).values()
+              );
+
               return (
                 <div
                   key={tpl._id || tpl.slug}
                   className="rounded-xl border border-[#E6D8D0] dark:border-border bg-white dark:bg-background p-4 flex flex-col justify-between hover:border-[#B66F72]/60 transition-all shadow-xs"
                 >
                   <div>
-                    {tpl.thumbnailUrl ? (
-                      <div className="w-full h-32 rounded-lg overflow-hidden bg-stone-100 dark:bg-muted mb-3">
-                        <img
-                          src={tpl.thumbnailUrl}
-                          alt={tpl.name}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                    ) : (
-                      <div className="w-full h-24 rounded-lg bg-gradient-to-br from-[#F5ECE5] to-[#EBDCD0] dark:from-muted/40 dark:to-muted/20 flex items-center justify-center mb-3">
-                        <Layers className="w-8 h-8 text-[#B66F72]/40" />
-                      </div>
-                    )}
+                    {/* Visual Product Image or Dynamic Circular Bracelet Render */}
+                    <TemplateCardVisual template={tpl} />
 
                     <div className="flex items-start justify-between gap-2">
                       <div>
@@ -154,7 +281,37 @@ export function TemplateGallery({
                       </p>
                     )}
 
-                    <div className="flex items-center gap-2 mt-3 text-[11px] text-[#756861] dark:text-muted-foreground">
+                    {/* Gemstones Breakdown Swatches */}
+                    {uniqueBeadTypes.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2.5">
+                        {uniqueBeadTypes.slice(0, 4).map((b) => {
+                          const app = getBeadAppearance({
+                            variantSku: b.variantSku,
+                            displayName: b.displayName,
+                            imageUrl: b.imageUrl,
+                          });
+                          return (
+                            <span
+                              key={b.variantSku}
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[#F4EDE6] dark:bg-muted text-[10px] text-[#5A4B42] dark:text-muted-foreground"
+                            >
+                              <span
+                                className="w-2 h-2 rounded-full inline-block shrink-0 border border-black/15"
+                                style={{ backgroundColor: app.color }}
+                              />
+                              <span className="truncate max-w-[90px]">{b.displayName}</span>
+                            </span>
+                          );
+                        })}
+                        {uniqueBeadTypes.length > 4 && (
+                          <span className="text-[10px] text-muted-foreground self-center">
+                            +{uniqueBeadTypes.length - 4} more
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2 mt-2 text-[11px] text-[#756861] dark:text-muted-foreground">
                       <span>{beadCount} beads</span>
                       {charmCount > 0 && <span>· {charmCount} charm{charmCount > 1 ? "s" : ""}</span>}
                     </div>

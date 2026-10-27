@@ -3089,6 +3089,35 @@ export default function AdminStudio() {
                   />
                 </div>
 
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold">Product Image URL (Optional)</Label>
+                    {templateForm.beadSequence.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const firstBeadWithImg = templateForm.beadSequence.find((b) => b.imageUrl);
+                          if (firstBeadWithImg?.imageUrl) {
+                            setTemplateForm((prev) => ({ ...prev, thumbnailUrl: firstBeadWithImg.imageUrl }));
+                          }
+                        }}
+                        className="text-[11px] text-[#B66F72] hover:underline"
+                      >
+                        Auto-fill from Gemstones
+                      </button>
+                    )}
+                  </div>
+                  <Input
+                    value={templateForm.thumbnailUrl}
+                    onChange={(e) => setTemplateForm({ ...templateForm, thumbnailUrl: e.target.value })}
+                    placeholder="e.g. https://... or /assets/bracelets/harmony.jpg"
+                    className="text-xs rounded-xl"
+                  />
+                  <p className="text-[11px] text-[#756861] dark:text-muted-foreground">
+                    Provide a product showcase photo, or leave blank to automatically render a live circular gemstone arrangement preview.
+                  </p>
+                </div>
+
                 {/* Bead Sequence Builder Section */}
                 <div className="p-4 rounded-xl border border-[#E6D8D0] bg-stone-50/50 dark:bg-muted/20 space-y-3">
                   <div className="flex items-center justify-between">
