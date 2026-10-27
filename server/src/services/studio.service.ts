@@ -6,6 +6,7 @@ import { SavedDesign } from "../models/SavedDesign.js";
 import { DesignTemplate } from "../models/DesignTemplate.js";
 import { addStudioDesignToCart } from "./cart.service.js";
 import { AppError } from "../middleware/errorHandler.js";
+import { env } from "../config/env.js";
 import { Types } from "mongoose";
 
 // ============================================================================
@@ -813,6 +814,17 @@ async function validateAndEnrichTemplateComponents(
   const allBeadSkus = beadSequence.map((b) => String(b.variantSku || "").toUpperCase().trim());
   const allCharmSkus = (charms || []).map((c) => String(c.variantSku || "").toUpperCase().trim());
   const uniqueSkus = Array.from(new Set([...allBeadSkus, ...allCharmSkus].filter(Boolean)));
+
+  // In live commerce mode, reject publication if referencing temporary TEST- inventory
+  if (isPublished && env.COMMERCE_MODE === "live") {
+    const hasTestItems = uniqueSkus.some((sku) => sku.startsWith("TEST-"));
+    if (hasTestItems) {
+      throw new AppError(
+        "Cannot publish template with temporary TEST- inventory while COMMERCE_MODE is live. Please replace with genuine materials before going live.",
+        400
+      );
+    }
+  }
 
   const materials = await StudioMaterial.find({ "variants.sku": { $in: uniqueSkus } });
 

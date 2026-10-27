@@ -108,6 +108,7 @@ export function TemplateGallery({
             {templates.map((tpl) => {
               const beadCount = tpl.beadSequence?.length || 0;
               const charmCount = tpl.charms?.length || 0;
+              const hasTestItems = tpl.beadSequence?.some((b) => b.variantSku?.startsWith("TEST-"));
 
               return (
                 <div
@@ -130,9 +131,18 @@ export function TemplateGallery({
                     )}
 
                     <div className="flex items-start justify-between gap-2">
-                      <h4 className="font-playfair font-semibold text-base text-[#342824] dark:text-foreground">
-                        {tpl.name}
-                      </h4>
+                      <div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <h4 className="font-playfair font-semibold text-base text-[#342824] dark:text-foreground">
+                            {tpl.name}
+                          </h4>
+                          {hasTestItems && (
+                            <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-200 text-[9px] font-semibold">
+                              Test Arrangement
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
                       <Badge variant="outline" className="text-[10px] uppercase shrink-0 font-medium border-[#E6D8D0]">
                         {tpl.wristMm / 10} cm wrist
                       </Badge>

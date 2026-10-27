@@ -510,20 +510,19 @@ export default function AdminStudio() {
     try {
       const willPublish = !tpl.isPublished;
       const hasTestInventory = tpl.beadSequence.some((b) => b.variantSku.startsWith("TEST-"));
-      if (willPublish && hasTestInventory) {
-        toast({
-          title: "Publication Safeguard",
-          description:
-            "Templates referencing temporary TEST- inventory must remain unpublished so customers are not exposed to non-genuine materials.",
-          variant: "destructive",
-        });
-        return;
-      }
 
       await updateAdminDesignTemplate(tpl.slug, { isPublished: willPublish });
       toast({
-        title: willPublish ? "Template Published" : "Template Unpublished",
-        description: `"${tpl.name}" is now ${willPublish ? "publicly available in the Studio" : "hidden as a Draft"}.`,
+        title: willPublish
+          ? hasTestInventory
+            ? "Test Template Published"
+            : "Template Published"
+          : "Template Unpublished",
+        description: willPublish
+          ? hasTestInventory
+            ? `"${tpl.name}" is now published using temporary TEST- materials. It is visible in Create Your Own Studio for testing.`
+            : `"${tpl.name}" is now publicly available in the Studio.`
+          : `"${tpl.name}" is now hidden as a Draft.`,
       });
       fetchTemplates();
     } catch (err: any) {
@@ -564,15 +563,6 @@ export default function AdminStudio() {
     }
 
     const hasTestInventory = templateForm.beadSequence.some((b) => b.variantSku.startsWith("TEST-"));
-    if (templateForm.isPublished && hasTestInventory) {
-      toast({
-        title: "Publication Blocked",
-        description:
-          "Templates referencing temporary TEST- inventory must be saved as Draft (Unpublished) until genuine materials are stocked.",
-        variant: "destructive",
-      });
-      return;
-    }
 
     try {
       if (editingTemplate) {
@@ -588,7 +578,12 @@ export default function AdminStudio() {
           isPublished: templateForm.isPublished,
           beadSequence: templateForm.beadSequence,
         });
-        toast({ title: "Template Updated", description: `"${templateForm.name}" updated successfully.` });
+        toast({
+          title: "Template Updated",
+          description: templateForm.isPublished && hasTestInventory
+            ? `"${templateForm.name}" updated and published in test mode.`
+            : `"${templateForm.name}" updated successfully.`,
+        });
       } else {
         await createAdminDesignTemplate({
           name: templateForm.name.trim(),
@@ -602,7 +597,12 @@ export default function AdminStudio() {
           isPublished: templateForm.isPublished,
           beadSequence: templateForm.beadSequence,
         });
-        toast({ title: "Template Created", description: `"${templateForm.name}" created successfully.` });
+        toast({
+          title: "Template Created",
+          description: templateForm.isPublished && hasTestInventory
+            ? `"${templateForm.name}" created and published in test mode.`
+            : `"${templateForm.name}" created successfully.`,
+        });
       }
       setShowTemplateModal(false);
       fetchTemplates();
@@ -2250,10 +2250,10 @@ export default function AdminStudio() {
               <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
               <div className="space-y-1">
                 <p className="font-semibold text-amber-800 dark:text-amber-300">
-                  Inventory Safeguard Notice
+                  Testing Mode Template Publication Notice
                 </p>
                 <p className="leading-relaxed">
-                  Templates referencing temporary <code className="font-mono bg-amber-100 dark:bg-amber-900/40 px-1 py-0.5 rounded">TEST-</code> inventory must remain in <strong>Draft (Unpublished)</strong> status. They will be visible here for preview and testing, but will not be published publicly to store customers until genuine inventory is stocked.
+                  Starter templates referencing temporary <code className="font-mono bg-amber-100 dark:bg-amber-900/40 px-1 py-0.5 rounded">TEST-</code> inventory can be published for workflow verification in test mode. <strong>Public Visibility Note:</strong> When published, any visitor navigating to the Create Your Own Studio can view and load this template into their designer. Be sure to unpublish or delete test templates before going live with genuine inventory.
                 </p>
               </div>
             </div>
@@ -2304,7 +2304,7 @@ export default function AdminStudio() {
                       <div>
                         <div className="flex items-start justify-between gap-3 mb-2">
                           <div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <h4 className="font-playfair font-semibold text-lg text-[#342824] dark:text-foreground">
                                 {tpl.name}
                               </h4>
@@ -2315,6 +2315,11 @@ export default function AdminStudio() {
                               ) : (
                                 <Badge variant="outline" className="text-amber-800 bg-amber-50 dark:bg-amber-950/40 border-amber-200 text-[10px] font-semibold">
                                   Draft (Unpublished)
+                                </Badge>
+                              )}
+                              {hasTestItems && (
+                                <Badge variant="outline" className="bg-amber-100/70 text-amber-900 border-amber-300 dark:bg-amber-950/60 dark:text-amber-200 text-[10px] font-semibold">
+                                  Test Content (Temporary Inventory)
                                 </Badge>
                               )}
                             </div>
@@ -2425,7 +2430,7 @@ export default function AdminStudio() {
                               : "h-7 text-xs rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white"
                           }
                         >
-                          {tpl.isPublished ? "Unpublish to Draft" : "Publish to Store"}
+                          {tpl.isPublished ? "Unpublish to Draft" : hasTestItems ? "Publish (Test Content)" : "Publish to Store"}
                         </Button>
                       </div>
                     </Card>
@@ -3218,7 +3223,7 @@ export default function AdminStudio() {
                         Publish Immediately to Studio
                       </span>
                       <span className="text-[11px] text-[#756861] dark:text-muted-foreground block mt-0.5">
-                        Leave unchecked to save as a Draft. Note: Templates containing temporary TEST- inventory must remain unpublished until genuine materials are stocked.
+                        Leave unchecked to save as a Draft. Note: Publishing will make this template visible to visitors in the Create Your Own Studio. If using temporary TEST- materials, unpublish or delete before store launch.
                       </span>
                     </div>
                   </label>
