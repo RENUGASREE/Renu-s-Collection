@@ -24,6 +24,7 @@ const envSchema = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
   EMAIL_FROM: z.string().email().optional().or(z.literal("")),
+  CONTACT_NOTIFICATION_EMAIL: z.string().email().default("renuscollection05@gmail.com"),
   FRONTEND_URL: z.string().url().default("http://localhost:5173"),
   FRONTEND_BASE_PATH: z.string().default("/"),
   ADMIN_API_KEY: z.string().optional(),

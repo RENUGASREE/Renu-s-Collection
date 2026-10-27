@@ -22,27 +22,38 @@ function getTransporter(): nodemailer.Transporter | null {
   return null;
 }
 
+export function isEmailConfigured(): boolean {
+  return Boolean(env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS);
+}
+
 export async function sendEmail(params: {
   to: string;
   subject: string;
   text: string;
   html?: string;
-}): Promise<void> {
+  replyTo?: string;
+}): Promise<{ delivered: boolean; configured: boolean; error?: string }> {
   const from = env.EMAIL_FROM || "noreply@renucollections.com";
   const mailer = getTransporter();
 
   if (!mailer) {
-    console.log("[email:dev]", { to: params.to, subject: params.subject, text: params.text });
-    return;
+    return { delivered: false, configured: false };
   }
 
-  await mailer.sendMail({
-    from,
-    to: params.to,
-    subject: params.subject,
-    text: params.text,
-    html: params.html ?? params.text,
-  });
+  try {
+    await mailer.sendMail({
+      from,
+      to: params.to,
+      subject: params.subject,
+      text: params.text,
+      html: params.html ?? params.text,
+      replyTo: params.replyTo,
+    });
+    return { delivered: true, configured: true };
+  } catch (err: any) {
+    console.error("Email send failed:", err?.message || err);
+    return { delivered: false, configured: true, error: err?.message || "Send error" };
+  }
 }
 
 export async function sendPasswordResetEmail(email: string, resetUrl: string): Promise<void> {

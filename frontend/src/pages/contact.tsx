@@ -5,8 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Mail, Phone, MapPin, Send } from "lucide-react";
+import { Mail, Phone, MapPin, Send, Clock, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import Footer from "@/components/footer";
+import { apiRequest } from "@/lib/queryClient";
 
 export default function Contact() {
   const [formData, setFormData] = useState({
@@ -15,13 +16,57 @@ export default function Contact() {
     subject: "",
     message: ""
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
+  const [feedback, setFeedback] = useState<{
+    message: string;
+    notice?: string;
+  } | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Implement contact form submission
-    console.log("Contact form submitted:", formData);
-    alert("Thank you for your message! We'll get back to you soon.");
-    setFormData({ name: "", email: "", subject: "", message: "" });
+    if (isSubmitting) return;
+
+    setIsSubmitting(true);
+    setStatus("idle");
+    setFeedback(null);
+
+    try {
+      const res = await apiRequest("POST", "/api/v1/contact", formData);
+      const json = await res.json();
+
+      if (json.success) {
+        setStatus("success");
+        let notice: string | undefined = undefined;
+        if (json.data?.emailDelivered) {
+          notice = "A notification has been sent directly to our team at renuscollection05@gmail.com.";
+        } else if (json.data?.emailConfigured) {
+          notice = "Your inquiry has been safely saved in our system. Email notifications are currently undergoing delivery verification.";
+        } else {
+          notice = "Your inquiry has been safely recorded in our system. Note: Email notifications are not yet configured on this server.";
+        }
+        setFeedback({
+          message: json.message || "Thank you for contacting Renu's Collections! Your message has been received.",
+          notice,
+        });
+        setFormData({ name: "", email: "", subject: "", message: "" });
+      } else {
+        setStatus("error");
+        setFeedback({
+          message: json.message || "We could not submit your message. Please check the information provided and try again.",
+        });
+      }
+    } catch (err: any) {
+      setStatus("error");
+      const cleanMessage =
+        err?.message?.replace(/^\d+:\s*/, "") ||
+        "An unexpected error occurred while saving your message. Please try again shortly.";
+      setFeedback({
+        message: cleanMessage,
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -55,7 +100,7 @@ export default function Contact() {
             transition={{ delay: 0.3 }}
             className="text-lg text-muted-foreground max-w-2xl mx-auto"
           >
-            Have questions about our luxury jewelry? We'd love to hear from you.
+            Have questions about our luxury jewelry or custom studio designs? We'd love to hear from you.
           </motion.p>
         </div>
 
@@ -66,11 +111,11 @@ export default function Contact() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.4 }}
           >
-            <Card className="bg-secondary/40 border-border">
+            <Card className="bg-secondary/40 border-border h-full">
               <CardHeader>
                 <CardTitle className="text-2xl font-playfair text-foreground">Contact Information</CardTitle>
                 <CardDescription className="text-muted-foreground">
-                  Reach out to us through any of these channels
+                  Reach out to us directly through any of our official channels
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -80,7 +125,12 @@ export default function Contact() {
                   </div>
                   <div>
                     <h3 className="font-semibold text-foreground mb-1">Email</h3>
-                    <p className="text-muted-foreground">renuscollection05@gmail.com</p>
+                    <a
+                      href="mailto:renuscollection05@gmail.com"
+                      className="text-muted-foreground hover:text-primary transition-colors underline-offset-4 hover:underline"
+                    >
+                      renuscollection05@gmail.com
+                    </a>
                   </div>
                 </div>
 
@@ -90,8 +140,24 @@ export default function Contact() {
                   </div>
                   <div>
                     <h3 className="font-semibold text-foreground mb-1">Phone</h3>
-                    <p className="text-muted-foreground">+91 98765 43210</p>
-                    <p className="text-muted-foreground">Mon-Sat, 10am-7pm IST</p>
+                    <a
+                      href="tel:+918675178770"
+                      className="text-muted-foreground hover:text-primary transition-colors block underline-offset-4 hover:underline"
+                    >
+                      +91 86751 78770
+                    </a>
+                  </div>
+                </div>
+
+                <div className="flex items-start space-x-4">
+                  <div className="p-3 bg-primary/15 rounded-lg flex-shrink-0">
+                    <Clock className="h-6 w-6 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-foreground mb-1">Business Hours</h3>
+                    <p className="text-muted-foreground">
+                      Monday–Sunday, 10:00 AM–7:00 PM IST
+                    </p>
                   </div>
                 </div>
 
@@ -101,12 +167,10 @@ export default function Contact() {
                   </div>
                   <div>
                     <h3 className="font-semibold text-foreground mb-1">Address</h3>
-                    <p className="text-muted-foreground">
+                    <p className="text-muted-foreground leading-relaxed">
                       Renu's Collections
                       <br />
-                      MG Road
-                      <br />
-                      Jewelry District
+                      MG Road, Jewelry District
                       <br />
                       Chennai, Tamil Nadu 600001
                       <br />
@@ -128,10 +192,39 @@ export default function Contact() {
               <CardHeader>
                 <CardTitle className="text-2xl font-playfair text-foreground">Send us a Message</CardTitle>
                 <CardDescription className="text-muted-foreground">
-                  Fill out the form below and we'll get back to you shortly
+                  Fill out the form below and our team will get back to you shortly
                 </CardDescription>
               </CardHeader>
               <CardContent>
+                {status === "success" && feedback && (
+                  <div
+                    role="alert"
+                    className="mb-5 p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200 flex items-start space-x-3"
+                  >
+                    <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
+                    <div className="text-sm space-y-1">
+                      <p className="font-medium">{feedback.message}</p>
+                      {feedback.notice && (
+                        <p className="text-xs text-emerald-800 dark:text-emerald-300 opacity-90">
+                          {feedback.notice}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {status === "error" && feedback && (
+                  <div
+                    role="alert"
+                    className="mb-5 p-4 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-900 dark:text-rose-200 flex items-start space-x-3"
+                  >
+                    <AlertCircle className="h-5 w-5 text-rose-600 dark:text-rose-400 flex-shrink-0 mt-0.5" />
+                    <div className="text-sm">
+                      <p className="font-medium">{feedback.message}</p>
+                    </div>
+                  </div>
+                )}
+
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="name" className="text-foreground font-medium">Name</Label>
@@ -141,6 +234,9 @@ export default function Contact() {
                       value={formData.name}
                       onChange={handleChange}
                       required
+                      minLength={2}
+                      maxLength={100}
+                      disabled={isSubmitting}
                       className="bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:ring-primary"
                       placeholder="Your name"
                     />
@@ -155,6 +251,8 @@ export default function Contact() {
                       value={formData.email}
                       onChange={handleChange}
                       required
+                      maxLength={255}
+                      disabled={isSubmitting}
                       className="bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:ring-primary"
                       placeholder="your@email.com"
                     />
@@ -168,6 +266,9 @@ export default function Contact() {
                       value={formData.subject}
                       onChange={handleChange}
                       required
+                      minLength={2}
+                      maxLength={200}
+                      disabled={isSubmitting}
                       className="bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:ring-primary"
                       placeholder="How can we help?"
                     />
@@ -181,6 +282,9 @@ export default function Contact() {
                       value={formData.message}
                       onChange={handleChange}
                       required
+                      minLength={10}
+                      maxLength={5000}
+                      disabled={isSubmitting}
                       rows={5}
                       className="bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:ring-primary resize-none"
                       placeholder="Tell us more about your inquiry..."
@@ -189,11 +293,21 @@ export default function Contact() {
 
                   <Button
                     type="submit"
-                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium"
+                    disabled={isSubmitting}
+                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium transition-all"
                     size="lg"
                   >
-                    <Send className="h-4 w-4 mr-2" />
-                    Send Message
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Sending Message...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4 mr-2" />
+                        Send Message
+                      </>
+                    )}
                   </Button>
                 </form>
               </CardContent>

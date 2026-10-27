@@ -20,4 +20,5 @@ export {
   type StudioReservationStatus,
   type IStudioReservationItem,
 } from "./StudioReservation.js";
+export { ContactMessage, type IContactMessage } from "./ContactMessage.js";
 
