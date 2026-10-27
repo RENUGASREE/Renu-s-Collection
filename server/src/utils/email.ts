@@ -43,7 +43,11 @@ function createTransporter(options?: { forcePort?: number; forceSecure?: boolean
 }
 
 export function isEmailConfigured(): boolean {
-  return Boolean(env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS);
+  return Boolean(
+    env.RESEND_API_KEY ||
+    env.BREVO_API_KEY ||
+    (env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS)
+  );
 }
 
 export async function sendEmail(params: {
@@ -57,6 +61,85 @@ export async function sendEmail(params: {
     return { delivered: false, configured: false };
   }
 
+  // Priority 1: Resend HTTP API (Port 443 HTTPS - Works 100% on Render Free Tier)
+  if (env.RESEND_API_KEY) {
+    try {
+      const from =
+        env.EMAIL_FROM && !env.EMAIL_FROM.includes("reyanluxe.com")
+          ? env.EMAIL_FROM
+          : "Renu's Collections <onboarding@resend.dev>";
+
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${env.RESEND_API_KEY.trim()}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from,
+          to: [params.to],
+          subject: params.subject,
+          text: params.text,
+          html: params.html ?? params.text,
+          reply_to: params.replyTo,
+        }),
+      });
+
+      const data = (await res.json()) as any;
+      if (res.ok && data?.id) {
+        console.log("[Email] Delivered successfully via Resend HTTP API:", data.id);
+        return { delivered: true, configured: true };
+      } else {
+        const errMsg = data?.message || JSON.stringify(data);
+        console.error("[Email] Resend API error:", errMsg);
+        return { delivered: false, configured: true, error: `Resend error: ${errMsg}` };
+      }
+    } catch (err: any) {
+      console.error("[Email] Resend fetch failed:", err?.message || err);
+      return { delivered: false, configured: true, error: err?.message || "Resend network error" };
+    }
+  }
+
+  // Priority 2: Brevo HTTP API (Port 443 HTTPS - Works 100% on Render Free Tier)
+  if (env.BREVO_API_KEY) {
+    try {
+      const fromEmail =
+        env.EMAIL_FROM && !env.EMAIL_FROM.includes("reyanluxe.com")
+          ? env.EMAIL_FROM
+          : (env.SMTP_USER || "renuscollection05@gmail.com");
+
+      const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: {
+          "api-key": env.BREVO_API_KEY.trim(),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          sender: { name: "Renu's Collections", email: fromEmail },
+          to: [{ email: params.to }],
+          subject: params.subject,
+          textContent: params.text,
+          htmlContent: params.html ?? params.text,
+          replyTo: params.replyTo ? { email: params.replyTo } : undefined,
+        }),
+      });
+
+      const data = (await res.json()) as any;
+      if (res.ok && (data?.messageId || data?.messageIds)) {
+        console.log("[Email] Delivered successfully via Brevo HTTP API:", data.messageId);
+        return { delivered: true, configured: true };
+      } else {
+        const errMsg = data?.message || JSON.stringify(data);
+        console.error("[Email] Brevo API error:", errMsg);
+        return { delivered: false, configured: true, error: `Brevo error: ${errMsg}` };
+      }
+    } catch (err: any) {
+      console.error("[Email] Brevo fetch failed:", err?.message || err);
+      return { delivered: false, configured: true, error: err?.message || "Brevo network error" };
+    }
+  }
+
+  // Priority 3: Direct SMTP (Only works on hosts without blocked outbound SMTP ports)
   const user = env.SMTP_USER?.trim();
   const from =
     env.EMAIL_FROM && !env.EMAIL_FROM.includes("reyanluxe.com")
