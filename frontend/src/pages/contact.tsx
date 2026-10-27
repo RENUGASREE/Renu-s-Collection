@@ -41,7 +41,7 @@ export default function Contact() {
         if (json.data?.emailDelivered) {
           notice = "A notification has been sent directly to our team at renuscollection05@gmail.com.";
         } else if (json.data?.emailConfigured) {
-          notice = "Your inquiry has been safely saved in our system. Email notifications are currently undergoing delivery verification.";
+          notice = "Your inquiry has been safely saved in our database. (Mail server notice: Notification email could not be dispatched to our inbox at this time; our team reviews saved messages directly.)";
         } else {
           notice = "Your inquiry has been safely recorded in our system. Note: Email notifications are not yet configured on this server.";
         }

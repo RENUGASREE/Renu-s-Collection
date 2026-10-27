@@ -83,7 +83,7 @@ export async function submitContactMessage(
         "Thank you! Your message has been received and forwarded to our team at renuscollection05@gmail.com.";
     } else if (emailConfigured) {
       responseMessage =
-        "Thank you! Your message has been safely received. Email notification delivery is currently undergoing verification.";
+        "Thank you! Your message has been safely saved in our database. Note: The mail server could not forward an email notification at this time.";
     } else {
       responseMessage =
         "Thank you! Your message has been received and saved. Note: Email notifications are not yet configured on this server.";

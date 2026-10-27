@@ -1,25 +1,45 @@
 import nodemailer from "nodemailer";
 import { env } from "../config/env.js";
 
-let transporter: nodemailer.Transporter | null = null;
+function createTransporter(options?: { forcePort?: number; forceSecure?: boolean }): nodemailer.Transporter | null {
+  const host = env.SMTP_HOST?.trim();
+  const user = env.SMTP_USER?.trim();
+  const rawPass = env.SMTP_PASS?.trim();
+  const pass = rawPass?.replace(/\s+/g, "");
 
-function getTransporter(): nodemailer.Transporter | null {
-  if (transporter) return transporter;
-
-  if (env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS) {
-    transporter = nodemailer.createTransport({
-      host: env.SMTP_HOST,
-      port: env.SMTP_PORT ?? 587,
-      secure: (env.SMTP_PORT ?? 587) === 465,
-      auth: {
-        user: env.SMTP_USER,
-        pass: env.SMTP_PASS,
-      },
-    });
-    return transporter;
+  if (!host || !user || !pass) {
+    return null;
   }
 
-  return null;
+  const isGmail = host.toLowerCase().includes("gmail") || user.toLowerCase().endsWith("@gmail.com");
+
+  // Determine port and secure flag
+  let port = options?.forcePort ?? (env.SMTP_PORT ? Number(env.SMTP_PORT) : undefined);
+  let secure = options?.forceSecure;
+
+  if (isGmail) {
+    // For Gmail on cloud hosting (Render, AWS, DigitalOcean), port 465 with SSL is required
+    // because cloud providers frequently block or throttle outbound port 587 / 25.
+    if (!port || port === 587) {
+      port = 465;
+    }
+  } else if (!port) {
+    port = 587;
+  }
+
+  if (secure === undefined) {
+    secure = port === 465;
+  }
+
+  return nodemailer.createTransport({
+    host: isGmail ? "smtp.gmail.com" : host,
+    port,
+    secure,
+    auth: { user, pass },
+    connectionTimeout: 10000, // 10s connection timeout to prevent hanging HTTP responses
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
+  });
 }
 
 export function isEmailConfigured(): boolean {
@@ -33,9 +53,19 @@ export async function sendEmail(params: {
   html?: string;
   replyTo?: string;
 }): Promise<{ delivered: boolean; configured: boolean; error?: string }> {
-  const from = env.EMAIL_FROM || "noreply@renucollections.com";
-  const mailer = getTransporter();
+  if (!isEmailConfigured()) {
+    return { delivered: false, configured: false };
+  }
 
+  const user = env.SMTP_USER?.trim();
+  const from =
+    env.EMAIL_FROM && !env.EMAIL_FROM.includes("reyanluxe.com")
+      ? env.EMAIL_FROM
+      : user
+      ? `Renu's Collections <${user}>`
+      : "renuscollection05@gmail.com";
+
+  let mailer = createTransporter();
   if (!mailer) {
     return { delivered: false, configured: false };
   }
@@ -51,8 +81,35 @@ export async function sendEmail(params: {
     });
     return { delivered: true, configured: true };
   } catch (err: any) {
-    console.error("Email send failed:", err?.message || err);
-    return { delivered: false, configured: true, error: err?.message || "Send error" };
+    const errorMsg = err?.message || String(err);
+    console.error("[Email] Primary send attempt failed:", errorMsg);
+
+    // If it was a connection timeout or network block on port 587, try fallback to port 465 (SSL)
+    if (
+      (errorMsg.includes("timeout") || errorMsg.includes("ECONNREFUSED") || errorMsg.includes("ETIMEDOUT")) &&
+      env.SMTP_PORT !== 465
+    ) {
+      console.log("[Email] Retrying via port 465 (SSL) fallback...");
+      try {
+        const fallbackMailer = createTransporter({ forcePort: 465, forceSecure: true });
+        if (fallbackMailer) {
+          await fallbackMailer.sendMail({
+            from,
+            to: params.to,
+            subject: params.subject,
+            text: params.text,
+            html: params.html ?? params.text,
+            replyTo: params.replyTo,
+          });
+          console.log("[Email] Fallback via port 465 succeeded!");
+          return { delivered: true, configured: true };
+        }
+      } catch (fallbackErr: any) {
+        console.error("[Email] Fallback send attempt also failed:", fallbackErr?.message || fallbackErr);
+      }
+    }
+
+    return { delivered: false, configured: true, error: errorMsg };
   }
 }
 
