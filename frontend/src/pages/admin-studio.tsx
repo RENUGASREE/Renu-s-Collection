@@ -18,7 +18,14 @@ import {
   archiveJewelleryType,
   restoreJewelleryType,
   deleteStudioMaterial,
+  fetchAdminDesignTemplates,
+  createAdminDesignTemplate,
+  updateAdminDesignTemplate,
+  deleteAdminDesignTemplate,
+  type DesignTemplate,
+  type TemplateBead,
 } from "@/lib/studio/studioApi";
+import { getBeadAppearance } from "@/lib/studio/appearance";
 import {
   Sparkles,
   Layers,
@@ -143,7 +150,30 @@ interface MakingCharge {
 
 export default function AdminStudio() {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<"materials" | "types" | "rules" | "pricing" | "reservations">("materials");
+  const [activeTab, setActiveTab] = useState<
+    "materials" | "types" | "rules" | "pricing" | "reservations" | "templates"
+  >("materials");
+
+  // State: Design Templates
+  const [templates, setTemplates] = useState<DesignTemplate[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<DesignTemplate | null>(null);
+  const [templateForm, setTemplateForm] = useState({
+    name: "",
+    slug: "",
+    description: "",
+    thumbnailUrl: "",
+    jewelleryType: "bracelet" as "bracelet",
+    constructionType: "elastic_bead" as "elastic_bead",
+    wristMm: 160,
+    sortOrder: 0,
+    isPublished: false,
+    beadSequence: [] as TemplateBead[],
+  });
+  const [deletingTemplateSlug, setDeletingTemplateSlug] = useState<string | null>(null);
+  const [selectedBeadSkuForTemplate, setSelectedBeadSkuForTemplate] = useState<string>("");
+  const [beadAddCount, setBeadAddCount] = useState<number>(1);
 
   // State: Jewellery Types
   const [jewelleryTypes, setJewelleryTypes] = useState<JewelleryType[]>([]);
@@ -242,6 +272,8 @@ export default function AdminStudio() {
       fetchJewelleryTypes(showArchivedTypes);
     } else if (activeTab === "reservations") {
       fetchReservations();
+    } else if (activeTab === "templates") {
+      fetchTemplates();
     }
   }, [activeTab, filterReservationStatus]);
 
@@ -375,6 +407,227 @@ export default function AdminStudio() {
       }
     } catch (err: any) {
       toast({ title: "Reconciliation Failed", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const fetchTemplates = async () => {
+    setLoadingTemplates(true);
+    try {
+      const data = await fetchAdminDesignTemplates();
+      setTemplates(data);
+    } catch (err: any) {
+      toast({
+        title: "Error fetching templates",
+        description: err.message || "Failed to load design templates",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingTemplates(false);
+    }
+  };
+
+  const handleOpenCreateTemplate = () => {
+    setEditingTemplate(null);
+    setTemplateForm({
+      name: "",
+      slug: "",
+      description: "",
+      thumbnailUrl: "",
+      jewelleryType: "bracelet" as const,
+      constructionType: "elastic_bead" as const,
+      wristMm: 160,
+      sortOrder: (templates.length + 1) * 10,
+      isPublished: false,
+      beadSequence: [],
+    });
+    const firstVariant = materials.flatMap((m) => m.variants).find((v) => v.isActive);
+    if (firstVariant) {
+      setSelectedBeadSkuForTemplate(firstVariant.sku);
+    }
+    setBeadAddCount(1);
+    setShowTemplateModal(true);
+  };
+
+  const handleOpenEditTemplate = (tpl: DesignTemplate) => {
+    setEditingTemplate(tpl);
+    setTemplateForm({
+      name: tpl.name,
+      slug: tpl.slug,
+      description: tpl.description || "",
+      thumbnailUrl: tpl.thumbnailUrl || "",
+      jewelleryType: (tpl.jewelleryType || "bracelet") as "bracelet",
+      constructionType: (tpl.constructionType || "elastic_bead") as "elastic_bead",
+      wristMm: tpl.wristMm || 160,
+      sortOrder: tpl.sortOrder || 0,
+      isPublished: Boolean(tpl.isPublished),
+      beadSequence: [...(tpl.beadSequence || [])],
+    });
+    const firstVariant = materials.flatMap((m) => m.variants).find((v) => v.isActive);
+    if (firstVariant) {
+      setSelectedBeadSkuForTemplate(firstVariant.sku);
+    }
+    setBeadAddCount(1);
+    setShowTemplateModal(true);
+  };
+
+  const handleAddBeadsToTemplate = () => {
+    if (!selectedBeadSkuForTemplate) return;
+    const material = materials.find((m) =>
+      m.variants.some((v) => v.sku === selectedBeadSkuForTemplate)
+    );
+    const variant = material?.variants.find((v) => v.sku === selectedBeadSkuForTemplate);
+    if (!material || !variant) return;
+
+    const newBead: TemplateBead = {
+      variantSku: variant.sku,
+      displayName: material.name,
+      imageUrl: material.imageUrl || material.renderAssetUrl || "",
+    };
+
+    const count = Math.max(1, Math.min(50, beadAddCount));
+    const appended = Array(count).fill(newBead);
+    setTemplateForm((prev) => ({
+      ...prev,
+      beadSequence: [...prev.beadSequence, ...appended],
+    }));
+  };
+
+  const handleRemoveBeadAt = (index: number) => {
+    setTemplateForm((prev) => ({
+      ...prev,
+      beadSequence: prev.beadSequence.filter((_, i) => i !== index),
+    }));
+  };
+
+  const handleClearBeadSequence = () => {
+    setTemplateForm((prev) => ({
+      ...prev,
+      beadSequence: [],
+    }));
+  };
+
+  const handleTogglePublishTemplate = async (tpl: DesignTemplate) => {
+    try {
+      const willPublish = !tpl.isPublished;
+      const hasTestInventory = tpl.beadSequence.some((b) => b.variantSku.startsWith("TEST-"));
+      if (willPublish && hasTestInventory) {
+        toast({
+          title: "Publication Safeguard",
+          description:
+            "Templates referencing temporary TEST- inventory must remain unpublished so customers are not exposed to non-genuine materials.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      await updateAdminDesignTemplate(tpl.slug, { isPublished: willPublish });
+      toast({
+        title: willPublish ? "Template Published" : "Template Unpublished",
+        description: `"${tpl.name}" is now ${willPublish ? "publicly available in the Studio" : "hidden as a Draft"}.`,
+      });
+      fetchTemplates();
+    } catch (err: any) {
+      toast({
+        title: "Action Failed",
+        description: err.message || "Failed to update publication status",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSaveTemplate = async () => {
+    if (!templateForm.name.trim()) {
+      toast({ title: "Validation Error", description: "Template name is required", variant: "destructive" });
+      return;
+    }
+    const cleanSlug = (
+      templateForm.slug.trim() ||
+      templateForm.name
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+    ).toLowerCase();
+
+    if (!cleanSlug) {
+      toast({ title: "Validation Error", description: "A valid slug is required", variant: "destructive" });
+      return;
+    }
+
+    if (templateForm.beadSequence.length === 0) {
+      toast({
+        title: "Validation Error",
+        description: "Template must have at least one bead in its arrangement",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const hasTestInventory = templateForm.beadSequence.some((b) => b.variantSku.startsWith("TEST-"));
+    if (templateForm.isPublished && hasTestInventory) {
+      toast({
+        title: "Publication Blocked",
+        description:
+          "Templates referencing temporary TEST- inventory must be saved as Draft (Unpublished) until genuine materials are stocked.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      if (editingTemplate) {
+        await updateAdminDesignTemplate(editingTemplate.slug, {
+          name: templateForm.name.trim(),
+          slug: cleanSlug,
+          description: templateForm.description.trim(),
+          thumbnailUrl: templateForm.thumbnailUrl.trim(),
+          jewelleryType: templateForm.jewelleryType,
+          constructionType: templateForm.constructionType,
+          wristMm: Number(templateForm.wristMm),
+          sortOrder: Number(templateForm.sortOrder),
+          isPublished: templateForm.isPublished,
+          beadSequence: templateForm.beadSequence,
+        });
+        toast({ title: "Template Updated", description: `"${templateForm.name}" updated successfully.` });
+      } else {
+        await createAdminDesignTemplate({
+          name: templateForm.name.trim(),
+          slug: cleanSlug,
+          description: templateForm.description.trim(),
+          thumbnailUrl: templateForm.thumbnailUrl.trim(),
+          jewelleryType: templateForm.jewelleryType,
+          constructionType: templateForm.constructionType,
+          wristMm: Number(templateForm.wristMm),
+          sortOrder: Number(templateForm.sortOrder),
+          isPublished: templateForm.isPublished,
+          beadSequence: templateForm.beadSequence,
+        });
+        toast({ title: "Template Created", description: `"${templateForm.name}" created successfully.` });
+      }
+      setShowTemplateModal(false);
+      fetchTemplates();
+    } catch (err: any) {
+      toast({
+        title: "Save Failed",
+        description: err.message || "Failed to save template",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteTemplate = async () => {
+    if (!deletingTemplateSlug) return;
+    try {
+      await deleteAdminDesignTemplate(deletingTemplateSlug);
+      toast({ title: "Template Deleted", description: "Template has been removed." });
+      setDeletingTemplateSlug(null);
+      fetchTemplates();
+    } catch (err: any) {
+      toast({
+        title: "Delete Failed",
+        description: err.message || "Failed to delete template",
+        variant: "destructive",
+      });
     }
   };
 
@@ -772,6 +1025,7 @@ export default function AdminStudio() {
             onClick={() => {
               fetchJewelleryTypes();
               fetchMaterials();
+              fetchTemplates();
               if (selectedRuleType && selectedRuleConstruction) {
                 fetchRule(selectedRuleType, selectedRuleConstruction);
               }
@@ -859,6 +1113,22 @@ export default function AdminStudio() {
           >
             <Package className="w-3.5 h-3.5" />
             <span>Stock Reservations</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("templates")}
+            className={`px-4 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-2 ${
+              activeTab === "templates"
+                ? "bg-[#B66F72] text-white shadow-xs"
+                : "bg-white dark:bg-card border border-[#E6D8D0] dark:border-border text-[#756861] dark:text-muted-foreground hover:bg-[#F1E6DF]/50"
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Design Templates</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-stone-100 dark:bg-muted text-stone-600">
+              {templates.length}
+            </span>
           </button>
         </div>
 
@@ -1950,6 +2220,222 @@ export default function AdminStudio() {
           </div>
         )}
 
+        {/* TAB 6: STARTER DESIGN TEMPLATES */}
+        {activeTab === "templates" && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white dark:bg-card p-4 rounded-2xl border border-[#E6D8D0] dark:border-border">
+              <div>
+                <h3 className="font-playfair text-lg font-semibold text-[#342824] dark:text-foreground">
+                  Artisan Starter Design Templates
+                </h3>
+                <p className="text-xs text-[#756861] dark:text-muted-foreground mt-0.5">
+                  Curated base arrangements that customers can choose in the Studio and customize freely.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={handleOpenCreateTemplate}
+                  size="sm"
+                  className="bg-[#B66F72] hover:bg-[#95565A] text-white text-xs rounded-xl flex items-center gap-1.5 shadow-xs"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Create Template</span>
+                </Button>
+              </div>
+            </div>
+
+            {/* Safeguard Notice Banner */}
+            <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-3">
+              <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+              <div className="space-y-1">
+                <p className="font-semibold text-amber-800 dark:text-amber-300">
+                  Inventory Safeguard Notice
+                </p>
+                <p className="leading-relaxed">
+                  Templates referencing temporary <code className="font-mono bg-amber-100 dark:bg-amber-900/40 px-1 py-0.5 rounded">TEST-</code> inventory must remain in <strong>Draft (Unpublished)</strong> status. They will be visible here for preview and testing, but will not be published publicly to store customers until genuine inventory is stocked.
+                </p>
+              </div>
+            </div>
+
+            {loadingTemplates ? (
+              <div className="py-20 text-center">
+                <RefreshCw className="w-6 h-6 animate-spin mx-auto text-[#B66F72] mb-2" />
+                <p className="text-xs text-[#756861]">Loading design templates...</p>
+              </div>
+            ) : templates.length === 0 ? (
+              <Card className="p-12 text-center rounded-2xl border border-dashed border-[#E6D8D0] dark:border-border">
+                <Sparkles className="w-10 h-10 mx-auto text-[#B66F72]/40 mb-3" />
+                <h4 className="font-playfair text-lg font-semibold text-[#342824] dark:text-foreground">
+                  No Design Templates Created Yet
+                </h4>
+                <p className="text-xs text-[#756861] dark:text-muted-foreground max-w-md mx-auto mt-1 mb-4">
+                  Create base gemstone arrangements that customers can load into the bracelet designer.
+                </p>
+                <Button
+                  onClick={handleOpenCreateTemplate}
+                  size="sm"
+                  className="bg-[#B66F72] hover:bg-[#95565A] text-white text-xs rounded-xl"
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1.5" />
+                  Create First Template
+                </Button>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {templates.map((tpl) => {
+                  const beadCount = tpl.beadSequence?.length || 0;
+                  const charmCount = tpl.charms?.length || 0;
+                  const hasTestItems = tpl.beadSequence?.some((b) => b.variantSku.startsWith("TEST-"));
+
+                  const beadCounts: Record<string, { count: number; name: string }> = {};
+                  tpl.beadSequence?.forEach((b) => {
+                    if (!beadCounts[b.variantSku]) {
+                      beadCounts[b.variantSku] = { count: 0, name: b.displayName };
+                    }
+                    beadCounts[b.variantSku].count++;
+                  });
+
+                  return (
+                    <Card
+                      key={tpl.slug}
+                      className="p-5 rounded-2xl border border-[#E6D8D0] dark:border-border bg-white dark:bg-card shadow-xs flex flex-col justify-between"
+                    >
+                      <div>
+                        <div className="flex items-start justify-between gap-3 mb-2">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-playfair font-semibold text-lg text-[#342824] dark:text-foreground">
+                                {tpl.name}
+                              </h4>
+                              {tpl.isPublished ? (
+                                <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-200 text-[10px] font-semibold">
+                                  Published
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-amber-800 bg-amber-50 dark:bg-amber-950/40 border-amber-200 text-[10px] font-semibold">
+                                  Draft (Unpublished)
+                                </Badge>
+                              )}
+                            </div>
+                            <span className="font-mono text-[11px] text-[#756861] dark:text-muted-foreground block mt-0.5">
+                              /{tpl.slug} · {tpl.jewelleryType} · {tpl.wristMm / 10} cm wrist
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleOpenEditTemplate(tpl)}
+                              className="h-8 w-8 p-0 text-[#756861] hover:text-[#B66F72]"
+                              title="Edit Template"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setDeletingTemplateSlug(tpl.slug)}
+                              className="h-8 w-8 p-0 text-[#756861] hover:text-rose-600"
+                              title="Delete Template"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+
+                        {tpl.description && (
+                          <p className="text-xs text-[#756861] dark:text-muted-foreground mb-3 line-clamp-2">
+                            {tpl.description}
+                          </p>
+                        )}
+
+                        {/* Bead Sequence Visual Preview */}
+                        <div className="my-3">
+                          <span className="text-[11px] font-semibold text-[#756861] uppercase tracking-wider block mb-1.5">
+                            Arrangement Sequence ({beadCount} beads):
+                          </span>
+                          <div className="flex flex-wrap items-center gap-1 p-2 rounded-xl bg-stone-50 dark:bg-muted/30 border border-[#E6D8D0]/60 max-h-24 overflow-y-auto">
+                            {tpl.beadSequence?.map((b, idx) => {
+                              const material = materials.find((m) =>
+                                m.variants.some((v) => v.sku === b.variantSku)
+                              );
+                              const variant = material?.variants.find((v) => v.sku === b.variantSku);
+                              const app = getBeadAppearance({
+                                variantSku: b.variantSku,
+                                displayName: b.displayName,
+                                color: variant?.color,
+                                finish: variant?.finish,
+                                renderAssetUrl: material?.renderAssetUrl,
+                                imageUrl: material?.imageUrl,
+                              });
+
+                              return (
+                                <div
+                                  key={idx}
+                                  className="w-5 h-5 rounded-full border border-black/15 shadow-xs flex-shrink-0"
+                                  style={{
+                                    backgroundColor: app.color,
+                                    backgroundImage: app.imageSrc ? `url(${app.imageSrc})` : undefined,
+                                    backgroundSize: "cover",
+                                  }}
+                                  title={`#${idx + 1}: ${b.displayName} (${b.variantSku})`}
+                                />
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Gemstones Breakdown */}
+                        <div className="flex flex-wrap gap-1.5 my-2">
+                          {Object.entries(beadCounts).map(([sku, item]) => (
+                            <span
+                              key={sku}
+                              className="px-2 py-0.5 rounded-md bg-stone-100 dark:bg-muted text-[10px] text-stone-700 dark:text-stone-300 font-medium"
+                            >
+                              {item.name}: <strong>{item.count}</strong>
+                            </span>
+                          ))}
+                          {charmCount > 0 && (
+                            <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 text-[10px] font-medium">
+                              Charms: {charmCount}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="pt-3 mt-3 border-t border-[#E6D8D0]/60 dark:border-border flex items-center justify-between text-xs">
+                        <span className="text-[11px] text-[#756861] dark:text-muted-foreground">
+                          Order: {tpl.sortOrder}
+                          {hasTestItems && (
+                            <span className="ml-2 text-amber-700 font-medium">
+                              (Contains temporary TEST- items)
+                            </span>
+                          )}
+                        </span>
+
+                        <Button
+                          size="sm"
+                          variant={tpl.isPublished ? "outline" : "default"}
+                          onClick={() => handleTogglePublishTemplate(tpl)}
+                          className={
+                            tpl.isPublished
+                              ? "h-7 text-xs rounded-lg border-[#E6D8D0]"
+                              : "h-7 text-xs rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white"
+                          }
+                        >
+                          {tpl.isPublished ? "Unpublish to Draft" : "Publish to Store"}
+                        </Button>
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* MODAL: ADD / EDIT MATERIAL */}
         {showMaterialModal && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -2489,6 +2975,292 @@ export default function AdminStudio() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* MODAL: ADD / EDIT DESIGN TEMPLATE */}
+        {showTemplateModal && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <Card className="max-w-2xl w-full bg-white dark:bg-card rounded-2xl border border-[#E6D8D0] shadow-xl p-6 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between pb-4 border-b border-[#E6D8D0]">
+                <div>
+                  <h3 className="font-playfair text-xl font-semibold">
+                    {editingTemplate ? "Edit Design Template" : "Create Starter Design Template"}
+                  </h3>
+                  <p className="text-xs text-[#756861] mt-0.5">
+                    Define an artisan-curated base arrangement for the Create Your Own Studio
+                  </p>
+                </div>
+                <Button size="sm" variant="ghost" onClick={() => setShowTemplateModal(false)} className="h-7 w-7 p-0">
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+
+              <div className="space-y-4 pt-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">Template Name *</Label>
+                    <Input
+                      value={templateForm.name}
+                      onChange={(e) => {
+                        const newName = e.target.value;
+                        setTemplateForm((prev) => ({
+                          ...prev,
+                          name: newName,
+                          slug: editingTemplate
+                            ? prev.slug
+                            : newName
+                                .toLowerCase()
+                                .replace(/[^a-z0-9]+/g, "-")
+                                .replace(/^-+|-+$/g, ""),
+                        }));
+                      }}
+                      placeholder="e.g. Triple Protection Harmony"
+                      className="text-xs rounded-xl"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">Slug (URL Identifier) *</Label>
+                    <Input
+                      value={templateForm.slug}
+                      onChange={(e) =>
+                        setTemplateForm({
+                          ...templateForm,
+                          slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""),
+                        })
+                      }
+                      placeholder="e.g. triple-protection-harmony"
+                      className="text-xs rounded-xl font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">Jewellery Category</Label>
+                    <select
+                      value={templateForm.jewelleryType}
+                      onChange={(e) => setTemplateForm({ ...templateForm, jewelleryType: e.target.value as "bracelet" })}
+                      className="w-full text-xs rounded-xl border border-[#E6D8D0] bg-[#FBF7F3] dark:bg-background h-9 px-3"
+                    >
+                      {jewelleryTypes.map((t) => (
+                        <option key={t.slug} value={t.slug}>
+                          {t.displayName} ({t.slug})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">Target Wrist Size (mm)</Label>
+                    <Input
+                      type="number"
+                      value={templateForm.wristMm}
+                      onChange={(e) => setTemplateForm({ ...templateForm, wristMm: Number(e.target.value) })}
+                      min={100}
+                      max={300}
+                      step={5}
+                      className="text-xs rounded-xl"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">Display Sort Order</Label>
+                    <Input
+                      type="number"
+                      value={templateForm.sortOrder}
+                      onChange={(e) => setTemplateForm({ ...templateForm, sortOrder: Number(e.target.value) })}
+                      className="text-xs rounded-xl"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">Description</Label>
+                  <Input
+                    value={templateForm.description}
+                    onChange={(e) => setTemplateForm({ ...templateForm, description: e.target.value })}
+                    placeholder="Short description of the arrangement, symbolism, or recommended wrist fit..."
+                    className="text-xs rounded-xl"
+                  />
+                </div>
+
+                {/* Bead Sequence Builder Section */}
+                <div className="p-4 rounded-xl border border-[#E6D8D0] bg-stone-50/50 dark:bg-muted/20 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-xs font-bold text-[#342824] dark:text-foreground">
+                        Bead Sequence Arrangement ({templateForm.beadSequence.length} beads)
+                      </Label>
+                      <p className="text-[11px] text-[#756861] mt-0.5">
+                        Approximate length: {templateForm.beadSequence.length * 8} mm (target: {templateForm.wristMm} mm)
+                      </p>
+                    </div>
+
+                    {templateForm.beadSequence.length > 0 && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={handleClearBeadSequence}
+                        className="text-rose-600 hover:text-rose-700 text-xs h-7 px-2"
+                      >
+                        Clear Arrangement
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* Gemstone Palette Selector */}
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1">
+                    <select
+                      value={selectedBeadSkuForTemplate}
+                      onChange={(e) => setSelectedBeadSkuForTemplate(e.target.value)}
+                      className="flex-1 text-xs rounded-xl border border-[#E6D8D0] bg-white dark:bg-background h-9 px-3"
+                    >
+                      {materials
+                        .flatMap((m) => m.variants.map((v) => ({ material: m, variant: v })))
+                        .filter((item) => item.variant.isActive && item.material.isActive)
+                        .map(({ material, variant }) => (
+                          <option key={variant.sku} value={variant.sku}>
+                            {material.name} - {variant.sizeLabel} ({variant.sku})
+                          </option>
+                        ))}
+                    </select>
+
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={beadAddCount}
+                        onChange={(e) => setBeadAddCount(Number(e.target.value))}
+                        className="text-xs rounded-xl border border-[#E6D8D0] bg-white dark:bg-background h-9 px-3"
+                      >
+                        <option value={1}>1 Bead</option>
+                        <option value={2}>2 Beads</option>
+                        <option value={3}>3 Beads</option>
+                        <option value={4}>4 Beads</option>
+                        <option value={7}>7 Beads</option>
+                        <option value={10}>10 Beads</option>
+                        <option value={20}>20 Beads</option>
+                      </select>
+
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={handleAddBeadsToTemplate}
+                        className="bg-[#B66F72] hover:bg-[#95565A] text-white text-xs rounded-xl h-9 px-3 shrink-0"
+                      >
+                        <Plus className="w-3.5 h-3.5 mr-1" />
+                        Add Bead(s)
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Visual Arrangement Preview Row */}
+                  {templateForm.beadSequence.length === 0 ? (
+                    <div className="py-6 text-center text-xs text-[#756861] border border-dashed border-[#E6D8D0] rounded-xl bg-white dark:bg-card">
+                      No beads added yet. Select a gemstone above and click "Add Bead(s)".
+                    </div>
+                  ) : (
+                    <div className="p-3 rounded-xl bg-white dark:bg-card border border-[#E6D8D0] max-h-36 overflow-y-auto space-y-2">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {templateForm.beadSequence.map((b, idx) => {
+                          const material = materials.find((m) =>
+                            m.variants.some((v) => v.sku === b.variantSku)
+                          );
+                          const variant = material?.variants.find((v) => v.sku === b.variantSku);
+                          const app = getBeadAppearance({
+                            variantSku: b.variantSku,
+                            displayName: b.displayName,
+                            color: variant?.color,
+                            finish: variant?.finish,
+                            renderAssetUrl: material?.renderAssetUrl,
+                            imageUrl: material?.imageUrl,
+                          });
+
+                          return (
+                            <div
+                              key={idx}
+                              className="group relative flex items-center justify-center"
+                              title={`#${idx + 1}: ${b.displayName} (${b.variantSku})`}
+                            >
+                              <div
+                                className="w-6 h-6 rounded-full border border-black/20 shadow-xs flex-shrink-0 cursor-pointer"
+                                style={{
+                                  backgroundColor: app.color,
+                                  backgroundImage: app.imageSrc ? `url(${app.imageSrc})` : undefined,
+                                  backgroundSize: "cover",
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveBeadAt(idx)}
+                                className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-rose-600 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-[8px]"
+                                title="Remove bead"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Publication Status Checkbox */}
+                <div className="pt-2">
+                  <label className="flex items-start gap-3 p-3 rounded-xl border border-[#E6D8D0] bg-stone-50/50 dark:bg-muted/10 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={templateForm.isPublished}
+                      onChange={(e) => setTemplateForm({ ...templateForm, isPublished: e.target.checked })}
+                      className="accent-[#B66F72] mt-0.5 rounded"
+                    />
+                    <div>
+                      <span className="text-xs font-semibold text-[#342824] dark:text-foreground block">
+                        Publish Immediately to Studio
+                      </span>
+                      <span className="text-[11px] text-[#756861] dark:text-muted-foreground block mt-0.5">
+                        Leave unchecked to save as a Draft. Note: Templates containing temporary TEST- inventory must remain unpublished until genuine materials are stocked.
+                      </span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-6 mt-4 border-t border-[#E6D8D0]">
+                <Button variant="outline" size="sm" onClick={() => setShowTemplateModal(false)}>
+                  Cancel
+                </Button>
+                <Button size="sm" onClick={handleSaveTemplate} className="bg-[#B66F72] hover:bg-[#95565A] text-white">
+                  Save Template
+                </Button>
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {/* DIALOG: DELETE DESIGN TEMPLATE */}
+        {deletingTemplateSlug && (
+          <AlertDialog open={Boolean(deletingTemplateSlug)} onOpenChange={() => setDeletingTemplateSlug(null)}>
+            <AlertDialogContent className="bg-white dark:bg-card rounded-2xl border border-[#E6D8D0] max-w-md">
+              <AlertDialogHeader>
+                <AlertDialogTitle className="font-playfair text-lg text-[#342824] dark:text-foreground">
+                  Delete Design Template?
+                </AlertDialogTitle>
+                <AlertDialogDescription className="text-xs text-[#756861] dark:text-muted-foreground">
+                  Are you sure you want to permanently delete template <code className="font-mono font-semibold">{deletingTemplateSlug}</code>? This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel className="text-xs rounded-xl">Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleDeleteTemplate}
+                  className="bg-rose-600 hover:bg-rose-700 text-white text-xs rounded-xl"
+                >
+                  Delete Template
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
       </main>
 
       <Footer />

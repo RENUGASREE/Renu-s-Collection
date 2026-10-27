@@ -459,6 +459,47 @@ export async function fetchDesignTemplates(): Promise<DesignTemplate[]> {
   return json.data as DesignTemplate[];
 }
 
+export async function fetchAdminDesignTemplates(): Promise<DesignTemplate[]> {
+  const res = await apiRequest("GET", "/api/v1/studio/admin/templates");
+  if (!res.ok) throw new Error(`Fetch admin templates failed: ${res.status}`);
+  const json = await res.json();
+  if (!json.success) throw new Error(json.message || "Admin templates fetch error");
+  return json.data as DesignTemplate[];
+}
+
+export async function createAdminDesignTemplate(
+  payload: Partial<DesignTemplate>
+): Promise<DesignTemplate> {
+  const res = await apiRequest("POST", "/api/v1/studio/admin/templates", payload);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || `Create template failed: ${res.status}`);
+  }
+  const json = await res.json();
+  return json.data as DesignTemplate;
+}
+
+export async function updateAdminDesignTemplate(
+  slug: string,
+  payload: Partial<DesignTemplate>
+): Promise<DesignTemplate> {
+  const res = await apiRequest("PATCH", `/api/v1/studio/admin/templates/${slug}`, payload);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || `Update template failed: ${res.status}`);
+  }
+  const json = await res.json();
+  return json.data as DesignTemplate;
+}
+
+export async function deleteAdminDesignTemplate(slug: string): Promise<void> {
+  const res = await apiRequest("DELETE", `/api/v1/studio/admin/templates/${slug}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || `Delete template failed: ${res.status}`);
+  }
+}
+
 export async function addCustomDesignToCart(payload: AddToCartPayload): Promise<any> {
   const res = await apiRequest("POST", "/api/v1/studio/cart/add", payload);
   if (!res.ok) {

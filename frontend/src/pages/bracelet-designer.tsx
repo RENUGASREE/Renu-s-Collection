@@ -343,6 +343,15 @@ export default function BraceletDesigner() {
       }
     }
 
+    if (resolvedBeads.length === 0) {
+      toast({
+        title: "Template Unavailable",
+        description: `None of the materials in "${template.name}" are currently active or available in the catalog.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     const newDesign: BraceletDesign = {
       wristMm: template.wristMm || 160,
       beadSequence: resolvedBeads,
@@ -354,10 +363,18 @@ export default function BraceletDesigner() {
     setHistory(makeHistory(newDesign));
     setCurrentDesignName(template.name);
     setLoadedSavedDesignId(undefined);
-    toast({
-      title: "Template Loaded",
-      description: `"${template.name}" loaded with ${resolvedBeads.length} beads.`,
-    });
+
+    if (resolvedBeads.length < template.beadSequence.length) {
+      toast({
+        title: "Template Partially Loaded",
+        description: `"${template.name}" loaded with ${resolvedBeads.length} available beads (${template.beadSequence.length - resolvedBeads.length} unavailable beads were omitted).`,
+      });
+    } else {
+      toast({
+        title: "Template Loaded",
+        description: `"${template.name}" loaded with ${resolvedBeads.length} beads.`,
+      });
+    }
   }, [materials, toast]);
 
   // Handler for applying an AI Design Assistant suggestion

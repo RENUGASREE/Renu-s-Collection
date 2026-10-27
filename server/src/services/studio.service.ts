@@ -787,14 +787,102 @@ export async function getDesignTemplateBySlug(slug: string, isAdmin = false) {
   return template;
 }
 
+async function validateAndEnrichTemplateComponents(
+  jewelleryType: string,
+  beadSequence: any[],
+  charms: any[] = [],
+  isPublished = false
+) {
+  // 1. Verify jewellery type exists
+  const jType = await JewelleryType.findOne({ slug: jewelleryType.toLowerCase() });
+  if (!jType) {
+    throw new AppError(`Jewellery type "${jewelleryType}" not found`, 400);
+  }
+  if (isPublished && (!jType.isPublished || jType.isEnabled === false || jType.isArchived === true)) {
+    throw new AppError(
+      `Cannot publish template: jewellery type "${jewelleryType}" is not currently published/available`,
+      400
+    );
+  }
+
+  // 2. Validate bead sequence
+  if (!Array.isArray(beadSequence) || beadSequence.length === 0) {
+    throw new AppError("Template bead sequence must contain at least one bead", 400);
+  }
+
+  const allBeadSkus = beadSequence.map((b) => String(b.variantSku || "").toUpperCase().trim());
+  const allCharmSkus = (charms || []).map((c) => String(c.variantSku || "").toUpperCase().trim());
+  const uniqueSkus = Array.from(new Set([...allBeadSkus, ...allCharmSkus].filter(Boolean)));
+
+  const materials = await StudioMaterial.find({ "variants.sku": { $in: uniqueSkus } });
+
+  const variantLookup = new Map<string, { material: any; variant: any }>();
+  for (const m of materials) {
+    for (const v of m.variants) {
+      variantLookup.set(v.sku.toUpperCase(), { material: m, variant: v });
+    }
+  }
+
+  // Check every bead
+  const enrichedBeads = beadSequence.map((b) => {
+    const sku = String(b.variantSku || "").toUpperCase().trim();
+    const found = variantLookup.get(sku);
+    if (!found) {
+      throw new AppError(`Referenced variant SKU "${sku}" does not exist in the material library`, 400);
+    }
+    if (isPublished && (!found.material.isActive || !found.variant.isActive)) {
+      throw new AppError(`Cannot publish template: variant SKU "${sku}" is inactive or disabled`, 400);
+    }
+    return {
+      variantSku: sku,
+      displayName: b.displayName?.trim() || found.material.name,
+      imageUrl: b.imageUrl?.trim() || found.material.imageUrl || found.material.renderAssetUrl || "",
+    };
+  });
+
+  // Check charms
+  const enrichedCharms = (charms || []).map((c) => {
+    const sku = String(c.variantSku || "").toUpperCase().trim();
+    const anchor = String(c.anchorVariantSku || "").toUpperCase().trim();
+    const found = variantLookup.get(sku);
+    if (!found) {
+      throw new AppError(`Referenced charm SKU "${sku}" does not exist in the material library`, 400);
+    }
+    if (isPublished && (!found.material.isActive || !found.variant.isActive)) {
+      throw new AppError(`Cannot publish template: charm SKU "${sku}" is inactive or disabled`, 400);
+    }
+    if (!allBeadSkus.includes(anchor)) {
+      throw new AppError(`Charm anchor SKU "${anchor}" is not present in the bead sequence`, 400);
+    }
+    return {
+      anchorVariantSku: anchor,
+      variantSku: sku,
+      displayName: c.displayName?.trim() || found.material.name,
+      imageUrl: c.imageUrl?.trim() || found.material.imageUrl || found.material.renderAssetUrl || "",
+    };
+  });
+
+  return { enrichedBeads, enrichedCharms };
+}
+
 export async function createDesignTemplate(input: any) {
   const existing = await DesignTemplate.findOne({ slug: input.slug.toLowerCase() });
   if (existing) {
     throw new AppError(`Template with slug "${input.slug}" already exists`, 409);
   }
+
+  const { enrichedBeads, enrichedCharms } = await validateAndEnrichTemplateComponents(
+    input.jewelleryType || "bracelet",
+    input.beadSequence,
+    input.charms,
+    Boolean(input.isPublished)
+  );
+
   return DesignTemplate.create({
     ...input,
     slug: input.slug.toLowerCase(),
+    beadSequence: enrichedBeads,
+    charms: enrichedCharms,
   });
 }
 
@@ -803,7 +891,24 @@ export async function updateDesignTemplate(slug: string, input: any) {
   if (!template) {
     throw new AppError("Design template not found", 404);
   }
-  Object.assign(template, input);
+
+  const targetJewelleryType = input.jewelleryType || template.jewelleryType;
+  const targetBeads = input.beadSequence || template.beadSequence;
+  const targetCharms = input.charms !== undefined ? input.charms : template.charms;
+  const targetPublished = input.isPublished !== undefined ? Boolean(input.isPublished) : template.isPublished;
+
+  const { enrichedBeads, enrichedCharms } = await validateAndEnrichTemplateComponents(
+    targetJewelleryType,
+    targetBeads,
+    targetCharms,
+    targetPublished
+  );
+
+  Object.assign(template, input, {
+    beadSequence: enrichedBeads,
+    charms: enrichedCharms,
+  });
+
   if (input.slug) {
     template.slug = input.slug.toLowerCase();
   }

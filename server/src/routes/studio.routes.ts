@@ -247,6 +247,13 @@ router.put(
 );
 
 // Design Templates Management (Admin)
+router.get(
+  "/admin/templates",
+  requireAuth,
+  requireAdmin,
+  studioController.listTemplates
+);
+
 router.post(
   "/admin/templates",
   requireAuth,
