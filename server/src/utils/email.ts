@@ -1,5 +1,48 @@
 import nodemailer from "nodemailer";
+import { OAuth2Client } from "google-auth-library";
 import { env } from "../config/env.js";
+
+function createRawEmail(params: {
+  to: string;
+  from: string;
+  subject: string;
+  text: string;
+  html?: string;
+  replyTo?: string;
+}): string {
+  const boundary = `__boundary_${Date.now()}__`;
+  const subjectEncoded = `=?utf-8?B?${Buffer.from(params.subject).toString("base64")}?=`;
+
+  const lines = [
+    `From: ${params.from}`,
+    `To: ${params.to}`,
+    `Subject: ${subjectEncoded}`,
+    params.replyTo ? `Reply-To: ${params.replyTo}` : null,
+    `MIME-Version: 1.0`,
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    ``,
+    `--${boundary}`,
+    `Content-Type: text/plain; charset="UTF-8"`,
+    `Content-Transfer-Encoding: 7bit`,
+    ``,
+    params.text,
+    ``,
+    params.html ? `--${boundary}` : null,
+    params.html ? `Content-Type: text/html; charset="UTF-8"` : null,
+    params.html ? `Content-Transfer-Encoding: 7bit` : null,
+    params.html ? `` : null,
+    params.html ? params.html : null,
+    params.html ? `` : null,
+    `--${boundary}--`,
+  ].filter((line): line is string => line !== null);
+
+  const rawMessage = lines.join("\r\n");
+  return Buffer.from(rawMessage)
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
 
 function createTransporter(options?: { forcePort?: number; forceSecure?: boolean }): nodemailer.Transporter | null {
   const host = env.SMTP_HOST?.trim();
@@ -44,6 +87,7 @@ function createTransporter(options?: { forcePort?: number; forceSecure?: boolean
 
 export function isEmailConfigured(): boolean {
   return Boolean(
+    (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && env.GMAIL_REFRESH_TOKEN) ||
     env.RESEND_API_KEY ||
     env.BREVO_API_KEY ||
     (env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS)
@@ -61,7 +105,62 @@ export async function sendEmail(params: {
     return { delivered: false, configured: false };
   }
 
-  // Priority 1: Resend HTTP API (Port 443 HTTPS - Works 100% on Render Free Tier)
+  // Priority 1: Google Gmail REST API (Port 443 HTTPS - Works 100% on Render Free Tier)
+  if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && env.GMAIL_REFRESH_TOKEN) {
+    try {
+      const oauth2Client = new OAuth2Client(
+        env.GOOGLE_CLIENT_ID,
+        env.GOOGLE_CLIENT_SECRET,
+        "https://developers.google.com/oauthplayground"
+      );
+
+      oauth2Client.setCredentials({
+        refresh_token: env.GMAIL_REFRESH_TOKEN,
+      });
+
+      const tokenResponse = await oauth2Client.getAccessToken();
+      const accessToken = tokenResponse.token;
+
+      if (!accessToken) {
+        throw new Error("Failed to retrieve access token from Google OAuth2 client");
+      }
+
+      const senderEmail = env.GMAIL_USER || env.SMTP_USER || "renuscollection05@gmail.com";
+      const from = `Renu's Collections <${senderEmail}>`;
+      const raw = createRawEmail({
+        from,
+        to: params.to,
+        subject: params.subject,
+        text: params.text,
+        html: params.html,
+        replyTo: params.replyTo,
+      });
+
+      const res = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ raw }),
+      });
+
+      const data = (await res.json()) as any;
+      if (res.ok && data?.id) {
+        console.log("[Email] Delivered successfully via Google Gmail API:", data.id);
+        return { delivered: true, configured: true };
+      } else {
+        const errMsg = data?.error?.message || JSON.stringify(data);
+        console.error("[Email] Gmail API send error:", errMsg);
+        return { delivered: false, configured: true, error: `Gmail API: ${errMsg}` };
+      }
+    } catch (err: any) {
+      console.error("[Email] Gmail API dispatch failed:", err?.message || err);
+      return { delivered: false, configured: true, error: err?.message || "Gmail API error" };
+    }
+  }
+
+  // Priority 2: Resend HTTP API (Port 443 HTTPS - Works 100% on Render Free Tier)
   if (env.RESEND_API_KEY) {
     try {
       const from =
