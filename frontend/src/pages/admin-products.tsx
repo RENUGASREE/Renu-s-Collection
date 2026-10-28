@@ -50,6 +50,7 @@ export default function AdminProducts() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCategory, setFilterCategory] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<"active" | "inactive" | "all">("active");
 
   useEffect(() => {
     const fetchData = async () => {
@@ -71,11 +72,17 @@ export default function AdminProducts() {
     fetchData();
   }, []);
 
+  const activeCount = products.filter((p) => p.isActive).length;
+  const inactiveCount = products.filter((p) => !p.isActive).length;
+  const totalCount = products.length;
+
   const filteredProducts = products.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           p.sku.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = filterCategory === "all" || p.categoryId === filterCategory;
-    return matchesSearch && matchesCategory;
+    const matchesStatus =
+      statusFilter === "all" ? true : statusFilter === "active" ? p.isActive : !p.isActive;
+    return matchesSearch && matchesCategory && matchesStatus;
   });
 
   const getCategoryName = (categoryId: string) => {
@@ -145,6 +152,56 @@ export default function AdminProducts() {
             </Link>
           </Button>
         </div>
+
+        {/* Status Filter Tabs */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
+          <div className="flex items-center gap-1.5 p-1 bg-[#F1E8E0] dark:bg-muted/60 rounded-xl">
+            <button
+              type="button"
+              onClick={() => setStatusFilter("active")}
+              className={`px-3 py-1.5 rounded-lg text-xs transition-all ${
+                statusFilter === "active"
+                  ? "bg-white dark:bg-card text-[#342824] dark:text-foreground shadow-xs font-semibold"
+                  : "text-[#756861] dark:text-muted-foreground hover:text-[#342824]"
+              }`}
+            >
+              Active Products ({activeCount})
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter("inactive")}
+              className={`px-3 py-1.5 rounded-lg text-xs transition-all ${
+                statusFilter === "inactive"
+                  ? "bg-white dark:bg-card text-[#342824] dark:text-foreground shadow-xs font-semibold"
+                  : "text-[#756861] dark:text-muted-foreground hover:text-[#342824]"
+              }`}
+            >
+              Archived / Inactive ({inactiveCount})
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter("all")}
+              className={`px-3 py-1.5 rounded-lg text-xs transition-all ${
+                statusFilter === "all"
+                  ? "bg-white dark:bg-card text-[#342824] dark:text-foreground shadow-xs font-semibold"
+                  : "text-[#756861] dark:text-muted-foreground hover:text-[#342824]"
+              }`}
+            >
+              All Products ({totalCount})
+            </button>
+          </div>
+
+          <span className="text-[11px] text-[#756861] dark:text-muted-foreground">
+            Showing {filteredProducts.length} {statusFilter === "active" ? "active" : statusFilter === "inactive" ? "archived" : ""} item{filteredProducts.length === 1 ? "" : "s"}
+          </span>
+        </div>
+
+        {statusFilter === "inactive" && (
+          <div className="p-3 mb-4 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 text-xs text-amber-900 dark:text-amber-200 flex items-center gap-2">
+            <span className="font-semibold">Archived View:</span>
+            <span>These products are hidden from the public storefront, but retained for historical order history and reporting.</span>
+          </div>
+        )}
 
         {/* Search & Filters */}
         <div className="flex flex-col sm:flex-row gap-3 mb-6">

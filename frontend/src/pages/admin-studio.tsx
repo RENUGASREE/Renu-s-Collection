@@ -157,6 +157,7 @@ export default function AdminStudio() {
   // State: Design Templates
   const [templates, setTemplates] = useState<DesignTemplate[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [templateStatusFilter, setTemplateStatusFilter] = useState<"published" | "draft" | "all">("published");
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<DesignTemplate | null>(null);
   const [templateForm, setTemplateForm] = useState({
@@ -204,6 +205,7 @@ export default function AdminStudio() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
   const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [materialStatusFilter, setMaterialStatusFilter] = useState<"active" | "inactive" | "all">("active");
 
   // Material Form Modal
   const [showMaterialModal, setShowMaterialModal] = useState(false);
@@ -989,7 +991,12 @@ export default function AdminStudio() {
   };
 
   // Filtering materials list
+  const activeMaterialsCount = materials.filter((m) => m.isActive).length;
+  const inactiveMaterialsCount = materials.filter((m) => !m.isActive).length;
+
   const filteredMaterials = materials.filter((m) => {
+    if (materialStatusFilter === "active" && !m.isActive) return false;
+    if (materialStatusFilter === "inactive" && m.isActive) return false;
     if (filterType !== "all" && m.materialType !== filterType) return false;
     if (filterCategory !== "all" && !m.allowedJewelleryTypes.includes(filterCategory)) return false;
     if (searchQuery.trim()) {
@@ -999,6 +1006,16 @@ export default function AdminStudio() {
       const matchSku = m.variants.some((v) => v.sku.toLowerCase().includes(q));
       if (!matchName && !matchCode && !matchSku) return false;
     }
+    return true;
+  });
+
+  // Filtering templates list
+  const publishedTemplatesCount = templates.filter((t) => t.isPublished).length;
+  const draftTemplatesCount = templates.filter((t) => !t.isPublished).length;
+
+  const filteredTemplates = templates.filter((t) => {
+    if (templateStatusFilter === "published" && !t.isPublished) return false;
+    if (templateStatusFilter === "draft" && t.isPublished) return false;
     return true;
   });
 
@@ -1175,6 +1192,16 @@ export default function AdminStudio() {
                     </option>
                   ))}
                 </select>
+
+                <select
+                  value={materialStatusFilter}
+                  onChange={(e) => setMaterialStatusFilter(e.target.value as any)}
+                  className="h-9 px-3 text-xs rounded-xl border border-[#E6D8D0] dark:border-border bg-white dark:bg-card text-[#342824] dark:text-foreground font-medium"
+                >
+                  <option value="active">Active Materials ({activeMaterialsCount})</option>
+                  <option value="inactive">Archived / Inactive ({inactiveMaterialsCount})</option>
+                  <option value="all">All Materials ({materials.length})</option>
+                </select>
               </div>
 
               <Button
@@ -1198,6 +1225,13 @@ export default function AdminStudio() {
                 <span>Add Shared Material</span>
               </Button>
             </div>
+
+            {materialStatusFilter === "inactive" && (
+              <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 text-xs text-amber-900 dark:text-amber-200 flex items-center gap-2">
+                <span className="font-semibold">Archived View:</span>
+                <span>These materials are inactive and hidden from the customer Create Your Own Studio, but retained for historical order integrity.</span>
+              </div>
+            )}
 
             {/* Materials List */}
             {loadingMaterials ? (
@@ -2233,7 +2267,43 @@ export default function AdminStudio() {
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                <div className="flex items-center gap-1.5 p-1 bg-[#F1E8E0] dark:bg-muted/60 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setTemplateStatusFilter("published")}
+                    className={`px-3 py-1.5 rounded-lg text-xs transition-all ${
+                      templateStatusFilter === "published"
+                        ? "bg-white dark:bg-card text-[#342824] dark:text-foreground shadow-xs font-semibold"
+                        : "text-[#756861] dark:text-muted-foreground hover:text-[#342824]"
+                    }`}
+                  >
+                    Published ({publishedTemplatesCount})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTemplateStatusFilter("draft")}
+                    className={`px-3 py-1.5 rounded-lg text-xs transition-all ${
+                      templateStatusFilter === "draft"
+                        ? "bg-white dark:bg-card text-[#342824] dark:text-foreground shadow-xs font-semibold"
+                        : "text-[#756861] dark:text-muted-foreground hover:text-[#342824]"
+                    }`}
+                  >
+                    Drafts / Unpublished ({draftTemplatesCount})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTemplateStatusFilter("all")}
+                    className={`px-3 py-1.5 rounded-lg text-xs transition-all ${
+                      templateStatusFilter === "all"
+                        ? "bg-white dark:bg-card text-[#342824] dark:text-foreground shadow-xs font-semibold"
+                        : "text-[#756861] dark:text-muted-foreground hover:text-[#342824]"
+                    }`}
+                  >
+                    All ({templates.length})
+                  </button>
+                </div>
+
                 <Button
                   onClick={handleOpenCreateTemplate}
                   size="sm"
@@ -2263,14 +2333,20 @@ export default function AdminStudio() {
                 <RefreshCw className="w-6 h-6 animate-spin mx-auto text-[#B66F72] mb-2" />
                 <p className="text-xs text-[#756861]">Loading design templates...</p>
               </div>
-            ) : templates.length === 0 ? (
+            ) : filteredTemplates.length === 0 ? (
               <Card className="p-12 text-center rounded-2xl border border-dashed border-[#E6D8D0] dark:border-border">
                 <Sparkles className="w-10 h-10 mx-auto text-[#B66F72]/40 mb-3" />
                 <h4 className="font-playfair text-lg font-semibold text-[#342824] dark:text-foreground">
-                  No Design Templates Created Yet
+                  {templateStatusFilter === "published"
+                    ? "No Published Templates"
+                    : templateStatusFilter === "draft"
+                    ? "No Draft Templates"
+                    : "No Design Templates Created Yet"}
                 </h4>
                 <p className="text-xs text-[#756861] dark:text-muted-foreground max-w-md mx-auto mt-1 mb-4">
-                  Create base gemstone arrangements that customers can load into the bracelet designer.
+                  {templateStatusFilter === "published"
+                    ? "Publish base gemstone arrangements when ready to show them in the customer Create Your Own Studio."
+                    : "Create base gemstone arrangements that customers can load into the bracelet designer."}
                 </p>
                 <Button
                   onClick={handleOpenCreateTemplate}
@@ -2283,7 +2359,7 @@ export default function AdminStudio() {
               </Card>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {templates.map((tpl) => {
+                {filteredTemplates.map((tpl) => {
                   const beadCount = tpl.beadSequence?.length || 0;
                   const charmCount = tpl.charms?.length || 0;
                   const hasTestItems = tpl.beadSequence?.some((b) => b.variantSku.startsWith("TEST-"));
