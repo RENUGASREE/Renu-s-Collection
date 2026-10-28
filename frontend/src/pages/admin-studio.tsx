@@ -1276,9 +1276,13 @@ export default function AdminStudio() {
                             <Badge variant="secondary" className="text-[10px] capitalize">
                               {mat.materialType}
                             </Badge>
-                            {!mat.isActive && (
-                              <Badge variant="destructive" className="text-[10px]">
-                                Inactive
+                            {mat.isActive ? (
+                              <Badge className="text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200">
+                                Active Material
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-[10px] bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border-rose-200">
+                                Inactive Material
                               </Badge>
                             )}
                           </div>
@@ -1303,6 +1307,45 @@ export default function AdminStudio() {
                       </div>
 
                       <div className="flex items-center gap-2 shrink-0">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={async () => {
+                            try {
+                              const newStatus = !mat.isActive;
+                              const res = await apiRequest("PATCH", `/api/v1/studio/admin/materials/${mat._id}`, {
+                                isActive: newStatus,
+                              });
+                              if (!res.ok) throw new Error("Failed to update status");
+                              toast({
+                                title: newStatus ? "Material Activated" : "Material Deactivated",
+                                description: `${mat.name} is now ${newStatus ? "active" : "inactive"}.`,
+                              });
+                              fetchMaterials();
+                            } catch (err: any) {
+                              toast({ title: "Update Failed", description: err.message, variant: "destructive" });
+                            }
+                          }}
+                          className={`h-8 text-xs rounded-xl ${
+                            mat.isActive
+                              ? "text-[#756861] hover:text-rose-600 hover:bg-rose-50 border-[#E6D8D0]"
+                              : "text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 border-emerald-300"
+                          }`}
+                          title={mat.isActive ? "Deactivate Material" : "Activate Material"}
+                        >
+                          {mat.isActive ? (
+                            <>
+                              <EyeOff className="w-3.5 h-3.5 mr-1" />
+                              <span>Deactivate</span>
+                            </>
+                          ) : (
+                            <>
+                              <Eye className="w-3.5 h-3.5 mr-1" />
+                              <span>Activate</span>
+                            </>
+                          )}
+                        </Button>
+
                         <Button
                           size="sm"
                           variant="ghost"
@@ -1392,6 +1435,7 @@ export default function AdminStudio() {
                                 <th className="py-2 px-2">Size / Label</th>
                                 <th className="py-2 px-2">Color / Finish</th>
                                 <th className="py-2 px-2">Unit</th>
+                                <th className="py-2 px-2">Status</th>
                                 <th className="py-2 px-2">Stock (Available)</th>
                                 <th className="py-2 px-2 font-mono text-stone-500">Cost (Private)</th>
                                 <th className="py-2 px-2 font-semibold text-[#B66F72]">Selling Rate</th>
@@ -1403,7 +1447,7 @@ export default function AdminStudio() {
                                 <tr
                                   key={v.sku}
                                   className={`border-b border-[#E6D8D0]/30 dark:border-border/30 hover:bg-white/50 dark:hover:bg-muted/20 ${
-                                    !v.isActive ? "opacity-50" : ""
+                                    !v.isActive ? "opacity-60 bg-stone-50/50 dark:bg-muted/10" : ""
                                   }`}
                                 >
                                   <td className="py-2.5 px-2 font-mono font-medium">{v.sku}</td>
@@ -1412,6 +1456,21 @@ export default function AdminStudio() {
                                     {[v.color, v.finish].filter(Boolean).join(" • ") || "—"}
                                   </td>
                                   <td className="py-2.5 px-2 capitalize">{v.sellingUnit}</td>
+                                  <td className="py-2.5 px-2">
+                                    {!mat.isActive ? (
+                                      <Badge variant="outline" className="text-[10px] text-amber-700 border-amber-300 bg-amber-50 dark:bg-amber-950/30">
+                                        Parent Inactive
+                                      </Badge>
+                                    ) : v.isActive ? (
+                                      <Badge className="text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200">
+                                        Active
+                                      </Badge>
+                                    ) : (
+                                      <Badge variant="outline" className="text-[10px] text-rose-700 border-rose-300 bg-rose-50 dark:bg-rose-950/30">
+                                        Inactive
+                                      </Badge>
+                                    )}
+                                  </td>
                                   <td className="py-2.5 px-2">
                                     <div className="flex flex-col">
                                       <span
@@ -1473,12 +1532,42 @@ export default function AdminStudio() {
                                           variant="ghost"
                                           onClick={() => setDisablingVariant({ materialId: mat._id, sku: v.sku })}
                                           className="h-7 px-2 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50"
-                                          title="Disable variant"
+                                          title="Deactivate variant"
                                         >
-                                          <EyeOff className="w-3 h-3" />
+                                          <EyeOff className="w-3 h-3 mr-1" />
+                                          <span>Deactivate</span>
                                         </Button>
                                       ) : (
-                                        <span className="text-[10px] text-muted-foreground italic px-1">Disabled</span>
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          onClick={async () => {
+                                            try {
+                                              const res = await apiRequest(
+                                                "PATCH",
+                                                `/api/v1/studio/admin/materials/${mat._id}/variants/${v.sku}`,
+                                                { isActive: true }
+                                              );
+                                              if (!res.ok) throw new Error("Activation failed");
+                                              toast({
+                                                title: "Variant Activated",
+                                                description: `SKU ${v.sku} is now active.`,
+                                              });
+                                              fetchMaterials();
+                                            } catch (err: any) {
+                                              toast({
+                                                title: "Activation Failed",
+                                                description: err.message,
+                                                variant: "destructive",
+                                              });
+                                            }
+                                          }}
+                                          className="h-7 px-2 text-xs text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50"
+                                          title="Activate variant"
+                                        >
+                                          <Eye className="w-3 h-3 mr-1" />
+                                          <span>Activate</span>
+                                        </Button>
                                       )}
                                     </div>
                                   </td>
@@ -2636,6 +2725,23 @@ export default function AdminStudio() {
                     ))}
                   </div>
                 </div>
+
+                <div className="pt-2">
+                  <label className="flex items-center gap-2 p-2.5 rounded-xl border border-[#E6D8D0] bg-[#FBF7F3]/50 dark:bg-muted/20 cursor-pointer text-xs">
+                    <input
+                      type="checkbox"
+                      checked={materialForm.isActive}
+                      onChange={(e) => setMaterialForm({ ...materialForm, isActive: e.target.checked })}
+                      className="accent-[#B66F72] h-4 w-4 rounded"
+                    />
+                    <div>
+                      <span className="font-medium text-[#342824] dark:text-foreground">Active Material in Studio</span>
+                      <p className="text-[11px] text-[#756861] dark:text-muted-foreground">
+                        When active, this component and its active variants can be selected in custom designs and templates.
+                      </p>
+                    </div>
+                  </label>
+                </div>
               </div>
 
               <div className="flex justify-end gap-2 pt-6 mt-4 border-t border-[#E6D8D0]">
@@ -2768,6 +2874,23 @@ export default function AdminStudio() {
                       onChange={(e) => setVariantForm({ ...variantForm, lowStockThreshold: Number(e.target.value) })}
                     />
                   </div>
+                </div>
+
+                <div className="pt-2">
+                  <label className="flex items-center gap-2 p-2.5 rounded-xl border border-[#E6D8D0] bg-[#FBF7F3]/50 dark:bg-muted/20 cursor-pointer text-xs">
+                    <input
+                      type="checkbox"
+                      checked={variantForm.isActive}
+                      onChange={(e) => setVariantForm({ ...variantForm, isActive: e.target.checked })}
+                      className="accent-[#B66F72] h-4 w-4 rounded"
+                    />
+                    <div>
+                      <span className="font-medium text-[#342824] dark:text-foreground">Active SKU Variant</span>
+                      <p className="text-[11px] text-[#756861] dark:text-muted-foreground">
+                        Active variants are available for selection in customer bracelet designs and quote calculations.
+                      </p>
+                    </div>
+                  </label>
                 </div>
               </div>
 
