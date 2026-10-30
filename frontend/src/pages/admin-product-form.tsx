@@ -258,10 +258,10 @@ export default function AdminProductForm() {
         });
         continue;
       }
-      if (file.size > 10 * 1024 * 1024) {
+      if (file.size > 20 * 1024 * 1024) {
         toast({
           title: "File too large",
-          description: `"${file.name}" exceeds the 10MB limit.`,
+          description: `"${file.name}" exceeds the 20MB limit.`,
           variant: "destructive",
         });
         continue;

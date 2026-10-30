@@ -81,7 +81,7 @@ const fileFilter = (
 export const uploadProductImages = multer({
   storage,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB per image
+    fileSize: 20 * 1024 * 1024, // 20MB per image
     files: 10, // Up to 10 files per upload batch
   },
   fileFilter,
