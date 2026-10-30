@@ -4,7 +4,15 @@ export const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || "http
 
 export function getAssetUrl(path: string | null | undefined): string {
   if (!path) return `${(import.meta as any).env?.BASE_URL || "/"}placeholders/placeholder.png`;
-  if (path.startsWith("http")) return path;
+  if (path.startsWith("http://") || path.startsWith("https://")) return path;
+
+  // If the path points to an API route (e.g. /api/v1/products/images/:id or api/v1/...),
+  // route it to the backend API host (API_BASE_URL), avoiding frontend static host 404s
+  if (path.startsWith("/api/") || path.startsWith("api/")) {
+    const normalizedApi = path.startsWith("/") ? path : `/${path}`;
+    const baseApi = API_BASE_URL.replace(/\/+$/, "");
+    return `${baseApi}${normalizedApi}`;
+  }
 
   // Remove leading slash if present to avoid double slashes with BASE_URL
   const normalizedPath = path.startsWith("/") ? path.slice(1) : path;

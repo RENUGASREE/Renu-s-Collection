@@ -1,15 +1,17 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, API_BASE_URL, refreshAccessToken, getAssetUrl } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import Footer from "@/components/footer";
 import { SEO } from "@/components/SEO";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 import AdminNav from "@/components/AdminNav";
 import {
   ArrowLeft,
@@ -21,6 +23,9 @@ import {
   X,
   Plus,
   AlertCircle,
+  Upload,
+  Loader2,
+  CheckCircle2,
 } from "lucide-react";
 
 interface Category {
@@ -58,14 +63,19 @@ interface ProductFormData {
 
 export default function AdminProductForm() {
   const { token } = useAuth();
+  const { toast } = useToast();
   const navigate = useNavigate();
   const { productId } = useParams<{ productId?: string }>();
   const isEditing = !!productId;
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [subcategories, setSubcategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(false);
   const [newImageUrl, setNewImageUrl] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [formData, setFormData] = useState<ProductFormData>({
     name: "",
     sku: "",
@@ -229,6 +239,161 @@ export default function AdminProductForm() {
         media: updated,
       };
     });
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    // Validate client-side
+    const validFiles: File[] = [];
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (!allowedTypes.includes(file.type.toLowerCase())) {
+        toast({
+          title: "Unsupported file type",
+          description: `"${file.name}" is not a JPEG, PNG, or WebP image.`,
+          variant: "destructive",
+        });
+        continue;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        toast({
+          title: "File too large",
+          description: `"${file.name}" exceeds the 10MB limit.`,
+          variant: "destructive",
+        });
+        continue;
+      }
+      validFiles.push(file);
+    }
+
+    if (validFiles.length === 0) {
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadProgress(10);
+    setUploadError(null);
+
+    try {
+      const uploadFormData = new FormData();
+      validFiles.forEach((file) => {
+        uploadFormData.append("images", file);
+      });
+
+      let currentToken = localStorage.getItem("authToken");
+
+      const doUpload = (authToken: string | null): Promise<any> => {
+        return new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", `${API_BASE_URL}/api/v1/products/images/upload`);
+          xhr.withCredentials = true;
+
+          if (authToken) {
+            xhr.setRequestHeader("Authorization", `Bearer ${authToken}`);
+          }
+
+          xhr.upload.onprogress = (event) => {
+            if (event.lengthComputable) {
+              const percent = Math.round((event.loaded / event.total) * 90);
+              setUploadProgress(Math.max(10, percent));
+            }
+          };
+
+          xhr.onload = () => {
+            let json: any = null;
+            try {
+              json = JSON.parse(xhr.responseText);
+            } catch (_) {
+              // ignore
+            }
+
+            if (xhr.status >= 200 && xhr.status < 300 && json?.success) {
+              resolve(json);
+            } else {
+              const msg =
+                json?.message ||
+                json?.error ||
+                `Upload failed with HTTP status ${xhr.status}`;
+              reject(new Error(msg));
+            }
+          };
+
+          xhr.onerror = () => {
+            reject(new Error("Network error during image upload. Check server connection."));
+          };
+
+          xhr.send(uploadFormData);
+        });
+      };
+
+      let uploadResult: any;
+      try {
+        uploadResult = await doUpload(currentToken);
+      } catch (firstErr: any) {
+        // If 401, try token refresh once
+        if (firstErr?.message?.includes("401") || firstErr?.message?.includes("Authentication")) {
+          const refreshed = await refreshAccessToken();
+          if (refreshed) {
+            currentToken = localStorage.getItem("authToken");
+            uploadResult = await doUpload(currentToken);
+          } else {
+            throw firstErr;
+          }
+        } else {
+          throw firstErr;
+        }
+      }
+
+      setUploadProgress(100);
+
+      const uploadedItems = uploadResult.data || [];
+      if (uploadedItems.length > 0) {
+        setFormData((prev) => {
+          const nextMedia = [...prev.media];
+          uploadedItems.forEach((uploaded: any) => {
+            const isFirst = nextMedia.length === 0;
+            nextMedia.push({
+              url: uploaded.secureUrl || uploaded.url,
+              alt: prev.name || uploaded.originalFilename || "",
+              type: "image",
+              isPrimary: isFirst,
+              sortOrder: nextMedia.length,
+            });
+          });
+
+          const primaryUrl = nextMedia.find((m) => m.isPrimary)?.url || prev.imageUrl;
+          return {
+            ...prev,
+            imageUrl: primaryUrl,
+            media: nextMedia,
+          };
+        });
+
+        toast({
+          title: "Images uploaded successfully",
+          description: `Added ${uploadedItems.length} image(s) to the gallery.`,
+        });
+      }
+    } catch (err: any) {
+      console.error("Direct upload error:", err);
+      const errMsg = err?.message || "Failed to upload images. Please try again.";
+      setUploadError(errMsg);
+      toast({
+        title: "Upload Failed",
+        description: errMsg,
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
   };
 
   const handleMoveImage = (index: number, direction: "up" | "down") => {
@@ -433,23 +598,88 @@ export default function AdminProductForm() {
           {/* Product Gallery */}
           <Card className="bg-white dark:bg-card border-[#E6D8D0] dark:border-border shadow-sm">
             <CardHeader className="pb-4 border-b border-[#E6D8D0] dark:border-border">
-              <div>
-                <CardTitle className="font-playfair text-base text-[#342824] dark:text-foreground flex items-center gap-2">
-                  <ImageIcon className="h-4 w-4 text-[#B66F72] dark:text-primary" />
-                  Product Gallery
-                </CardTitle>
-                <p className="text-xs text-[#756861] dark:text-muted-foreground mt-1">
-                  Add multiple image URLs. Set primary, reorder, or remove images.
-                </p>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div>
+                  <CardTitle className="font-playfair text-base text-[#342824] dark:text-foreground flex items-center gap-2">
+                    <ImageIcon className="h-4 w-4 text-[#B66F72] dark:text-primary" />
+                    Product Gallery
+                  </CardTitle>
+                  <p className="text-xs text-[#756861] dark:text-muted-foreground mt-1">
+                    Upload images directly from your computer or enter image URLs. Set primary, reorder, or remove images.
+                  </p>
+                </div>
+
+                {/* Direct Upload Button */}
+                <div>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileUpload}
+                    multiple
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                  />
+                  <Button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading}
+                    className="bg-[#B66F72] hover:bg-[#95565A] text-white shadow-sm text-xs h-9 px-3.5 gap-2"
+                  >
+                    {isUploading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Uploading...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-4 w-4" />
+                        <span>Upload Images</span>
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="pt-5 space-y-4">
-              {/* Add image input */}
+              {/* Upload Progress Bar */}
+              {isUploading && (
+                <div className="p-3 rounded-xl border border-[#B66F72]/30 bg-[#B66F72]/5 dark:bg-primary/5 space-y-2">
+                  <div className="flex items-center justify-between text-xs text-[#B66F72] dark:text-primary font-medium">
+                    <span className="flex items-center gap-1.5">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Uploading images to secure storage...
+                    </span>
+                    <span>{uploadProgress}%</span>
+                  </div>
+                  <Progress value={uploadProgress} className="h-1.5" />
+                </div>
+              )}
+
+              {/* Upload Error Banner */}
+              {uploadError && !isUploading && (
+                <div className="p-3 rounded-xl border border-red-200 bg-red-50 dark:bg-red-950/20 text-red-700 dark:text-red-400 text-xs flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    <span>{uploadError}</span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setUploadError(null)}
+                    className="h-6 w-6 p-0 text-red-700 dark:text-red-400 hover:bg-red-100"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              )}
+
+              {/* Manual URL input option */}
               <div className="flex flex-col sm:flex-row gap-2">
                 <Input
                   value={newImageUrl}
                   onChange={(e) => setNewImageUrl(e.target.value)}
-                  placeholder="Enter image URL (e.g. /assets/... or https://...)"
+                  placeholder="Or enter image URL (e.g. /assets/... or https://...)"
                   className={`flex-1 ${inputCls}`}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
@@ -465,7 +695,7 @@ export default function AdminProductForm() {
                   className="border-[#B66F72] text-[#B66F72] hover:bg-[#B66F72]/5 dark:border-primary dark:text-primary shrink-0"
                 >
                   <Plus className="h-4 w-4 mr-1.5" />
-                  Add Image
+                  Add URL
                 </Button>
               </div>
 
@@ -482,7 +712,7 @@ export default function AdminProductForm() {
                     >
                       <div className="relative aspect-square w-full rounded-lg overflow-hidden bg-[#F1E6DF]/30 dark:bg-muted/30 border border-[#E6D8D0] dark:border-border">
                         <img
-                          src={item.url}
+                          src={getAssetUrl(item.url)}
                           alt={item.alt || `Product image ${index + 1}`}
                           className="w-full h-full object-cover"
                           onError={(e) => {

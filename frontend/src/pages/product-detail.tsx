@@ -922,7 +922,7 @@ export default function ProductDetail() {
           {product && (
             <div className="flex items-center gap-4 rounded-lg border border-[#E6D8D0] dark:border-border bg-white dark:bg-background p-3 my-2">
               <img
-                src={getProductImage(product, 0)}
+                src={getAssetUrl(getProductImage(product, 0))}
                 alt={product.name}
                 className="h-16 w-16 rounded-md object-cover"
                 onError={(e) => {
