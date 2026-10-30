@@ -221,7 +221,13 @@ export default function CollectionSection() {
               </div>
             ) : (
               <motion.div
-                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
+                className={`grid gap-8 justify-center ${
+                  filteredBracelets.length === 1
+                    ? "grid-cols-1 max-w-md mx-auto"
+                    : filteredBracelets.length === 2
+                    ? "grid-cols-1 md:grid-cols-2 max-w-3xl mx-auto"
+                    : "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
+                }`}
                 layout
               >
                 {filteredBracelets.map((bracelet, index) => {
@@ -239,7 +245,7 @@ export default function CollectionSection() {
                   return (
                     <motion.div
                       key={bracelet.id}
-                      className="card-hover bg-card rounded-lg overflow-hidden relative group cursor-pointer"
+                      className="card-hover bg-card rounded-xl overflow-hidden relative group cursor-pointer shadow-sm border border-border/40"
                       initial={{ opacity: 0, y: 50 }}
                       whileInView={{ opacity: 1, y: 0 }}
                       viewport={{ once: true }}
@@ -248,11 +254,11 @@ export default function CollectionSection() {
                       data-testid={`bracelet-card-${bracelet.id}`}
                       onClick={() => navigate(`/product/${bracelet.id}`)}
                     >
-                      <div className="relative overflow-hidden">
+                      <div className="relative overflow-hidden aspect-square w-full bg-secondary/30">
                         <img
                           src={getImageUrl(bracelet)}
                           alt={bracelet.name}
-                          className="w-full h-64 object-cover transition-transform duration-300 group-hover:scale-110"
+                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                           data-testid={`bracelet-image-${bracelet.id}`}
                         />
                         {bracelet.badge && (
