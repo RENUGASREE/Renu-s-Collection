@@ -16,7 +16,11 @@ export function createApp() {
 
   app.set("trust proxy", 1);
 
-  app.use(helmet());
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: "cross-origin" },
+    })
+  );
   app.use(compression());
   app.use(cookieParser());
   const allowedOrigins = env.corsOrigins.map((o) => o.replace(/\/+$/, ""));

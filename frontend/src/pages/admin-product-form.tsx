@@ -716,7 +716,7 @@ export default function AdminProductForm() {
                           alt={item.alt || `Product image ${index + 1}`}
                           className="w-full h-full object-cover"
                           onError={(e) => {
-                            (e.target as HTMLImageElement).src = "/assets/placeholder-jewel.jpg";
+                            (e.target as HTMLImageElement).src = getAssetUrl(null);
                           }}
                         />
                         {item.isPrimary && (

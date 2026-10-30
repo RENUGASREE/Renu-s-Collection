@@ -95,6 +95,7 @@ export async function serveGridFSImageHandler(
     const contentType = file.contentType || (file.metadata as any)?.contentType || "image/jpeg";
     res.setHeader("Content-Type", contentType);
     res.setHeader("Content-Length", file.length);
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
     // Cache for 30 days, revalidate if stale, support browser & CDN caching
     res.setHeader("Cache-Control", "public, max-age=2592000, immutable");
     res.setHeader("Accept-Ranges", "bytes");
