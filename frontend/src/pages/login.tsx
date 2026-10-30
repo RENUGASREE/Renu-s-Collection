@@ -22,12 +22,16 @@ export default function Login() {
     try {
       const response = await apiRequest('POST', '/api/v1/auth/login', { email: identifier, password });
       const data = await response.json();
-      login(data.data.accessToken, {
-        id: data.data.user.id,
-        username: data.data.user.username,
-        email: data.data.user.email,
-        role: data.data.user.role,
-      });
+      login(
+        data.data.accessToken,
+        {
+          id: data.data.user.id,
+          username: data.data.user.username,
+          email: data.data.user.email,
+          role: data.data.user.role,
+        },
+        data.data.refreshToken
+      );
       toast({ title: "Login successful", description: "Welcome back!" });
       navigate("/"); // Redirect to home page or dashboard
     } catch (error: any) {

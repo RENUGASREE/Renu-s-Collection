@@ -135,6 +135,7 @@ router.post("/login", validateBody(legacyLoginSchema), async (req: Request, res:
     setRefreshCookie(res, result.refreshToken);
     res.json({
       token: result.accessToken,
+      refreshToken: result.refreshToken,
       user_id: result.user.id,
       email: result.user.email,
       username: result.user.username,
@@ -151,6 +152,7 @@ router.post("/register", validateBody(registerSchema), async (req: Request, res:
     setRefreshCookie(res, result.refreshToken);
     res.status(201).json({
       token: result.accessToken,
+      refreshToken: result.refreshToken,
       user_id: result.user.id,
       email: result.user.email,
       username: result.user.username,

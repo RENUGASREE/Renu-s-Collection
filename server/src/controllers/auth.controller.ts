@@ -26,7 +26,7 @@ export function setRefreshCookie(res: Response, refreshToken: string): void {
   const opts = getCookieOptions(res);
   res.cookie(REFRESH_COOKIE, refreshToken, {
     ...opts,
-    maxAge: 7 * 24 * 60 * 60 * 1000,
+    maxAge: 30 * 24 * 60 * 60 * 1000,
   });
 }
 
@@ -42,6 +42,7 @@ function sendAuthResponse(res: Response, result: authService.AuthTokensResponse,
     data: {
       user: result.user,
       accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
     },
   });
 }
@@ -76,7 +77,11 @@ export async function googleLogin(req: Request, res: Response, next: NextFunctio
 
 export async function refresh(req: Request, res: Response, next: NextFunction) {
   try {
-    const refreshToken = req.cookies?.[REFRESH_COOKIE];
+    const refreshToken =
+      req.cookies?.[REFRESH_COOKIE] ||
+      req.body?.refreshToken ||
+      (req.headers["x-refresh-token"] as string | undefined);
+
     if (!refreshToken) {
       res.status(401).json({ success: false, message: "Refresh token missing" });
       return;
@@ -93,7 +98,11 @@ export async function logout(req: Request, res: Response, next: NextFunction) {
     if (req.user?.id) {
       await authService.logoutUser(req.user.id);
     } else {
-      const refreshToken = req.cookies?.[REFRESH_COOKIE];
+      const refreshToken =
+        req.cookies?.[REFRESH_COOKIE] ||
+        req.body?.refreshToken ||
+        (req.headers["x-refresh-token"] as string | undefined);
+
       if (refreshToken) {
         try {
           const payload = jwt.verify(refreshToken, env.JWT_REFRESH_SECRET) as { sub: string };

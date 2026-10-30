@@ -37,12 +37,16 @@ const LoginForm: React.FC<LoginFormProps> = ({ redirectPath }) => {
       const payload = { email: data.identifier, password: data.password };
       const response = await apiRequest('POST', '/api/v1/auth/login', payload);
       const loginData = await response.json();
-      login(loginData.data.accessToken, {
-        id: String(loginData.data.user.id),
-        username: loginData.data.user.username || loginData.data.user.email,
-        email: loginData.data.user.email,
-        role: loginData.data.user.role,
-      });
+      login(
+        loginData.data.accessToken,
+        {
+          id: String(loginData.data.user.id),
+          username: loginData.data.user.username || loginData.data.user.email,
+          email: loginData.data.user.email,
+          role: loginData.data.user.role,
+        },
+        loginData.data.refreshToken
+      );
       toast({
         title: "Login successful!",
         description: "Welcome back!",

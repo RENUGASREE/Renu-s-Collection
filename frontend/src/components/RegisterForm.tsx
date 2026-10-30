@@ -56,12 +56,16 @@ const onSubmit = async (data: RegisterFormInputs) => {
         password: data.password,
       });
       const loginData = await loginResponse.json();
-      login(loginData.data.accessToken, {
-        id: String(loginData.data.user.id),
-        username: loginData.data.user.username || data.username,
-        email: loginData.data.user.email,
-        role: loginData.data.user.role,
-      });
+      login(
+        loginData.data.accessToken,
+        {
+          id: String(loginData.data.user.id),
+          username: loginData.data.user.username || data.username,
+          email: loginData.data.user.email,
+          role: loginData.data.user.role,
+        },
+        loginData.data.refreshToken
+      );
       navigate(redirectPath || '/');
     } catch (error: any) {
         console.error("Registration error:", error);

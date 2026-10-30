@@ -58,22 +58,35 @@ export async function refreshAccessToken(): Promise<boolean> {
 
   refreshPromise = (async () => {
     try {
+      const storedRefreshToken = localStorage.getItem('authRefreshToken');
       const response = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(storedRefreshToken ? { 'x-refresh-token': storedRefreshToken } : {}),
+        },
+        body: JSON.stringify({ refreshToken: storedRefreshToken || undefined }),
         credentials: 'include',
       });
       if (!response.ok) {
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('authUser');
-        window.dispatchEvent(
-          new CustomEvent('auth:session_restored', { detail: { token: null, user: null } })
-        );
+        const hadCredentials = Boolean(localStorage.getItem('authToken') || storedRefreshToken);
+        if (hadCredentials) {
+          localStorage.removeItem('authToken');
+          localStorage.removeItem('authUser');
+          localStorage.removeItem('authRefreshToken');
+          window.dispatchEvent(
+            new CustomEvent('auth:session_restored', { detail: { token: null, user: null } })
+          );
+        }
         return false;
       }
       const json = await response.json();
       if (json.success && json.data?.accessToken && json.data?.user) {
         localStorage.setItem('authToken', json.data.accessToken);
         localStorage.setItem('authUser', JSON.stringify(json.data.user));
+        if (json.data.refreshToken) {
+          localStorage.setItem('authRefreshToken', json.data.refreshToken);
+        }
         window.dispatchEvent(
           new CustomEvent('auth:session_restored', {
             detail: { token: json.data.accessToken, user: json.data.user },
@@ -83,6 +96,7 @@ export async function refreshAccessToken(): Promise<boolean> {
       }
       localStorage.removeItem('authToken');
       localStorage.removeItem('authUser');
+      localStorage.removeItem('authRefreshToken');
       window.dispatchEvent(
         new CustomEvent('auth:session_restored', { detail: { token: null, user: null } })
       );

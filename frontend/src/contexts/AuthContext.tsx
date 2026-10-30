@@ -12,7 +12,7 @@ interface AuthContextType {
   user: AuthUser | null;
   token: string | null;
   isLoading: boolean;
-  login: (token: string, user: AuthUser) => void;
+  login: (token: string, user: AuthUser, refreshToken?: string) => void;
   logout: () => Promise<void>;
   refreshSession: () => Promise<boolean>;
 }
@@ -69,15 +69,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
   }, []);
 
-  const persistAuth = (newToken: string, newUser: AuthUser) => {
+  const persistAuth = (newToken: string, newUser: AuthUser, newRefreshToken?: string) => {
     setToken(newToken);
     setUser(newUser);
     localStorage.setItem('authToken', newToken);
     localStorage.setItem('authUser', JSON.stringify(newUser));
+    if (newRefreshToken) {
+      localStorage.setItem('authRefreshToken', newRefreshToken);
+    }
   };
 
-  const login = (newToken: string, newUser: AuthUser) => {
-    persistAuth(newToken, newUser);
+  const login = (newToken: string, newUser: AuthUser, newRefreshToken?: string) => {
+    persistAuth(newToken, newUser, newRefreshToken);
   };
 
   const refreshSession = useCallback(async (): Promise<boolean> => {
@@ -86,10 +89,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const logout = async () => {
     try {
+      const storedRefreshToken = localStorage.getItem('authRefreshToken');
       await fetch(`${API_BASE_URL}/api/v1/auth/logout`, {
         method: 'POST',
         credentials: 'include',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(storedRefreshToken ? { 'x-refresh-token': storedRefreshToken } : {}),
+        },
+        body: JSON.stringify({ refreshToken: storedRefreshToken || undefined }),
       });
     } catch {
       // ignore network errors on logout
@@ -98,6 +107,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setUser(null);
     localStorage.removeItem('authToken');
     localStorage.removeItem('authUser');
+    localStorage.removeItem('authRefreshToken');
     window.dispatchEvent(
       new CustomEvent('auth:session_restored', { detail: { token: null, user: null } })
     );
@@ -109,6 +119,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const init = async () => {
       const currentToken = localStorage.getItem('authToken');
       const currentUser = localStorage.getItem('authUser');
+      const currentRefreshToken = localStorage.getItem('authRefreshToken');
 
       // 1. If we have a fresh, unexpired access token and user, proceed immediately
       if (currentToken && currentUser && !isTokenExpired(currentToken)) {
@@ -116,15 +127,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return;
       }
 
-      // 2. Otherwise (token missing or expired), attempt silent refresh from HTTP-only cookie
+      // 2. If no tokens exist at all, the user is a guest: avoid firing an unnecessary 401 refresh request
+      if (!currentToken && !currentRefreshToken) {
+        if (mounted) setIsLoading(false);
+        return;
+      }
+
+      // 3. Otherwise (token missing or expired, but session was stored), attempt silent refresh
       try {
         const refreshed = await refreshAccessToken();
         if (!refreshed && mounted) {
-          // Cookie missing or expired: clear any stale storage
+          // Token expired and refresh failed: clear storage
           setToken(null);
           setUser(null);
           localStorage.removeItem('authToken');
           localStorage.removeItem('authUser');
+          localStorage.removeItem('authRefreshToken');
         }
       } catch {
         // Network error during startup, preserve current state

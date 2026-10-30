@@ -42,12 +42,16 @@ export default function Register() {
       });
       const data = await response.json();
       toast({ title: "Registration successful", description: "Logging you in…" });
-      login(data.data.accessToken, {
-        id: data.data.user.id,
-        username: data.data.user.username,
-        email: data.data.user.email,
-        role: data.data.user.role,
-      });
+      login(
+        data.data.accessToken,
+        {
+          id: data.data.user.id,
+          username: data.data.user.username,
+          email: data.data.user.email,
+          role: data.data.user.role,
+        },
+        data.data.refreshToken
+      );
       navigate('/');
     } catch (err: any) {
       console.error('Registration failed:', err);
