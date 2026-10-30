@@ -3,7 +3,7 @@ import Footer from "@/components/footer";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, formatApiErrorMessage } from "@/lib/queryClient";
 import { SEO } from "@/components/SEO";
 import { useToast } from "@/hooks/use-toast";
 import AdminNav from "@/components/AdminNav";
@@ -75,10 +75,11 @@ export default function AdminReviews() {
       const json = await response.json();
       setReviews(json.data || []);
     } catch (err: any) {
-      setError(err.message || 'Failed to load reviews');
+      const msg = formatApiErrorMessage(err);
+      setError(msg);
       toast({
         title: "Error Loading Reviews",
-        description: err.message || "Failed to load reviews",
+        description: msg,
         variant: "destructive",
       });
     } finally {
@@ -99,7 +100,7 @@ export default function AdminReviews() {
     } catch (err: any) {
       toast({
         title: "Error",
-        description: err.message || "Failed to approve review",
+        description: formatApiErrorMessage(err),
         variant: "destructive",
       });
     }
@@ -118,7 +119,7 @@ export default function AdminReviews() {
     } catch (err: any) {
       toast({
         title: "Error",
-        description: err.message || "Failed to reject review",
+        description: formatApiErrorMessage(err),
         variant: "destructive",
       });
     }
@@ -146,7 +147,7 @@ export default function AdminReviews() {
     } catch (err: any) {
       toast({
         title: "Deletion Failed",
-        description: err.message || "Could not delete review. Please try again.",
+        description: formatApiErrorMessage(err),
         variant: "destructive",
       });
     } finally {

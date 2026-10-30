@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { apiRequest, getAssetUrl } from '@/lib/queryClient';
+import { apiRequest, getAssetUrl, formatApiErrorMessage } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 import AdminNav from '@/components/AdminNav';
@@ -56,7 +56,7 @@ export default function AdminCustomization() {
     } catch (error) {
       toast({
         title: 'Error',
-        description: 'Failed to fetch categories',
+        description: formatApiErrorMessage(error),
         variant: 'destructive',
       });
     } finally {
@@ -99,7 +99,7 @@ export default function AdminCustomization() {
     } catch (error: any) {
       toast({
         title: 'Save Failed',
-        description: error.message || 'Failed to save customization field',
+        description: formatApiErrorMessage(error),
         variant: 'destructive',
       });
     }
@@ -131,7 +131,7 @@ export default function AdminCustomization() {
     } catch (error: any) {
       toast({
         title: 'Delete Failed',
-        description: error.message || 'Failed to delete customization field',
+        description: formatApiErrorMessage(error),
         variant: 'destructive',
       });
     }

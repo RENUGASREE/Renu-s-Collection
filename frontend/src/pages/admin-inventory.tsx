@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, formatApiErrorMessage } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import Footer from "@/components/footer";
 import { SEO } from "@/components/SEO";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 import AdminNav from "@/components/AdminNav";
 import { 
   Boxes, 
@@ -30,6 +31,7 @@ interface Product {
 
 export default function AdminInventory() {
   const { token } = useAuth();
+  const { toast } = useToast();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -48,6 +50,11 @@ export default function AdminInventory() {
       setProducts(data.data || []);
     } catch (error) {
       console.error('Failed to fetch inventory:', error);
+      toast({
+        title: "Failed to Fetch Inventory",
+        description: formatApiErrorMessage(error),
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
@@ -74,11 +81,20 @@ export default function AdminInventory() {
         setProducts(products.map(p => 
           p._id === adjustingProduct._id ? { ...p, stock: data.data.newStock, isInStock: data.data.newStock > 0 } : p
         ));
+        toast({
+          title: "Stock Updated",
+          description: `Inventory for "${adjustingProduct.name}" updated to ${data.data.newStock} units.`,
+        });
         setAdjustingProduct(null);
         setAdjustment({ quantityChange: 0, action: 'add', reason: '' });
       }
     } catch (error) {
       console.error('Failed to adjust stock:', error);
+      toast({
+        title: "Failed to Adjust Stock",
+        description: formatApiErrorMessage(error),
+        variant: "destructive",
+      });
     }
   };
 

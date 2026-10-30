@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, formatApiErrorMessage } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import Footer from "@/components/footer";
 import { SEO } from "@/components/SEO";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 import AdminNav from "@/components/AdminNav";
 import { 
   Package, 
@@ -45,6 +46,7 @@ interface Category {
 
 export default function AdminProducts() {
   const { token } = useAuth();
+  const { toast } = useToast();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,6 +67,11 @@ export default function AdminProducts() {
         setCategories(categoriesData.data || []);
       } catch (error) {
         console.error('Failed to fetch products:', error);
+        toast({
+          title: "Failed to Load Products",
+          description: formatApiErrorMessage(error),
+          variant: "destructive",
+        });
       } finally {
         setLoading(false);
       }
@@ -99,12 +106,28 @@ export default function AdminProducts() {
         setProducts(products.map(p =>
           p._id === productId ? { ...p, isActive: !currentStatus } : p
         ));
+        toast({
+          title: !currentStatus ? "Product Published" : "Product Moved to Drafts",
+          description: !currentStatus
+            ? "Product is now active and visible in the store."
+            : "Product is now saved as a draft and hidden from the store.",
+        });
       } else {
         const errorData = await response.json();
-        alert(`Failed to update product: ${errorData.message || 'Unknown error'}`);
+        const msg = errorData.message || errorData.error || 'Failed to update product';
+        toast({
+          title: "Failed to Update Product",
+          description: formatApiErrorMessage(msg),
+          variant: "destructive",
+        });
       }
     } catch (error) {
       console.error('Failed to update product status:', error);
+      toast({
+        title: "Failed to Update Product",
+        description: formatApiErrorMessage(error),
+        variant: "destructive",
+      });
     }
   };
 
@@ -114,9 +137,18 @@ export default function AdminProducts() {
       const response = await apiRequest('DELETE', `/api/v1/products/${productId}`);
       if (response.ok) {
         setProducts(products.filter(p => p._id !== productId));
+        toast({
+          title: "Product Deleted",
+          description: "Jewelry piece was removed from the catalog.",
+        });
       }
     } catch (error) {
       console.error('Failed to delete product:', error);
+      toast({
+        title: "Failed to Delete Product",
+        description: formatApiErrorMessage(error),
+        variant: "destructive",
+      });
     }
   };
 
@@ -176,7 +208,7 @@ export default function AdminProducts() {
                   : "text-[#756861] dark:text-muted-foreground hover:text-[#342824]"
               }`}
             >
-              Archived / Inactive ({inactiveCount})
+              Drafts & Archived ({inactiveCount})
             </button>
             <button
               type="button"
@@ -192,14 +224,14 @@ export default function AdminProducts() {
           </div>
 
           <span className="text-[11px] text-[#756861] dark:text-muted-foreground">
-            Showing {filteredProducts.length} {statusFilter === "active" ? "active" : statusFilter === "inactive" ? "archived" : ""} item{filteredProducts.length === 1 ? "" : "s"}
+            Showing {filteredProducts.length} {statusFilter === "active" ? "active" : statusFilter === "inactive" ? "draft / archived" : ""} item{filteredProducts.length === 1 ? "" : "s"}
           </span>
         </div>
 
         {statusFilter === "inactive" && (
           <div className="p-3 mb-4 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 text-xs text-amber-900 dark:text-amber-200 flex items-center gap-2">
-            <span className="font-semibold">Archived View:</span>
-            <span>These products are hidden from the public storefront, but retained for historical order history and reporting.</span>
+            <span className="font-semibold">Drafts & Archived View:</span>
+            <span>These products are hidden from the public storefront and kept as drafts or archives. Click "Publish" when ready to show them in the store.</span>
           </div>
         )}
 
@@ -301,7 +333,7 @@ export default function AdminProducts() {
                         Category: <strong className="text-[#342824] dark:text-foreground">{getCategoryName(product.categoryId)}</strong>
                       </div>
                       <div>
-                        Status: <strong className={product.isActive ? "text-emerald-700 dark:text-emerald-400" : "text-stone-500"}>{product.isActive ? "Active" : "Inactive"}</strong>
+                        Status: <strong className={product.isActive ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400"}>{product.isActive ? "Active" : "Draft"}</strong>
                       </div>
                     </div>
                   </div>
@@ -314,7 +346,7 @@ export default function AdminProducts() {
                       onClick={() => toggleActive(product._id, product.isActive)}
                       className="border-[#E6D8D0] dark:border-border text-xs rounded-lg h-8"
                     >
-                      {product.isActive ? 'Deactivate' : 'Activate'}
+                      {product.isActive ? 'Move to Draft' : 'Publish'}
                     </Button>
                     <Button 
                       asChild 

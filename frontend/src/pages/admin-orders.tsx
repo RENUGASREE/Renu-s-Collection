@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, formatApiErrorMessage } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -110,7 +110,7 @@ export default function AdminOrders() {
       console.error('Error fetching orders:', error);
       toast({
         title: 'Error',
-        description: 'Failed to load orders',
+        description: formatApiErrorMessage(error),
         variant: 'destructive',
       });
     } finally {
@@ -200,7 +200,7 @@ export default function AdminOrders() {
       console.error('Error updating order status:', error);
       toast({
         title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to update order status',
+        description: formatApiErrorMessage(error),
         variant: 'destructive',
       });
     } finally {

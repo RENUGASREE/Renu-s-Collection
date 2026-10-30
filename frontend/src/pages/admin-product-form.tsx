@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { apiRequest, API_BASE_URL, refreshAccessToken, getAssetUrl } from "@/lib/queryClient";
+import { apiRequest, API_BASE_URL, refreshAccessToken, getAssetUrl, formatApiErrorMessage } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -26,6 +26,8 @@ import {
   Upload,
   Loader2,
   CheckCircle2,
+  FileText,
+  Check,
 } from "lucide-react";
 
 interface Category {
@@ -77,6 +79,7 @@ export default function AdminProductForm() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [formData, setFormData] = useState<ProductFormData>({
     name: "",
     sku: "",
@@ -420,9 +423,37 @@ export default function AdminProductForm() {
     });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent, asDraft: boolean = false) => {
+    if (e) e.preventDefault();
+    setSubmitError(null);
+
+    if (!formData.name.trim()) {
+      const msg = "Please enter a product name.";
+      setSubmitError(msg);
+      toast({ title: "Product Name Required", description: msg, variant: "destructive" });
+      return;
+    }
+    if (!formData.sku.trim()) {
+      const msg = "Please enter a unique SKU code.";
+      setSubmitError(msg);
+      toast({ title: "SKU Code Required", description: msg, variant: "destructive" });
+      return;
+    }
+    if (!formData.categoryId) {
+      const msg = "Please select a category.";
+      setSubmitError(msg);
+      toast({ title: "Category Required", description: msg, variant: "destructive" });
+      return;
+    }
+    if (formData.price == null || isNaN(formData.price) || formData.price < 0) {
+      const msg = "Please enter a valid product price.";
+      setSubmitError(msg);
+      toast({ title: "Valid Price Required", description: msg, variant: "destructive" });
+      return;
+    }
+
     setLoading(true);
+    const targetIsActive = asDraft ? false : formData.isActive;
 
     try {
       const primaryMedia = formData.media.find((m) => m.isPrimary);
@@ -430,6 +461,7 @@ export default function AdminProductForm() {
 
       const payload = {
         ...formData,
+        isActive: targetIsActive,
         imageUrl: primaryUrl || undefined,
         media: formData.media.length > 0 ? formData.media : undefined,
         salePrice: formData.salePrice && formData.salePrice > 0 ? formData.salePrice : (isEditing ? null : undefined),
@@ -438,25 +470,29 @@ export default function AdminProductForm() {
         additionalInfo: formData.additionalInfo ? formData.additionalInfo.trim() : (isEditing ? "" : undefined),
       };
 
-      let response;
       if (isEditing) {
-        response = await apiRequest("PATCH", `/api/v1/products/${productId}`, payload);
+        await apiRequest("PATCH", `/api/v1/products/${productId}`, payload);
       } else {
-        response = await apiRequest("POST", "/api/v1/products", payload);
+        await apiRequest("POST", "/api/v1/products", payload);
       }
 
-      if (response.ok) {
-        navigate("/admin/products");
-      } else {
-        const errorData = await response.json();
-        const errorMessage = errorData.errors
-          ? JSON.stringify(errorData.errors, null, 2)
-          : errorData.message || "Failed to save product";
-        alert(`Failed to save product: ${errorMessage}`);
-      }
-    } catch (error) {
+      toast({
+        title: asDraft ? "Draft Saved" : isEditing ? "Product Updated" : "Product Published",
+        description: asDraft
+          ? `"${formData.name}" has been saved as an inactive draft.`
+          : `"${formData.name}" is now live in the store.`,
+      });
+
+      navigate("/admin/products");
+    } catch (error: any) {
       console.error("Failed to save product:", error);
-      alert("Failed to save product");
+      const friendlyMsg = formatApiErrorMessage(error);
+      setSubmitError(friendlyMsg);
+      toast({
+        title: "Failed to Save Product",
+        description: friendlyMsg,
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
@@ -524,6 +560,27 @@ export default function AdminProductForm() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {submitError && (
+            <div className="p-4 rounded-xl border border-rose-200 dark:border-rose-900/40 bg-rose-50 dark:bg-rose-950/20 text-rose-800 dark:text-rose-200 flex items-start justify-between gap-3 shadow-sm">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="h-5 w-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-sm">Action Needed</p>
+                  <p className="text-xs sm:text-sm mt-0.5 leading-relaxed">{submitError}</p>
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setSubmitError(null)}
+                className="h-7 w-7 p-0 text-rose-700 hover:bg-rose-100 dark:hover:bg-rose-900/40"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+
           {/* Basic Details */}
           <Card className="bg-white dark:bg-card border-[#E6D8D0] dark:border-border shadow-sm">
             <CardHeader className="pb-4 border-b border-[#E6D8D0] dark:border-border">
@@ -920,7 +977,7 @@ export default function AdminProductForm() {
           </Card>
 
           {/* Form Actions */}
-          <div className="flex gap-3 justify-end pb-8">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3 pb-8">
             <Button
               type="button"
               variant="outline"
@@ -930,19 +987,30 @@ export default function AdminProductForm() {
               Cancel
             </Button>
             <Button
+              type="button"
+              variant="outline"
+              disabled={loading}
+              onClick={() => handleSubmit(undefined, true)}
+              className="border-[#B66F72] text-[#B66F72] hover:bg-[#B66F72]/5 dark:border-primary dark:text-primary gap-2"
+            >
+              <FileText className="h-4 w-4" />
+              <span>Save as Draft</span>
+            </Button>
+            <Button
               type="submit"
               disabled={loading}
-              className="bg-[#B66F72] hover:bg-[#95565A] text-white dark:bg-primary dark:hover:bg-primary/90 min-w-[140px]"
+              className="bg-[#B66F72] hover:bg-[#95565A] text-white dark:bg-primary dark:hover:bg-primary/90 min-w-[150px] gap-2"
             >
               {loading ? (
-                <span className="flex items-center gap-2">
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Saving…
-                </span>
-              ) : isEditing ? (
-                "Update Product"
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Saving…</span>
+                </>
               ) : (
-                "Add Product"
+                <>
+                  <Check className="h-4 w-4" />
+                  <span>{isEditing ? "Update & Publish" : "Publish Product"}</span>
+                </>
               )}
             </Button>
           </div>

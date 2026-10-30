@@ -47,6 +47,43 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
+export function formatApiErrorMessage(error: any): string {
+  if (!error) return "An unexpected error occurred. Please try again.";
+  let msg = typeof error === "string" ? error : error?.message || String(error);
+
+  // Strip HTTP status prefix if present, e.g. "409: Product slug already exists"
+  msg = msg.replace(/^\d{3}:\s*/, "").trim();
+
+  // If error text is wrapped in JSON, parse it
+  if (msg.startsWith("{") && msg.endsWith("}")) {
+    try {
+      const parsed = JSON.parse(msg);
+      msg = parsed.message || parsed.error || (parsed.errors ? Object.values(parsed.errors).flat().join(", ") : msg);
+    } catch {
+      // ignore
+    }
+  }
+
+  const lower = msg.toLowerCase();
+  if (lower.includes("product slug already exists") || lower.includes("slug already exists")) {
+    return "A product with this name already exists. Please choose a slightly different name so it has a unique web address.";
+  }
+  if (lower.includes("sku already exists")) {
+    return "A product with this SKU code already exists. Please enter a unique SKU.";
+  }
+  if (lower.includes("category slug already exists") || lower.includes("category already exists")) {
+    return "A category with this name already exists. Please enter a unique category name.";
+  }
+  if (lower.includes("category not found")) {
+    return "The selected category could not be found. Please select a valid category.";
+  }
+  if (lower.includes("authentication required") || lower.includes("invalid or expired access token")) {
+    return "Your session has expired. Please log in again to continue.";
+  }
+
+  return msg;
+}
+
 // Refresh queue to prevent multiple simultaneous refresh requests
 let refreshPromise: Promise<boolean> | null = null;
 

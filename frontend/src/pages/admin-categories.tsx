@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, formatApiErrorMessage } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import Footer from "@/components/footer";
 import { SEO } from "@/components/SEO";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 import AdminNav from "@/components/AdminNav";
 import { 
   Layers, 
@@ -15,7 +16,10 @@ import {
   Trash2, 
   CheckCircle2, 
   XCircle,
-  FolderTree
+  FolderTree,
+  AlertCircle,
+  FileText,
+  Check
 } from "lucide-react";
 
 interface Category {
@@ -33,11 +37,14 @@ interface Category {
 
 export default function AdminCategories() {
   const { token } = useAuth();
+  const { toast } = useToast();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     slug: '',
@@ -61,6 +68,11 @@ export default function AdminCategories() {
       setCategories(data.data || []);
     } catch (error) {
       console.error('Failed to fetch categories:', error);
+      toast({
+        title: "Failed to Load Categories",
+        description: formatApiErrorMessage(error),
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
@@ -72,6 +84,7 @@ export default function AdminCategories() {
   );
 
   const handleEdit = (category: Category) => {
+    setFormError(null);
     setEditingCategory(category);
     setFormData({
       name: category.name,
@@ -86,17 +99,27 @@ export default function AdminCategories() {
     setShowForm(true);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent, asDraft: boolean = false) => {
+    if (e) e.preventDefault();
+    setFormError(null);
+    setIsSubmitting(true);
     try {
       const payload = {
         ...formData,
         parentId: formData.parentId ? formData.parentId : null,
+        isActive: asDraft ? false : formData.isActive,
+        showInMenu: asDraft ? false : formData.showInMenu,
       };
 
       if (editingCategory) {
         const response = await apiRequest('PUT', `/api/v1/categories/${editingCategory._id}`, payload);
         if (response.ok) {
+          toast({
+            title: asDraft ? "Draft Saved" : "Category Updated",
+            description: asDraft
+              ? `Category "${formData.name}" was saved as an inactive draft.`
+              : `Category "${formData.name}" updated and published successfully.`,
+          });
           setShowForm(false);
           setEditingCategory(null);
           fetchCategories();
@@ -104,12 +127,27 @@ export default function AdminCategories() {
       } else {
         const response = await apiRequest('POST', '/api/v1/categories', payload);
         if (response.ok) {
+          toast({
+            title: asDraft ? "Draft Created" : "Category Created",
+            description: asDraft
+              ? `Category "${formData.name}" was created as a draft (hidden from store menu).`
+              : `Category "${formData.name}" created and published successfully.`,
+          });
           setShowForm(false);
           fetchCategories();
         }
       }
     } catch (error) {
       console.error('Failed to save category:', error);
+      const friendlyMessage = formatApiErrorMessage(error);
+      setFormError(friendlyMessage);
+      toast({
+        title: "Failed to Save Category",
+        description: friendlyMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -118,10 +156,20 @@ export default function AdminCategories() {
     try {
       const response = await apiRequest('DELETE', `/api/v1/categories/${categoryId}`);
       if (response.ok) {
+        toast({
+          title: "Category Deleted",
+          description: "Category was successfully removed.",
+        });
         fetchCategories();
       }
     } catch (error) {
       console.error('Failed to delete category:', error);
+      const friendlyMessage = formatApiErrorMessage(error);
+      toast({
+        title: "Failed to Delete Category",
+        description: friendlyMessage,
+        variant: "destructive",
+      });
     }
   };
 
@@ -150,6 +198,7 @@ export default function AdminCategories() {
           <Button 
             onClick={() => {
               setEditingCategory(null);
+              setFormError(null);
               setFormData({
                 name: '',
                 slug: '',
@@ -176,13 +225,41 @@ export default function AdminCategories() {
               {editingCategory ? `Edit Category: ${editingCategory.name}` : 'Create New Category'}
             </h3>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+            {formError && (
+              <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 rounded-xl flex items-start gap-2.5 text-xs text-red-800 dark:text-red-300">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-600 dark:text-red-400" />
+                <div className="flex-1">
+                  <p className="font-semibold">Unable to save category</p>
+                  <p className="mt-0.5">{formError}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFormError(null)}
+                  className="text-red-500 hover:text-red-700 ml-1 text-sm font-bold"
+                >
+                  ×
+                </button>
+              </div>
+            )}
+
+            <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-semibold text-[#756861] dark:text-muted-foreground">Category Name *</label>
                   <Input
                     value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    onChange={(e) => {
+                      const name = e.target.value;
+                      const slugCandidate = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+                      setFormData(prev => ({
+                        ...prev,
+                        name,
+                        slug: (!editingCategory && (!prev.slug || prev.slug === prev.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')))
+                          ? slugCandidate
+                          : prev.slug
+                      }));
+                    }}
+                    placeholder="e.g. Beaded Bracelets"
                     className="mt-1 border-[#E6D8D0] dark:border-border text-xs rounded-lg"
                     required
                   />
@@ -192,9 +269,13 @@ export default function AdminCategories() {
                   <Input
                     value={formData.slug}
                     onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
+                    placeholder="e.g. beaded-bracelets"
                     className="mt-1 border-[#E6D8D0] dark:border-border text-xs rounded-lg"
                     required
                   />
+                  <p className="text-[10px] text-[#756861] dark:text-muted-foreground mt-0.5">
+                    Must be unique. Used in store web links.
+                  </p>
                 </div>
               </div>
 
@@ -203,6 +284,7 @@ export default function AdminCategories() {
                 <Input
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="Optional brief description for category"
                   className="mt-1 border-[#E6D8D0] dark:border-border text-xs rounded-lg"
                 />
               </div>
@@ -270,20 +352,36 @@ export default function AdminCategories() {
                 </label>
               </div>
 
-              <div className="flex justify-end gap-2 pt-3">
+              <div className="flex flex-wrap items-center justify-end gap-2 pt-3 border-t border-[#E6D8D0] dark:border-border mt-4">
                 <Button 
                   type="button" 
                   variant="outline" 
-                  onClick={() => setShowForm(false)}
+                  onClick={() => {
+                    setShowForm(false);
+                    setFormError(null);
+                  }}
+                  disabled={isSubmitting}
                   className="text-xs rounded-lg"
                 >
                   Cancel
                 </Button>
                 <Button 
-                  type="submit" 
-                  className="bg-[#B66F72] hover:bg-[#95565A] text-white text-xs rounded-lg"
+                  type="button" 
+                  variant="outline"
+                  onClick={() => handleSubmit(undefined, true)}
+                  disabled={isSubmitting || !formData.name.trim()}
+                  className="border-amber-400/60 text-amber-900 dark:text-amber-300 hover:bg-amber-500/10 text-xs rounded-lg flex items-center gap-1.5"
                 >
-                  Save Category
+                  <FileText className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                  <span>Save as Draft</span>
+                </Button>
+                <Button 
+                  type="submit" 
+                  disabled={isSubmitting}
+                  className="bg-[#B66F72] hover:bg-[#95565A] text-white text-xs rounded-lg flex items-center gap-1.5"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>{isSubmitting ? 'Saving...' : editingCategory ? 'Update Category' : 'Publish Category'}</span>
                 </Button>
               </div>
             </form>
@@ -325,6 +423,15 @@ export default function AdminCategories() {
                     <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full bg-[#B99A72]/15 text-[#95565A] dark:text-[#B99A72]">
                       {c.productType}
                     </span>
+                    {c.isActive ? (
+                      <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
+                        Active
+                      </span>
+                    ) : (
+                      <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300">
+                        Draft
+                      </span>
+                    )}
                   </div>
                   {c.description && (
                     <p className="text-xs text-[#756861] dark:text-muted-foreground mt-1 line-clamp-1">
