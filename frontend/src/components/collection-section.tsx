@@ -11,6 +11,8 @@ interface BraceletCard {
   name: string;
   description: string;
   price: number;
+  salePrice?: number | null;
+  effectivePrice?: number | null;
   media: { url: string; isPrimary: boolean }[];
   category: string;
   icon: string;
@@ -53,35 +55,26 @@ export default function CollectionSection() {
       setLoading(true);
       setError(null);
 
-      // Fetch signature pieces using the new API endpoint
+      // Fetch signature pieces only
       const response = await axios.get<any>(`${API_BASE_URL}/api/v1/products`, {
-        params: { isSignaturePiece: true, isActive: true },
+        params: { isSignaturePiece: "true", isActive: "true", limit: 50 },
       });
 
-      // Map the data
-      let products =
-        response.data.data?.map((item: any) => ({
-          ...item,
-          id: item._id,
-          product_type: "product",
-          isSignaturePiece: Boolean(item.isSignaturePiece ?? item.is_signature_piece),
-          signatureCategory: item.signatureCategory || item.signature_category || "none",
-        })) || [];
-
-      // If no signature pieces, fetch regular products as fallback
-      if (products.length === 0) {
-        const regularResponse = await axios.get<any>(`${API_BASE_URL}/api/v1/products`, {
-          params: { isActive: true, limit: 6 },
-        });
-        products =
-          regularResponse.data.data?.map((item: any) => ({
+      // Map the data - only include verified signature pieces
+      const rawItems = response.data?.data?.items || response.data?.data || [];
+      const products =
+        rawItems
+          .map((item: any) => ({
             ...item,
             id: item._id,
             product_type: "product",
-            isSignaturePiece: false,
-            signatureCategory: "none",
-          })) || [];
-      }
+            price: Number(item.price) || 0,
+            salePrice: item.salePrice != null ? Number(item.salePrice) : null,
+            effectivePrice: item.effectivePrice != null ? Number(item.effectivePrice) : null,
+            isSignaturePiece: Boolean(item.isSignaturePiece ?? item.is_signature_piece),
+            signatureCategory: item.signatureCategory || item.signature_category || "none",
+          }))
+          .filter((item: any) => item.isSignaturePiece) || [];
 
       setBracelets(products);
 
@@ -112,14 +105,15 @@ export default function CollectionSection() {
   }, []);
 
   const filteredBracelets = bracelets.filter((bracelet) => {
-    if (activeFilter === "all") return true; // Show all products when no signature pieces exist
-    const sigCat = bracelet.signatureCategory || bracelet.signature_category || "";
     const isSig = Boolean(bracelet.isSignaturePiece ?? bracelet.is_signature_piece);
+    if (!isSig) return false;
+    if (activeFilter === "all") return true;
+    const sigCat = bracelet.signatureCategory || bracelet.signature_category || "";
     if (activeFilter === "signature_none") {
-      return isSig === true && (!sigCat || sigCat === "none");
+      return !sigCat || sigCat === "none";
     }
     const filterValue = activeFilter.replace("signature_", "");
-    return isSig === true && sigCat === filterValue;
+    return sigCat === filterValue;
   });
 
   const getImageUrl = (bracelet: BraceletCard) => {
@@ -219,87 +213,119 @@ export default function CollectionSection() {
             </motion.div>
 
             {/* Bracelet Grid */}
-            <motion.div
-              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
-              layout
-            >
-              {filteredBracelets.map((bracelet, index) => (
-                <motion.div
-                  key={bracelet.id}
-                  className="card-hover bg-card rounded-lg overflow-hidden relative group cursor-pointer"
-                  initial={{ opacity: 0, y: 50 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.6, delay: index * 0.1 }}
-                  layout
-                  data-testid={`bracelet-card-${bracelet.id}`}
-                  onClick={() => navigate(`/product/${bracelet.id}`)}
-                >
-                  <div className="relative overflow-hidden">
-                    <img
-                      src={getImageUrl(bracelet)}
-                      alt={bracelet.name}
-                      className="w-full h-64 object-cover transition-transform duration-300 group-hover:scale-110"
-                      data-testid={`bracelet-image-${bracelet.id}`}
-                    />
-                    {bracelet.badge && (
-                      <div className="absolute top-4 right-4 bg-primary text-white px-3 py-1 rounded text-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                        {bracelet.badge}
-                      </div>
-                    )}
-                  </div>
+            {filteredBracelets.length === 0 ? (
+              <div className="text-center py-12 max-w-md mx-auto text-muted-foreground text-sm space-y-2">
+                <Sparkles className="h-8 w-8 text-primary/60 mx-auto mb-2" />
+                <p className="font-medium text-foreground">No signature pieces currently featured in this selection.</p>
+                <p className="text-xs">Browse our complete collection to discover all handcrafted pieces.</p>
+              </div>
+            ) : (
+              <motion.div
+                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
+                layout
+              >
+                {filteredBracelets.map((bracelet, index) => {
+                  const hasDiscount =
+                    bracelet.salePrice != null &&
+                    bracelet.salePrice > 0 &&
+                    bracelet.salePrice !== bracelet.price;
+                  const displayPrice = hasDiscount
+                    ? Math.min(bracelet.price, bracelet.salePrice)
+                    : bracelet.price;
+                  const originalPrice = hasDiscount
+                    ? Math.max(bracelet.price, bracelet.salePrice)
+                    : null;
 
-                  <div className="p-6">
-                    <h3
-                      className="text-xl font-playfair font-bold text-card-foreground mb-2 cursor-pointer hover:text-primary transition-colors"
-                      data-testid={`bracelet-name-${bracelet.id}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate(`/product/${bracelet.id}`);
-                      }}
+                  return (
+                    <motion.div
+                      key={bracelet.id}
+                      className="card-hover bg-card rounded-lg overflow-hidden relative group cursor-pointer"
+                      initial={{ opacity: 0, y: 50 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ duration: 0.6, delay: index * 0.1 }}
+                      layout
+                      data-testid={`bracelet-card-${bracelet.id}`}
+                      onClick={() => navigate(`/product/${bracelet.id}`)}
                     >
-                      {bracelet.name}
-                    </h3>
-                    <p
-                      className="text-card-foreground/70 mb-4 cursor-pointer"
-                      data-testid={`bracelet-description-${bracelet.id}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate(`/product/${bracelet.id}`);
-                      }}
-                    >
-                      {bracelet.description}
-                    </p>
-                    <div className="flex justify-between items-center">
-                      <span
-                        className="text-primary font-bold text-lg cursor-pointer"
-                        data-testid={`bracelet-price-${bracelet.id}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/product/${bracelet.id}`);
-                        }}
-                      >
-                        <p className="text-lg font-semibold mt-2">₹{bracelet.price}</p>
-                      </span>
-                      <motion.div
-                        className="rotate-charm cursor-pointer"
-                        whileHover={{ rotate: 360 }}
-                        transition={{ duration: 0.6 }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/product/${bracelet.id}`);
-                        }}
-                      >
-                        {iconMap[bracelet.icon] &&
-                          React.createElement(iconMap[bracelet.icon], {
-                            className: "h-6 w-6 text-primary",
-                          })}
-                      </motion.div>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </motion.div>
+                      <div className="relative overflow-hidden">
+                        <img
+                          src={getImageUrl(bracelet)}
+                          alt={bracelet.name}
+                          className="w-full h-64 object-cover transition-transform duration-300 group-hover:scale-110"
+                          data-testid={`bracelet-image-${bracelet.id}`}
+                        />
+                        {bracelet.badge && (
+                          <div className="absolute top-4 right-4 bg-primary text-white px-3 py-1 rounded text-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                            {bracelet.badge}
+                          </div>
+                        )}
+                        {hasDiscount && (
+                          <div className="absolute top-4 left-4 bg-[#B66F72] text-white px-2.5 py-0.5 rounded-full text-xs font-semibold shadow-sm">
+                            Sale
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="p-6">
+                        <h3
+                          className="text-xl font-playfair font-bold text-card-foreground mb-3 cursor-pointer hover:text-primary transition-colors line-clamp-2"
+                          data-testid={`bracelet-name-${bracelet.id}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/product/${bracelet.id}`);
+                          }}
+                        >
+                          {bracelet.name}
+                        </h3>
+
+                        {/* Description removed per user request to keep cards compact and elegant */}
+
+                        <div className="flex justify-between items-center pt-1">
+                          <div
+                            className="cursor-pointer"
+                            data-testid={`bracelet-price-${bracelet.id}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/product/${bracelet.id}`);
+                            }}
+                          >
+                            {hasDiscount ? (
+                              <div className="flex items-baseline gap-2">
+                                <span className="text-xl font-bold text-primary font-serif">
+                                  ₹{displayPrice.toLocaleString("en-IN")}
+                                </span>
+                                <span className="text-sm text-muted-foreground line-through">
+                                  ₹{originalPrice?.toLocaleString("en-IN")}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-xl font-bold text-primary font-serif">
+                                ₹{displayPrice.toLocaleString("en-IN")}
+                              </span>
+                            )}
+                          </div>
+                          <motion.div
+                            className="rotate-charm cursor-pointer"
+                            whileHover={{ rotate: 360 }}
+                            transition={{ duration: 0.6 }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/product/${bracelet.id}`);
+                            }}
+                          >
+                            {iconMap[bracelet.icon] &&
+                              React.createElement(iconMap[bracelet.icon], {
+                                className: "h-6 w-6 text-primary",
+                              })}
+                          </motion.div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </motion.div>
+            )}
           </>
         )}
       </div>

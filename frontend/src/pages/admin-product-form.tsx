@@ -432,7 +432,7 @@ export default function AdminProductForm() {
         ...formData,
         imageUrl: primaryUrl || undefined,
         media: formData.media.length > 0 ? formData.media : undefined,
-        salePrice: formData.salePrice || undefined,
+        salePrice: formData.salePrice && formData.salePrice > 0 ? formData.salePrice : (isEditing ? null : undefined),
         badge: formData.badge || undefined,
         subcategoryId: formData.subcategoryId || undefined,
         additionalInfo: formData.additionalInfo ? formData.additionalInfo.trim() : (isEditing ? "" : undefined),
@@ -472,7 +472,7 @@ export default function AdminProductForm() {
         type === "checkbox"
           ? (e.target as HTMLInputElement).checked
           : type === "number"
-          ? parseFloat(value) || 0
+          ? (value === "" ? (name === "salePrice" ? null : 0) : parseFloat(value) || 0)
           : value,
     }));
   };
@@ -544,13 +544,40 @@ export default function AdminProductForm() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="price" className={labelCls}>Price (₹) <span className="text-[#B66F72]">*</span></Label>
-                  <Input id="price" name="price" type="number" step="0.01" value={formData.price} onChange={handleChange} required className={inputCls} />
+                  <Label htmlFor="price" className={labelCls}>
+                    Original Price / MRP (₹) <span className="text-[#B66F72]">*</span>
+                  </Label>
+                  <Input
+                    id="price"
+                    name="price"
+                    type="number"
+                    step="0.01"
+                    value={formData.price || ""}
+                    onChange={handleChange}
+                    required
+                    placeholder="e.g. 50"
+                    className={inputCls}
+                  />
+                  <p className="text-[11px] text-[#756861] dark:text-muted-foreground">Standard listing price</p>
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="salePrice" className={labelCls}>Sale Price (₹)</Label>
-                  <Input id="salePrice" name="salePrice" type="number" step="0.01" value={formData.salePrice || ""} onChange={handleChange} className={inputCls} />
+                  <Label htmlFor="salePrice" className={labelCls}>
+                    Sale / Discounted Price (₹) <span className="text-xs text-[#756861] dark:text-muted-foreground font-normal">(Optional)</span>
+                  </Label>
+                  <Input
+                    id="salePrice"
+                    name="salePrice"
+                    type="number"
+                    step="0.01"
+                    value={formData.salePrice ?? ""}
+                    onChange={handleChange}
+                    placeholder="e.g. 40 (leave blank if no discount)"
+                    className={inputCls}
+                  />
+                  <p className="text-[11px] text-[#756861] dark:text-muted-foreground">
+                    Discounted price customers pay
+                  </p>
                 </div>
 
                 <div className="space-y-1.5">

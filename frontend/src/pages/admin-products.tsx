@@ -271,7 +271,28 @@ export default function AdminProducts() {
 
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 mt-2 text-xs text-[#756861] dark:text-muted-foreground">
                       <div>
-                        Price: <strong className="text-[#342824] dark:text-foreground">₹{product.price}</strong>
+                        Price:{" "}
+                        {(() => {
+                          const hasDiscount =
+                            product.salePrice != null &&
+                            product.salePrice > 0 &&
+                            product.salePrice !== product.price;
+                          const displayPrice = hasDiscount
+                            ? Math.min(product.price, product.salePrice)
+                            : product.price;
+                          const originalPrice = hasDiscount
+                            ? Math.max(product.price, product.salePrice)
+                            : null;
+
+                          return hasDiscount ? (
+                            <span>
+                              <strong className="text-[#342824] dark:text-foreground">₹{displayPrice}</strong>{" "}
+                              <span className="line-through text-muted-foreground text-[11px]">₹{originalPrice}</span>
+                            </span>
+                          ) : (
+                            <strong className="text-[#342824] dark:text-foreground">₹{displayPrice}</strong>
+                          );
+                        })()}
                       </div>
                       <div>
                         Stock: <strong className={product.stock > 0 ? "text-emerald-700 dark:text-emerald-400" : "text-rose-700 dark:text-rose-400"}>{product.stock}</strong>

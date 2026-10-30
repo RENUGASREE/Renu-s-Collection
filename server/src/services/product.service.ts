@@ -14,6 +14,13 @@ type UpdateProductInput = z.infer<typeof updateProductSchema>;
 type ProductQuery = z.infer<typeof productQuerySchema>;
 type ProductLean = FlattenMaps<IProduct> & { _id: Types.ObjectId; isInStock: boolean; effectivePrice: number };
 
+export function computeEffectivePrice(price: number, salePrice?: number | null): number {
+  if (salePrice != null && salePrice > 0 && salePrice !== price) {
+    return Math.min(price, salePrice);
+  }
+  return price;
+}
+
 function buildProductFilter(query: ProductQuery): FilterQuery<IProduct> {
   const filter: FilterQuery<IProduct> = {};
 
@@ -74,7 +81,7 @@ export async function listProducts(query: ProductQuery): Promise<{ items: Produc
   const itemsWithVirtuals = items.map(item => ({
     ...item,
     isInStock: (item.stock as number) > 0,
-    effectivePrice: item.salePrice != null && item.salePrice < item.price ? item.salePrice : item.price,
+    effectivePrice: computeEffectivePrice(item.price, item.salePrice),
   }));
 
   return {
@@ -103,7 +110,7 @@ export async function getProductById(id: string): Promise<ProductLean> {
   return {
     ...product,
     isInStock: (product.stock as number) > 0,
-    effectivePrice: product.salePrice != null && product.salePrice < product.price ? product.salePrice : product.price,
+    effectivePrice: computeEffectivePrice(product.price, product.salePrice),
   };
 }
 
@@ -114,7 +121,7 @@ export async function getProductBySlug(slug: string): Promise<ProductLean> {
   return {
     ...product,
     isInStock: (product.stock as number) > 0,
-    effectivePrice: product.salePrice != null && product.salePrice < product.price ? product.salePrice : product.price,
+    effectivePrice: computeEffectivePrice(product.price, product.salePrice),
   };
 }
 
@@ -156,7 +163,7 @@ export async function createProduct(input: CreateProductInput): Promise<ProductL
   return {
     ...productObj,
     isInStock: (productObj.stock as number) > 0,
-    effectivePrice: productObj.salePrice != null && productObj.salePrice < productObj.price ? productObj.salePrice : productObj.price,
+    effectivePrice: computeEffectivePrice(productObj.price, productObj.salePrice),
   };
 }
 
@@ -188,7 +195,7 @@ export async function updateProduct(id: string, input: UpdateProductInput): Prom
   return {
     ...productObj,
     isInStock: (productObj.stock as number) > 0,
-    effectivePrice: productObj.salePrice != null && productObj.salePrice < productObj.price ? productObj.salePrice : productObj.price,
+    effectivePrice: computeEffectivePrice(productObj.price, productObj.salePrice),
   };
 }
 
@@ -205,7 +212,7 @@ export async function listLowStockProducts(threshold?: number): Promise<ProductL
     .map((p) => ({
       ...p,
       isInStock: (p.stock as number) > 0,
-      effectivePrice: p.salePrice != null && p.salePrice < p.price ? p.salePrice : p.price,
+      effectivePrice: computeEffectivePrice(p.price, p.salePrice),
     }));
 }
 

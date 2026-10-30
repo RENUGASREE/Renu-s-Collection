@@ -88,7 +88,10 @@ productSchema.index({ salePrice: 1 });
 productSchema.index({ averageRating: -1 });
 
 productSchema.virtual("effectivePrice").get(function (this: IProduct) {
-  return this.salePrice != null && this.salePrice < this.price ? this.salePrice : this.price;
+  if (this.salePrice != null && this.salePrice > 0 && this.salePrice !== this.price) {
+    return Math.min(this.price, this.salePrice);
+  }
+  return this.price;
 });
 
 productSchema.virtual("isInStock").get(function (this: IProduct) {

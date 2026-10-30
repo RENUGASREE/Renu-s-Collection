@@ -709,20 +709,33 @@ export default function Products() {
 
                     {/* Price */}
                     <div className="mb-2">
-                      {product.salePrice && product.salePrice < product.price ? (
-                        <div className="flex items-baseline gap-2">
-                          <span className="text-base sm:text-lg font-bold text-primary font-serif">
-                            ₹{product.salePrice.toLocaleString("en-IN")}
+                      {(() => {
+                        const hasDiscount =
+                          product.salePrice != null &&
+                          product.salePrice > 0 &&
+                          product.salePrice !== product.price;
+                        const displayPrice = hasDiscount
+                          ? Math.min(product.price, product.salePrice)
+                          : product.price;
+                        const originalPrice = hasDiscount
+                          ? Math.max(product.price, product.salePrice)
+                          : null;
+
+                        return hasDiscount ? (
+                          <div className="flex items-baseline gap-2">
+                            <span className="text-base sm:text-lg font-bold text-primary font-serif">
+                              ₹{displayPrice.toLocaleString("en-IN")}
+                            </span>
+                            <span className="text-xs text-muted-foreground line-through">
+                              ₹{originalPrice?.toLocaleString("en-IN")}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-base sm:text-lg font-bold text-foreground font-serif">
+                            ₹{displayPrice.toLocaleString("en-IN")}
                           </span>
-                          <span className="text-xs text-muted-foreground line-through">
-                            ₹{product.price.toLocaleString("en-IN")}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-base sm:text-lg font-bold text-foreground font-serif">
-                          ₹{product.price.toLocaleString("en-IN")}
-                        </span>
-                      )}
+                        );
+                      })()}
                     </div>
 
                     {!product.isInStock && (

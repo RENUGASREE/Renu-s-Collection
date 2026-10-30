@@ -510,14 +510,21 @@ export default function ProductDetail() {
   const placeholderUrl = getAssetUrl("/placeholders/placeholder.png");
   const mainImageSrc = isSelectedImageBroken ? placeholderUrl : getAssetUrl(currentMediaUrl);
 
+  const hasDiscount =
+    !customizationPrice &&
+    product.salePrice != null &&
+    product.salePrice > 0 &&
+    product.salePrice !== product.price;
+
   const displayPrice = customizationPrice
     ? customizationPrice.totalPrice
-    : product.salePrice && product.salePrice < product.price
-    ? product.salePrice
+    : hasDiscount
+    ? Math.min(product.price, product.salePrice!)
     : product.price;
 
-  const originalPrice = product.price;
-  const hasDiscount = !customizationPrice && product.salePrice && product.salePrice < originalPrice;
+  const originalPrice = hasDiscount
+    ? Math.max(product.price, product.salePrice!)
+    : product.price;
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">

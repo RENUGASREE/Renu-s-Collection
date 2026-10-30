@@ -225,9 +225,16 @@ function WishlistCard({
     return primary?.url || product.media[0]?.url || "";
   };
 
-  const displayPrice = product?.salePrice ?? product?.effectivePrice ?? product?.price ?? 0;
-  const originalPrice = product?.price ?? 0;
-  const hasDiscount = product?.salePrice && product.salePrice < originalPrice;
+  const hasDiscount =
+    Boolean(product?.salePrice != null &&
+    product.salePrice > 0 &&
+    product.salePrice !== (product?.price ?? 0));
+  const displayPrice = hasDiscount
+    ? Math.min(product?.price ?? 0, product!.salePrice!)
+    : product?.effectivePrice ?? product?.price ?? 0;
+  const originalPrice = hasDiscount
+    ? Math.max(product?.price ?? 0, product!.salePrice!)
+    : product?.price ?? 0;
 
   return (
     <Card className="group flex flex-col bg-card border border-border/70 hover:border-primary/40 rounded-xl overflow-hidden hover:shadow-lg transition-all duration-300">
