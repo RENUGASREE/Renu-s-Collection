@@ -39,6 +39,7 @@ interface Product {
   name: string;
   description: string;
   shortDescription?: string;
+  additionalInfo?: string;
   price: number;
   effectivePrice: number;
   salePrice: number | null;
@@ -678,13 +679,20 @@ export default function ProductDetail() {
               </div>
             </div>
 
-            {/* Description */}
-            <div className="text-muted-foreground space-y-2 text-sm sm:text-base leading-relaxed">
-              <p>{product.description}</p>
+            {/* Description & Additional Info */}
+            <div className="text-muted-foreground space-y-4 text-sm sm:text-base leading-relaxed">
+              <div className="whitespace-pre-line break-words">
+                {product.description}
+              </div>
               {product.shortDescription && (
-                <p className="text-xs sm:text-sm text-muted-foreground/80 italic">
+                <p className="text-xs sm:text-sm text-muted-foreground/80 italic whitespace-pre-line break-words">
                   {product.shortDescription}
                 </p>
+              )}
+              {Boolean(product.additionalInfo?.trim()) && (
+                <div className="whitespace-pre-line break-words pt-1">
+                  {product.additionalInfo?.trim()}
+                </div>
               )}
             </div>
 

@@ -83,6 +83,7 @@ export const createProductSchema = z.object({
   weightGrams: z.number().min(0).optional(),
   materialInfo: z.string().optional(),
   careInstructions: z.string().optional(),
+  additionalInfo: z.string().optional().nullable(),
   media: z.array(mediaSchema).optional(),
   imageUrl: mediaUrlSchema.optional(),
   colors: z.array(z.string()).optional(),

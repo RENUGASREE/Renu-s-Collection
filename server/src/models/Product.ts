@@ -17,6 +17,7 @@ export interface IProduct extends Document {
   weightGrams?: number;
   materialInfo?: string;
   careInstructions?: string;
+  additionalInfo?: string;
   media: ProductMedia[];
   colors: string[];
   materials: string[];
@@ -60,6 +61,7 @@ const productSchema = new Schema<IProduct>(
     weightGrams: Number,
     materialInfo: String,
     careInstructions: String,
+    additionalInfo: String,
     media: { type: [mediaSchema], default: [] },
     colors: { type: [String], default: [], index: true },
     materials: { type: [String], default: [], index: true },

@@ -57,6 +57,7 @@ interface ProductFormData {
   signatureCategory: string;
   badge: string | null;
   description: string;
+  additionalInfo: string;
   imageUrl: string;
   media: MediaItem[];
 }
@@ -90,6 +91,7 @@ export default function AdminProductForm() {
     signatureCategory: "none",
     badge: null,
     description: "",
+    additionalInfo: "",
     imageUrl: "",
     media: [],
   });
@@ -157,6 +159,7 @@ export default function AdminProductForm() {
             signatureCategory: product.signatureCategory || "none",
             badge: product.badge || null,
             description: product.description || "",
+            additionalInfo: product.additionalInfo || "",
             imageUrl: initialMedia.find((m) => m.isPrimary)?.url || product.imageUrl || "",
             media: initialMedia,
           });
@@ -432,6 +435,7 @@ export default function AdminProductForm() {
         salePrice: formData.salePrice || undefined,
         badge: formData.badge || undefined,
         subcategoryId: formData.subcategoryId || undefined,
+        additionalInfo: formData.additionalInfo ? formData.additionalInfo.trim() : (isEditing ? "" : undefined),
       };
 
       let response;
@@ -590,6 +594,21 @@ export default function AdminProductForm() {
                   rows={4}
                   className={`${inputCls} resize-none`}
                   placeholder="Describe the product for customers..."
+                />
+              </div>
+
+              <div className="mt-4 space-y-1.5">
+                <Label htmlFor="additionalInfo" className={labelCls}>
+                  Additional Product Information
+                </Label>
+                <Textarea
+                  id="additionalInfo"
+                  name="additionalInfo"
+                  value={formData.additionalInfo}
+                  onChange={handleChange}
+                  rows={4}
+                  className={`${inputCls} resize-y min-h-[100px]`}
+                  placeholder="Add optional product-specific information, notices, care instructions, material details or special notes..."
                 />
               </div>
             </CardContent>
