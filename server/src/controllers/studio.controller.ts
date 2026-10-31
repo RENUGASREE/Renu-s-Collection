@@ -558,22 +558,51 @@ export async function updateMaterial(
     const { id } = req.params;
     const updates = { ...req.body };
 
-    if (updates.code) {
-      updates.code = updates.code.toUpperCase();
-      const existing = await StudioMaterial.findOne({ code: updates.code, _id: { $ne: id } });
-      if (existing) {
-        throw new AppError(`Another material with code "${updates.code}" already exists`, 409);
-      }
-    }
-
-    // Do not overwrite entire variants array via general update to avoid wiping stock;
-    // use dedicated variant endpoints instead.
-    delete updates.variants;
-
-    const material = await StudioMaterial.findByIdAndUpdate(id, { $set: updates }, { new: true });
+    const material = await StudioMaterial.findById(id);
     if (!material) {
       throw new AppError("Material not found", 404);
     }
+
+    const oldCode = material.code;
+    let newCode = oldCode;
+
+    if (updates.code) {
+      newCode = updates.code.trim().toUpperCase();
+      if (newCode !== oldCode) {
+        const existing = await StudioMaterial.findOne({ code: newCode, _id: { $ne: id } });
+        if (existing) {
+          throw new AppError(`Another material with code "${newCode}" already exists`, 409);
+        }
+      }
+    }
+
+    // Cascade update variant SKUs if compound code changed or if syncVariantSkus is requested
+    const shouldSync = updates.syncVariantSkus || (updates.code && newCode !== oldCode);
+    if (shouldSync && material.variants && material.variants.length > 0) {
+      for (const variant of material.variants) {
+        if (variant.sku.startsWith(oldCode)) {
+          variant.sku = newCode + variant.sku.slice(oldCode.length);
+        } else if (updates.syncVariantSkus) {
+          const cleanSize = (variant.sizeLabel || "STD").trim().toUpperCase().replace(/\s+/g, "");
+          variant.sku = `${newCode}-${cleanSize}`;
+        }
+      }
+    }
+
+    // Apply allowed material fields
+    if (updates.name) material.name = updates.name.trim();
+    if (updates.code) material.code = newCode;
+    if (typeof updates.description !== "undefined") material.description = updates.description;
+    if (updates.materialType) material.materialType = updates.materialType;
+    if (updates.imageUrl) material.imageUrl = updates.imageUrl;
+    if (typeof updates.renderAssetUrl !== "undefined") material.renderAssetUrl = updates.renderAssetUrl;
+    if (updates.additionalImages) material.additionalImages = updates.additionalImages;
+    if (updates.allowedJewelleryTypes) material.allowedJewelleryTypes = updates.allowedJewelleryTypes;
+    if (updates.supportedConstructionTypes) material.supportedConstructionTypes = updates.supportedConstructionTypes;
+    if (typeof updates.isActive !== "undefined") material.isActive = updates.isActive;
+    if (typeof updates.sortOrder !== "undefined") material.sortOrder = updates.sortOrder;
+
+    await material.save();
 
     res.json({ success: true, data: material, message: "Material updated successfully" });
   } catch (error) {
@@ -630,7 +659,7 @@ export async function updateVariant(
 ): Promise<void> {
   try {
     const { id, sku } = req.params;
-    const targetSku = sku.toUpperCase();
+    const targetSku = decodeURIComponent(sku).toUpperCase();
     const updates = req.body;
 
     const material = await StudioMaterial.findById(id);
@@ -641,6 +670,24 @@ export async function updateVariant(
     const variant = material.variants.find((v) => v.sku === targetSku);
     if (!variant) {
       throw new AppError(`Variant with SKU "${targetSku}" not found on this material`, 404);
+    }
+
+    // Support updating the variant SKU itself
+    if (updates.sku) {
+      const newSku = updates.sku.trim().toUpperCase();
+      if (newSku !== targetSku) {
+        const existingWithSku = await StudioMaterial.findOne({
+          _id: { $ne: material._id },
+          "variants.sku": newSku,
+        });
+        const duplicateOnSameMaterial = material.variants.some(
+          (v) => v.sku === newSku && v !== variant
+        );
+        if (existingWithSku || duplicateOnSameMaterial) {
+          throw new AppError(`Variant SKU "${newSku}" already exists`, 409);
+        }
+        variant.sku = newSku;
+      }
     }
 
     // Apply updates safely
@@ -660,7 +707,7 @@ export async function updateVariant(
     res.json({
       success: true,
       data: material,
-      message: `Variant "${targetSku}" updated successfully`,
+      message: `Variant "${variant.sku}" updated successfully`,
     });
   } catch (error) {
     next(error);
@@ -674,26 +721,50 @@ export async function deleteVariant(
 ): Promise<void> {
   try {
     const { id, sku } = req.params;
-    const targetSku = sku.toUpperCase();
+    const targetSku = decodeURIComponent(sku).toUpperCase();
 
     const material = await StudioMaterial.findById(id);
     if (!material) {
       throw new AppError("Material not found", 404);
     }
 
-    const variant = material.variants.find((v) => v.sku === targetSku);
-    if (!variant) {
+    const variantIndex = material.variants.findIndex((v) => v.sku === targetSku);
+    if (variantIndex === -1) {
       throw new AppError(`Variant "${targetSku}" not found`, 404);
     }
 
-    // Soft disable variant to preserve order history and design quotes
-    variant.isActive = false;
+    // Safeguard: Check if this SKU is used in historical orders, saved designs, or reservations
+    const [orderCount, savedCount, reservationCount] = await Promise.all([
+      Order.countDocuments({ "items.customDesign.beadSequence.variantSku": targetSku }),
+      SavedDesign.countDocuments({
+        $or: [
+          { "beadSequence.variantSku": targetSku },
+          { "charms.variantSku": targetSku },
+        ],
+      }),
+      StudioReservation.countDocuments({ "components.variantSku": targetSku }),
+    ]);
+
+    const reasons: string[] = [];
+    if (orderCount > 0) reasons.push(`${orderCount} historical order(s)`);
+    if (savedCount > 0) reasons.push(`${savedCount} saved design(s)`);
+    if (reservationCount > 0) reasons.push(`${reservationCount} active stock reservation(s)`);
+
+    if (reasons.length > 0 && req.query.force !== "true") {
+      throw new AppError(
+        `Cannot permanently delete SKU "${targetSku}" because it is referenced in: ${reasons.join(", ")}. Please deactivate it instead to preserve order records.`,
+        409
+      );
+    }
+
+    // Permanently remove the variant
+    material.variants.splice(variantIndex, 1);
     await material.save();
 
     res.json({
       success: true,
       data: material,
-      message: `Variant "${targetSku}" has been disabled`,
+      message: `Variant SKU "${targetSku}" has been permanently deleted`,
     });
   } catch (error) {
     next(error);

@@ -241,8 +241,10 @@ export default function AdminStudio() {
     isActive: true,
   });
 
-  // Confirm disable variant dialog
+  // Confirm disable / delete variant dialogs
   const [disablingVariant, setDisablingVariant] = useState<{ materialId: string; sku: string } | null>(null);
+  const [deletingVariant, setDeletingVariant] = useState<{ materialId: string; sku: string } | null>(null);
+  const [syncVariantSkus, setSyncVariantSkus] = useState(true);
 
   // State: Live Readiness
   const [readinessList, setReadinessList] = useState<JewelleryTypeReadiness[]>([]);
@@ -798,8 +800,14 @@ export default function AdminStudio() {
       }
 
       if (editingMaterial) {
-        const res = await apiRequest("PATCH", `/api/v1/studio/admin/materials/${editingMaterial._id}`, materialForm);
-        if (!res.ok) throw new Error("Update failed");
+        const res = await apiRequest("PATCH", `/api/v1/studio/admin/materials/${editingMaterial._id}`, {
+          ...materialForm,
+          syncVariantSkus,
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => null);
+          throw new Error(errData?.message || "Update failed");
+        }
         toast({ title: "Material Updated", description: `Updated ${materialForm.name}.` });
       } else {
         const res = await apiRequest("POST", "/api/v1/studio/admin/materials", materialForm);
@@ -851,10 +859,13 @@ export default function AdminStudio() {
       if (editingVariantSku) {
         const res = await apiRequest(
           "PATCH",
-          `/api/v1/studio/admin/materials/${selectedMaterialForVariant._id}/variants/${editingVariantSku}`,
+          `/api/v1/studio/admin/materials/${selectedMaterialForVariant._id}/variants/${encodeURIComponent(editingVariantSku)}`,
           payload
         );
-        if (!res.ok) throw new Error("Update variant failed");
+        if (!res.ok) {
+          const errJson = await res.json().catch(() => null);
+          throw new Error(errJson?.message || "Update variant failed");
+        }
         toast({ title: "Variant Updated", description: `Updated SKU ${variantForm.sku}.` });
       } else {
         const res = await apiRequest(
@@ -881,15 +892,38 @@ export default function AdminStudio() {
     if (!disablingVariant) return;
     try {
       const res = await apiRequest(
-        "DELETE",
-        `/api/v1/studio/admin/materials/${disablingVariant.materialId}/variants/${disablingVariant.sku}`
+        "PATCH",
+        `/api/v1/studio/admin/materials/${disablingVariant.materialId}/variants/${encodeURIComponent(disablingVariant.sku)}`,
+        { isActive: false }
       );
-      if (!res.ok) throw new Error("Disable failed");
-      toast({ title: "Variant Disabled", description: `SKU ${disablingVariant.sku} is now inactive.` });
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => null);
+        throw new Error(errJson?.message || "Deactivation failed");
+      }
+      toast({ title: "Variant Deactivated", description: `SKU ${disablingVariant.sku} is now inactive.` });
       setDisablingVariant(null);
       fetchMaterials();
     } catch (err: any) {
-      toast({ title: "Failed to Disable", description: err.message, variant: "destructive" });
+      toast({ title: "Failed to Deactivate", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleConfirmDeleteVariant = async () => {
+    if (!deletingVariant) return;
+    try {
+      const res = await apiRequest(
+        "DELETE",
+        `/api/v1/studio/admin/materials/${deletingVariant.materialId}/variants/${encodeURIComponent(deletingVariant.sku)}`
+      );
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => null);
+        throw new Error(errJson?.message || "Delete variant failed");
+      }
+      toast({ title: "Variant Deleted", description: `SKU ${deletingVariant.sku} was permanently removed.` });
+      setDeletingVariant(null);
+      fetchMaterials();
+    } catch (err: any) {
+      toast({ title: "Failed to Delete SKU", description: err.message, variant: "destructive" });
     }
   };
 
@@ -1365,6 +1399,7 @@ export default function AdminStudio() {
                           variant="outline"
                           onClick={() => {
                             setEditingMaterial(mat);
+                            setSyncVariantSkus(true);
                             setMaterialForm({
                               name: mat.name,
                               code: mat.code,
@@ -1389,7 +1424,7 @@ export default function AdminStudio() {
                             setSelectedMaterialForVariant(mat);
                             setEditingVariantSku(null);
                             setVariantForm({
-                              sku: `${mat.code}-`,
+                              sku: `${mat.code}-8MM`,
                               color: "",
                               finish: "",
                               sizeLabel: "8mm",
@@ -1532,7 +1567,7 @@ export default function AdminStudio() {
                                           size="sm"
                                           variant="ghost"
                                           onClick={() => setDisablingVariant({ materialId: mat._id, sku: v.sku })}
-                                          className="h-7 px-2 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                                          className="h-7 px-2 text-xs text-stone-500 hover:text-amber-700 hover:bg-amber-50"
                                           title="Deactivate variant"
                                         >
                                           <EyeOff className="w-3 h-3 mr-1" />
@@ -1546,7 +1581,7 @@ export default function AdminStudio() {
                                             try {
                                               const res = await apiRequest(
                                                 "PATCH",
-                                                `/api/v1/studio/admin/materials/${mat._id}/variants/${v.sku}`,
+                                                `/api/v1/studio/admin/materials/${mat._id}/variants/${encodeURIComponent(v.sku)}`,
                                                 { isActive: true }
                                               );
                                               if (!res.ok) throw new Error("Activation failed");
@@ -1570,6 +1605,16 @@ export default function AdminStudio() {
                                           <span>Activate</span>
                                         </Button>
                                       )}
+
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => setDeletingVariant({ materialId: mat._id, sku: v.sku })}
+                                        className="h-7 w-7 p-0 text-stone-400 hover:text-rose-600 hover:bg-rose-50"
+                                        title="Delete SKU Variant"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </Button>
                                     </div>
                                   </td>
                                 </tr>
@@ -2732,6 +2777,27 @@ export default function AdminStudio() {
                     </div>
                   </label>
                 </div>
+
+                {editingMaterial && (editingMaterial.variants?.length || 0) > 0 && (
+                  <div className="pt-2">
+                    <label className="flex items-center gap-2 p-2.5 rounded-xl border border-amber-200 bg-amber-50/60 dark:bg-amber-950/20 cursor-pointer text-xs">
+                      <input
+                        type="checkbox"
+                        checked={syncVariantSkus}
+                        onChange={(e) => setSyncVariantSkus(e.target.checked)}
+                        className="accent-[#B66F72] h-4 w-4 rounded"
+                      />
+                      <div>
+                        <span className="font-medium text-[#342824] dark:text-foreground">
+                          Sync Variant SKUs with Component Code ({materialForm.code || "Code"})
+                        </span>
+                        <p className="text-[11px] text-[#756861] dark:text-muted-foreground">
+                          Automatically updates all stocked variants' SKUs to match this compound code prefix.
+                        </p>
+                      </div>
+                    </label>
+                  </div>
+                )}
               </div>
 
               <div className="flex justify-end gap-2 pt-6 mt-4 border-t border-[#E6D8D0]">
@@ -2765,11 +2831,26 @@ export default function AdminStudio() {
               <div className="space-y-4 pt-4 text-xs">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label>Variant SKU</Label>
+                    <div className="flex items-center justify-between">
+                      <Label>Variant SKU</Label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const cleanSize = (variantForm.sizeLabel || "STD").trim().toUpperCase().replace(/\s+/g, "");
+                          setVariantForm({
+                            ...variantForm,
+                            sku: `${selectedMaterialForVariant.code}-${cleanSize}`,
+                          });
+                        }}
+                        className="text-[10px] text-[#B66F72] hover:underline flex items-center gap-1 font-medium"
+                        title="Auto-fill SKU from compound code and size"
+                      >
+                        <RefreshCw className="w-2.5 h-2.5" /> Sync with Code
+                      </button>
+                    </div>
                     <Input
                       placeholder="e.g. RQ-8MM-GLOSS"
                       value={variantForm.sku}
-                      disabled={!!editingVariantSku}
                       onChange={(e) => setVariantForm({ ...variantForm, sku: e.target.value.toUpperCase() })}
                     />
                   </div>
@@ -2779,7 +2860,19 @@ export default function AdminStudio() {
                     <Input
                       placeholder="e.g. 8mm or Medium"
                       value={variantForm.sizeLabel}
-                      onChange={(e) => setVariantForm({ ...variantForm, sizeLabel: e.target.value })}
+                      onChange={(e) => {
+                        const newSize = e.target.value;
+                        if (!editingVariantSku && (!variantForm.sku || variantForm.sku.startsWith(`${selectedMaterialForVariant.code}-`))) {
+                          const cleanSize = newSize.trim().toUpperCase().replace(/\s+/g, "");
+                          setVariantForm({
+                            ...variantForm,
+                            sizeLabel: newSize,
+                            sku: `${selectedMaterialForVariant.code}-${cleanSize}`,
+                          });
+                        } else {
+                          setVariantForm({ ...variantForm, sizeLabel: newSize });
+                        }
+                      }}
                     />
                   </div>
                 </div>
@@ -2900,18 +2993,39 @@ export default function AdminStudio() {
         <AlertDialog open={!!disablingVariant} onOpenChange={(open) => !open && setDisablingVariant(null)}>
           <AlertDialogContent className="rounded-2xl border border-[#E6D8D0] bg-white">
             <AlertDialogHeader>
-              <AlertDialogTitle className="font-playfair text-lg">Disable Component Variant?</AlertDialogTitle>
+              <AlertDialogTitle className="font-playfair text-lg">Deactivate Component Variant?</AlertDialogTitle>
               <AlertDialogDescription className="text-xs text-[#756861]">
-                Disabling SKU "{disablingVariant?.sku}" prevents it from being selected in new custom designs. It remains preserved for existing design quote history.
+                Deactivating SKU "{disablingVariant?.sku}" prevents it from being selected in new custom designs. It remains preserved for existing design quote history.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel className="text-xs rounded-xl">Cancel</AlertDialogCancel>
               <AlertDialogAction
                 onClick={handleConfirmDisableVariant}
+                className="bg-amber-600 hover:bg-amber-700 text-white text-xs rounded-xl"
+              >
+                Deactivate Variant
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* DIALOG: CONFIRM DELETE VARIANT */}
+        <AlertDialog open={!!deletingVariant} onOpenChange={(open) => !open && setDeletingVariant(null)}>
+          <AlertDialogContent className="rounded-2xl border border-[#E6D8D0] bg-white">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="font-playfair text-lg text-rose-700">Delete SKU Variant?</AlertDialogTitle>
+              <AlertDialogDescription className="text-xs text-[#756861]">
+                Are you sure you want to permanently delete SKU variant <span className="font-mono font-bold text-stone-800">"{deletingVariant?.sku}"</span>? This will permanently remove this variant.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="text-xs rounded-xl">Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleConfirmDeleteVariant}
                 className="bg-rose-600 hover:bg-rose-700 text-white text-xs rounded-xl"
               >
-                Disable Component
+                Delete SKU
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

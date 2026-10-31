@@ -54,7 +54,9 @@ export const createMaterialSchema = z.object({
   variants: z.array(createVariantSchema).optional().default([]),
 });
 
-export const updateMaterialSchema = createMaterialSchema.partial();
+export const updateMaterialSchema = createMaterialSchema.partial().extend({
+  syncVariantSkus: z.boolean().optional(),
+});
 
 export const createJewelleryTypeSchema = z.object({
   slug: z
