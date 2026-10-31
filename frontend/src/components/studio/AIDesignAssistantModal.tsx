@@ -401,54 +401,59 @@ export function AIDesignAssistantModal({
                         )}
                       </div>
 
-                      {/* Mini Bead Dots Canvas Strip */}
-                      <div className="flex items-center gap-1 p-2 rounded-xl bg-[#F8F4F0] dark:bg-muted/40 border border-[#E6D8D0]/40 overflow-x-auto py-3">
-                        {sug.beadSequence.map((b, bIdx) => {
-                          const isCharmAnchor = sug.charms.some((c) => c.anchorIndex === bIdx);
-                          const appearance = getBeadAppearance(b);
-                          const diameterPx = Math.max(14, Math.min(24, Math.round((b.diameterMm || 8) * 1.8)));
+                      {/* Mini Bead Dots Canvas Strip — tightly strung with no gaps */}
+                      <div className="relative flex items-center p-2 rounded-xl bg-[#F8F4F0] dark:bg-muted/40 border border-[#E6D8D0]/40 overflow-x-auto py-3">
+                        {/* Continuous elastic cord line behind beads */}
+                        <div className="absolute left-3 right-3 top-1/2 -translate-y-1/2 h-[2px] bg-[#D4BAA8]/70 pointer-events-none" />
 
-                          return (
-                            <div
-                              key={bIdx}
-                              className="relative flex flex-col items-center shrink-0"
-                              title={`${b.displayName} (${b.diameterMm}mm)`}
-                            >
+                        <div className="flex items-center gap-0 -space-x-0.5 z-10 px-1">
+                          {sug.beadSequence.map((b, bIdx) => {
+                            const isCharmAnchor = sug.charms.some((c) => c.anchorIndex === bIdx);
+                            const appearance = getBeadAppearance(b);
+                            const diameterPx = Math.max(14, Math.min(24, Math.round((b.diameterMm || 8) * 1.8)));
+
+                            return (
                               <div
-                                className="rounded-full overflow-hidden shadow-inner flex items-center justify-center relative border border-black/10 dark:border-white/15"
-                                style={{
-                                  width: `${diameterPx}px`,
-                                  height: `${diameterPx}px`,
-                                  backgroundColor: appearance.color,
-                                }}
+                                key={bIdx}
+                                className="relative flex flex-col items-center shrink-0"
+                                title={`${b.displayName} (${b.diameterMm}mm)`}
                               >
-                                {appearance.imageSrc ? (
-                                  <img
-                                    src={appearance.imageSrc}
-                                    alt={b.displayName}
-                                    className="w-full h-full object-cover rounded-full"
-                                    loading="lazy"
-                                    onError={(e) => {
-                                      e.currentTarget.style.display = "none";
-                                    }}
-                                  />
-                                ) : (
-                                  <div
-                                    className="w-full h-full rounded-full"
-                                    style={{
-                                      background: `radial-gradient(circle at 35% 30%, rgba(255,255,255,0.45), transparent 70%)`,
-                                    }}
-                                  />
+                                <div
+                                  className="rounded-full overflow-hidden shadow-sm flex items-center justify-center relative border border-black/15 shadow-[0_1px_2px_rgba(0,0,0,0.12)]"
+                                  style={{
+                                    width: `${diameterPx}px`,
+                                    height: `${diameterPx}px`,
+                                    backgroundColor: appearance.color,
+                                  }}
+                                >
+                                  {appearance.imageSrc ? (
+                                    <img
+                                      src={appearance.imageSrc}
+                                      alt={b.displayName}
+                                      className="w-full h-full object-cover rounded-full scale-125"
+                                      loading="lazy"
+                                      onError={(e) => {
+                                        e.currentTarget.style.display = "none";
+                                      }}
+                                    />
+                                  ) : (
+                                    <div
+                                      className="w-full h-full rounded-full"
+                                      style={{
+                                        background: `radial-gradient(circle at 35% 30%, rgba(255,255,255,0.45), transparent 70%)`,
+                                      }}
+                                    />
+                                  )}
+                                </div>
+                                {isCharmAnchor && (
+                                  <div className="absolute -bottom-2 text-[8px] text-[#B66F72] font-bold">
+                                    ★
+                                  </div>
                                 )}
                               </div>
-                              {isCharmAnchor && (
-                                <div className="absolute -bottom-2 text-[8px] text-[#B66F72] font-bold">
-                                  ★
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
 

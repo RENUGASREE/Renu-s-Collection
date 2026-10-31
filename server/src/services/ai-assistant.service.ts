@@ -443,15 +443,20 @@ function buildCatalogueGroundedSuggestions(params: {
   };
 
   const sortedBeads = [...params.beadOptions].sort((a, b) => scoreOption(b) - scoreOption(a));
-  const primaryBead = sortedBeads[0] || params.beadOptions[0];
-  const secondaryBead = sortedBeads[1] || params.beadOptions[1] || primaryBead;
-  const accentBead = sortedBeads[2] || params.beadOptions[2] || primaryBead;
 
+  // Identify matching beads from catalogue based on keyword scoring
+  const matchingBeads = sortedBeads.filter((b) => scoreOption(b) > 0);
+  const primaryBead = matchingBeads[0] || sortedBeads[0] || params.beadOptions[0];
+  const secondaryBead = matchingBeads[1] || sortedBeads[1] || primaryBead;
   const spacer = params.spacerOptions[0];
 
+  // Detect whether user requested a single color/stone or multiple contrasting colors
+  const isMultiColorRequested =
+    matchingBeads.length >= 2 &&
+    scoreOption(matchingBeads[1]) >= 4 &&
+    matchingBeads[0].sku !== matchingBeads[1].sku;
+
   // Grounded Charm Detection:
-  // Only pick a charm if the customer specifically requested a matching charm, or requested charms in general.
-  // Never substitute an arbitrary charm when a specific unavailable motif was requested.
   const promptLower = params.prompt.toLowerCase();
   const charmRegex = /(?:([a-z0-9-]+)\s+(?:shaped\s+)?charm)|(?:charm\s+with\s+([a-z0-9-]+))|(?:initial\s+([a-z]))|(?:letter\s+([a-z]))/i;
   const match = promptLower.match(charmRegex);
@@ -485,6 +490,12 @@ function buildCatalogueGroundedSuggestions(params: {
     ? ` Note: The requested "${requestedKeyword.toUpperCase()}" charm is currently unavailable in our studio catalogue. This arrangement focuses on your requested gemstones without an ungrounded charm substitution.`
     : "";
 
+  // Helper to build a bead sequence of exact target length
+  const targetBeadCount = Math.max(
+    params.minBeads,
+    Math.min(params.maxBeads, Math.round(params.targetCircumference / (primaryBead.diameterMm || 8)))
+  );
+
   const proposals: Array<{
     name: string;
     tagline: string;
@@ -497,109 +508,187 @@ function buildCatalogueGroundedSuggestions(params: {
     charmsSkus: Array<{ sku: string; anchorIndex: number }>;
   }> = [];
 
-  // Suggestion 1: The Harmonious Balance (Symmetrical pattern with primary & secondary)
-  {
-    const beadSeq: string[] = [];
-    let currentLength = 0;
-    let toggle = false;
+  if (isMultiColorRequested) {
+    // ------------------------------------------------------------------------
+    // CASE A: User requested multiple stones / colors (e.g. "blue and pink")
+    // ------------------------------------------------------------------------
 
-    while (currentLength + primaryBead.diameterMm <= params.targetCircumference) {
-      const chosen = toggle ? secondaryBead : primaryBead;
-      beadSeq.push(chosen.sku);
-      currentLength += chosen.diameterMm;
-      toggle = !toggle;
-    }
+    // Style 1: Symmetrical Focal Centerpiece (Stone A body with Stone B focal centerpiece)
+    {
+      const focalCount = Math.min(5, Math.max(3, Math.floor(targetBeadCount * 0.25)));
+      const sideCount = Math.floor((targetBeadCount - focalCount) / 2);
+      const remainder = targetBeadCount - focalCount - sideCount * 2;
 
-    // Ensure within rule bounds
-    while (beadSeq.length < params.minBeads) {
-      beadSeq.push(primaryBead.sku);
-      currentLength += primaryBead.diameterMm;
-    }
+      const beadSeq: string[] = [
+        ...Array(sideCount).fill(primaryBead.sku),
+        ...Array(focalCount).fill(secondaryBead.sku),
+        ...Array(sideCount + remainder).fill(primaryBead.sku),
+      ];
 
-    const charmsSkus: Array<{ sku: string; anchorIndex: number }> = [];
-    if (matchedCharm && beadSeq.length > 5) {
-      charmsSkus.push({ sku: matchedCharm.sku, anchorIndex: Math.floor(beadSeq.length / 2) });
-    }
-
-    proposals.push({
-      name: `${primaryBead.name} & ${secondaryBead.name} Harmony`,
-      tagline: "Artisanal symmetry celebrating balance and natural gemstone brilliance",
-      description: `Handcrafted with ${primaryBead.name} paired harmoniously with ${secondaryBead.name}, calibrated comfortably for a ${params.wristMm}mm wrist.${matchedCharm ? ` Accented with our ${matchedCharm.name}.` : ""}${charmUnavailableNotice}`,
-      matchReason: `Selected for its balanced aesthetic matching your interest in ${primaryBead.color || "natural"} tones, suitable for ${params.occasion || "everyday elegance"}.${charmUnavailableNotice}`,
-      style: params.style || "Classic Harmony",
-      occasion: params.occasion || "Versatile",
-      colorTheme: params.colorTheme || `${primaryBead.color || "Natural"} & ${secondaryBead.color || "Earthy"}`,
-      beadSequenceSkus: beadSeq,
-      charmsSkus,
-    });
-  }
-
-  // Suggestion 2: The Minimalist Signature (Uniform main stone with subtle spacers)
-  {
-    const beadSeq: string[] = [];
-    let currentLength = 0;
-    const spacerInterval = 5;
-
-    while (currentLength + primaryBead.diameterMm <= params.targetCircumference) {
-      if (spacer && beadSeq.length > 0 && beadSeq.length % spacerInterval === 0 && currentLength + spacer.diameterMm + primaryBead.diameterMm <= params.targetCircumference) {
-        beadSeq.push(spacer.sku);
-        currentLength += spacer.diameterMm;
+      const charmsSkus: Array<{ sku: string; anchorIndex: number }> = [];
+      if (matchedCharm) {
+        charmsSkus.push({ sku: matchedCharm.sku, anchorIndex: sideCount + Math.floor(focalCount / 2) });
       }
-      beadSeq.push(primaryBead.sku);
-      currentLength += primaryBead.diameterMm;
+
+      proposals.push({
+        name: `${secondaryBead.name} Centerpiece on ${primaryBead.name}`,
+        tagline: "Symmetrical statement design highlighting your requested gemstone focal center",
+        description: `Handcrafted with ${primaryBead.name} along the main body, framed by a striking ${focalCount}-bead focal centerpiece of ${secondaryBead.name} centered on the wrist.${matchedCharm ? ` Accented with our ${matchedCharm.name}.` : ""}${charmUnavailableNotice}`,
+        matchReason: `Crafted directly for your prompt requesting ${primaryBead.name} and ${secondaryBead.name}, placing them in a balanced, designer focal symmetry rather than random stripes.${charmUnavailableNotice}`,
+        style: "Artisan Symmetrical Statement",
+        occasion: params.occasion || "Celebration & Everyday Luxury",
+        colorTheme: `${primaryBead.color || "Natural"} & ${secondaryBead.color || "Accent"}`,
+        beadSequenceSkus: beadSeq,
+        charmsSkus,
+      });
     }
 
-    while (beadSeq.length < params.minBeads) {
-      beadSeq.push(primaryBead.sku);
+    // Style 2: Rhythmic Designer Clusters (Groups of 3 or 4 of Stone A with 1 of Stone B)
+    {
+      const beadSeq: string[] = [];
+      const clusterSize = 3;
+      let countA = 0;
+
+      while (beadSeq.length < targetBeadCount) {
+        if (countA < clusterSize || beadSeq.length >= targetBeadCount - 1) {
+          beadSeq.push(primaryBead.sku);
+          countA++;
+        } else {
+          beadSeq.push(secondaryBead.sku);
+          countA = 0;
+        }
+      }
+
+      const charmsSkus: Array<{ sku: string; anchorIndex: number }> = [];
+      if (matchedCharm) {
+        charmsSkus.push({ sku: matchedCharm.sku, anchorIndex: Math.floor(beadSeq.length / 2) });
+      }
+
+      proposals.push({
+        name: `Rhythmic ${primaryBead.name} & ${secondaryBead.name} Melody`,
+        tagline: "Harmonious cluster rhythm balancing both requested gemstones",
+        description: `An elegant rhythm of ${primaryBead.name} clustered with periodic ${secondaryBead.name} accents, offering dynamic depth and refined artisan balance.${matchedCharm ? ` Accented with our ${matchedCharm.name}.` : ""}${charmUnavailableNotice}`,
+        matchReason: `Delivers a sophisticated ${clusterSize}-to-1 rhythm of your requested colors that feels natural, intentional, and comfortable on a ${params.wristMm}mm wrist.${charmUnavailableNotice}`,
+        style: "Rhythmic Designer Clusters",
+        occasion: params.occasion || "Versatile Elegance",
+        colorTheme: "Harmonious Duet",
+        beadSequenceSkus: beadSeq,
+        charmsSkus,
+      });
     }
 
-    proposals.push({
-      name: `Signature Pure ${primaryBead.name}`,
-      tagline: "Timeless minimalist sophistication focused on pure gemstone depth",
-      description: `A continuous sequence of polished ${primaryBead.name} accented with delicate spacers, designed for effortless daily grace.`,
-      matchReason: `Highlights ${primaryBead.name} as a focal statement stone, honoring your preference for a refined, understated luxury feel.`,
-      style: "Minimalist Modern",
-      occasion: params.occasion || "Daily & Office Wear",
-      colorTheme: primaryBead.color || "Monochrome Luxe",
-      beadSequenceSkus: beadSeq,
-      charmsSkus: [],
-    });
-  }
+    // Style 3: Dual-Tone Yin-Yang Balance (Half-and-Half)
+    {
+      const half = Math.floor(targetBeadCount / 2);
+      const beadSeq: string[] = [
+        ...Array(half).fill(primaryBead.sku),
+        ...Array(targetBeadCount - half).fill(secondaryBead.sku),
+      ];
 
-  // Suggestion 3: The Artisan Statement (Trio arrangement with charm accent)
-  if (accentBead && accentBead.sku !== primaryBead.sku) {
-    const beadSeq: string[] = [];
-    let currentLength = 0;
-    const trio = [primaryBead, accentBead, secondaryBead];
-    let idx = 0;
+      const charmsSkus: Array<{ sku: string; anchorIndex: number }> = [];
+      if (matchedCharm) {
+        charmsSkus.push({ sku: matchedCharm.sku, anchorIndex: half });
+      }
 
-    while (currentLength + trio[idx % trio.length].diameterMm <= params.targetCircumference) {
-      const b = trio[idx % trio.length];
-      beadSeq.push(b.sku);
-      currentLength += b.diameterMm;
-      idx++;
+      proposals.push({
+        name: `${primaryBead.name} & ${secondaryBead.name} Dual-Tone Harmony`,
+        tagline: "Equally balanced dual-gemstone composition meeting at the focal center",
+        description: `A modern dual-tone layout presenting equal balance between ${primaryBead.name} and ${secondaryBead.name}, meeting seamlessly on the wrist.${matchedCharm ? ` Centered with our ${matchedCharm.name}.` : ""}${charmUnavailableNotice}`,
+        matchReason: `Celebrates both ${primaryBead.name} and ${secondaryBead.name} in an equal, clean dual-tone composition tailored for your ${params.wristMm}mm wrist.${charmUnavailableNotice}`,
+        style: "Dual-Tone Balance",
+        occasion: params.occasion || "Modern Styling",
+        colorTheme: "Contrasting Gemstones",
+        beadSequenceSkus: beadSeq,
+        charmsSkus,
+      });
+    }
+  } else {
+    // ------------------------------------------------------------------------
+    // CASE B: User requested a single stone/color or pure style
+    // ------------------------------------------------------------------------
+
+    // Style 1: Pure Gemstone Signature (100% of the requested stone, no unrelated colors!)
+    {
+      const beadSeq: string[] = Array(targetBeadCount).fill(primaryBead.sku);
+      const charmsSkus: Array<{ sku: string; anchorIndex: number }> = [];
+      if (matchedCharm) {
+        charmsSkus.push({ sku: matchedCharm.sku, anchorIndex: Math.floor(targetBeadCount / 2) });
+      }
+
+      proposals.push({
+        name: `Signature Pure ${primaryBead.name}`,
+        tagline: `Unbroken monochrome elegance dedicated to the raw beauty of ${primaryBead.name}`,
+        description: `A seamless, continuous strand of genuine ${primaryBead.name} beads, calibrated comfortably for your ${params.wristMm}mm wrist.${matchedCharm ? ` Finished with our ${matchedCharm.name}.` : ""}${charmUnavailableNotice}`,
+        matchReason: `Directly tailored to your request for ${primaryBead.name}. Formulated with zero distracting filler stones to celebrate pure gemstone character.${charmUnavailableNotice}`,
+        style: "Pure Monochrome Luxury",
+        occasion: params.occasion || "Everyday Elegance",
+        colorTheme: primaryBead.color || "Natural Gemstone",
+        beadSequenceSkus: beadSeq,
+        charmsSkus,
+      });
     }
 
-    while (beadSeq.length < params.minBeads) {
-      beadSeq.push(primaryBead.sku);
+    // Style 2: Symmetrical Accent Statement (Primary stone with subtle metal/crystal spacer rhythm)
+    {
+      const beadSeq: string[] = [];
+      const spacerInterval = 5;
+
+      for (let i = 0; i < targetBeadCount; i++) {
+        if (spacer && i > 0 && i % spacerInterval === 0 && i < targetBeadCount - 2) {
+          beadSeq.push(spacer.sku);
+        } else {
+          beadSeq.push(primaryBead.sku);
+        }
+      }
+
+      const charmsSkus: Array<{ sku: string; anchorIndex: number }> = [];
+      if (matchedCharm) {
+        charmsSkus.push({ sku: matchedCharm.sku, anchorIndex: Math.floor(beadSeq.length / 2) });
+      }
+
+      proposals.push({
+        name: `${primaryBead.name} Artisan Rhythm`,
+        tagline: `Polished ${primaryBead.name} paired with delicate artisanal spacer accents`,
+        description: `Hand-assembled strand of ${primaryBead.name} accentuated with subtle handcrafted spacers, offering quiet refinement and luminous texture.${matchedCharm ? ` Accented with our ${matchedCharm.name}.` : ""}${charmUnavailableNotice}`,
+        matchReason: `Features your requested ${primaryBead.name} as the centerpiece with refined spacer pacing, ideal for ${params.occasion || "any special or daily occasion"}.${charmUnavailableNotice}`,
+        style: "Artisan Accented",
+        occasion: params.occasion || "Office & Versatile Wear",
+        colorTheme: "Gemstone & Metal Accents",
+        beadSequenceSkus: beadSeq,
+        charmsSkus,
+      });
     }
 
-    const charmsSkus: Array<{ sku: string; anchorIndex: number }> = [];
-    if (matchedCharm && beadSeq.length > 6) {
-      charmsSkus.push({ sku: matchedCharm.sku, anchorIndex: Math.floor(beadSeq.length / 2) });
-    }
+    // Style 3: Symmetrical Focal Trio (Primary stone with 3-bead focal accent)
+    {
+      const focalStone = secondaryBead.sku !== primaryBead.sku ? secondaryBead : primaryBead;
+      const focalCount = 3;
+      const sideCount = Math.floor((targetBeadCount - focalCount) / 2);
+      const remainder = targetBeadCount - focalCount - sideCount * 2;
 
-    proposals.push({
-      name: `${primaryBead.name} Celestial Ensemble`,
-      tagline: "Expressive multi-stone artisanal arrangement rich in color and texture",
-      description: `A vibrant symphony blending ${primaryBead.name}, ${accentBead.name}, and ${secondaryBead.name} with focal centerpiece detailing.${matchedCharm ? ` Accented with our ${matchedCharm.name}.` : ""}${charmUnavailableNotice}`,
-      matchReason: `Crafted for celebratory or expressive moments, offering striking depth that complements your color preference.${charmUnavailableNotice}`,
-      style: "Artisan Statement",
-      occasion: params.occasion || "Celebration & Evening",
-      colorTheme: "Multi-stone Palette",
-      beadSequenceSkus: beadSeq,
-      charmsSkus,
-    });
+      const beadSeq: string[] = [
+        ...Array(sideCount).fill(primaryBead.sku),
+        ...Array(focalCount).fill(focalStone.sku),
+        ...Array(sideCount + remainder).fill(primaryBead.sku),
+      ];
+
+      const charmsSkus: Array<{ sku: string; anchorIndex: number }> = [];
+      if (matchedCharm) {
+        charmsSkus.push({ sku: matchedCharm.sku, anchorIndex: sideCount + 1 });
+      }
+
+      proposals.push({
+        name: `${primaryBead.name} Centerpiece Focal`,
+        tagline: "Classic symmetrical architecture with a hand-selected focal centerpiece",
+        description: `Calibrated with a balanced ${focalCount}-bead focal centerpiece centered symmetrically across a primary band of ${primaryBead.name}.${matchedCharm ? ` Highlighted with our ${matchedCharm.name}.` : ""}${charmUnavailableNotice}`,
+        matchReason: `Designed to highlight ${primaryBead.name} with symmetrical architectural balance that naturally sits at the front of your wrist.${charmUnavailableNotice}`,
+        style: "Symmetrical Focal",
+        occasion: params.occasion || "Celebration & Evening",
+        colorTheme: "Natural Balance",
+        beadSequenceSkus: beadSeq,
+        charmsSkus,
+      });
+    }
   }
 
   return validateAndPriceSuggestions(
