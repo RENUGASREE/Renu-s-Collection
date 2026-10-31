@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import ImageUploadField from "@/components/ImageUploadField";
 import { SEO } from "@/components/SEO";
 import Footer from "@/components/footer";
 import AdminNav from "@/components/AdminNav";
@@ -2658,24 +2659,14 @@ export default function AdminStudio() {
                   </div>
                 </div>
 
-                <div className="space-y-1">
-                  <Label>Main Image URL</Label>
-                  <Input
-                    placeholder="e.g. /assets/materials/rose-quartz.jpg or https://..."
-                    value={materialForm.imageUrl}
-                    onChange={(e) => setMaterialForm({ ...materialForm, imageUrl: e.target.value })}
-                  />
-                  {materialForm.imageUrl && (
-                    <img
-                      src={getAssetUrl(materialForm.imageUrl)}
-                      alt="Preview"
-                      className="w-16 h-16 rounded-lg object-cover border mt-1"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = "/placeholders/placeholder.png";
-                      }}
-                    />
-                  )}
-                </div>
+                <ImageUploadField
+                  label="Material Image"
+                  required
+                  value={materialForm.imageUrl}
+                  onChange={(url) => setMaterialForm({ ...materialForm, imageUrl: url })}
+                  placeholder="e.g. /assets/materials/rose-quartz.jpg or https://..."
+                  helpText="Upload a clear photo of this bead, stone, or charm (JPEG, PNG, WebP)"
+                />
 
                 <div className="space-y-1">
                   <Label>Transparent Render Asset URL (Optional for 2D Canvas)</Label>
@@ -2984,24 +2975,13 @@ export default function AdminStudio() {
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <Label>Category Image URL</Label>
-                  <Input
-                    placeholder="e.g. /assets/categories/earrings.jpg or https://..."
-                    value={typeForm.imageUrl}
-                    onChange={(e) => setTypeForm({ ...typeForm, imageUrl: e.target.value })}
-                  />
-                  {typeForm.imageUrl && (
-                    <img
-                      src={getAssetUrl(typeForm.imageUrl)}
-                      alt="Category Preview"
-                      className="w-16 h-16 rounded-lg object-cover border mt-1"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = "/placeholders/placeholder.png";
-                      }}
-                    />
-                  )}
-                </div>
+                <ImageUploadField
+                  label="Category Image"
+                  value={typeForm.imageUrl}
+                  onChange={(url) => setTypeForm({ ...typeForm, imageUrl: url })}
+                  placeholder="e.g. /assets/categories/earrings.jpg or https://..."
+                  helpText="Upload a featured photo representing this bespoke category (JPEG, PNG, WebP)"
+                />
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
