@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { apiRequest, formatApiErrorMessage } from "@/lib/queryClient";
+import { apiRequest, formatApiErrorMessage, getAssetUrl } from "@/lib/queryClient";
+import ImageUploadField from "@/components/ImageUploadField";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -49,6 +50,7 @@ export default function AdminCategories() {
     name: '',
     slug: '',
     description: '',
+    imageUrl: '',
     parentId: '',
     productType: 'other',
     isActive: true,
@@ -90,6 +92,7 @@ export default function AdminCategories() {
       name: category.name,
       slug: category.slug,
       description: category.description || '',
+      imageUrl: category.imageUrl || '',
       parentId: category.parentId || '',
       productType: category.productType || 'other',
       isActive: category.isActive,
@@ -106,6 +109,7 @@ export default function AdminCategories() {
     try {
       const payload = {
         ...formData,
+        imageUrl: formData.imageUrl.trim() || undefined,
         parentId: formData.parentId ? formData.parentId : null,
         isActive: asDraft ? false : formData.isActive,
         showInMenu: asDraft ? false : formData.showInMenu,
@@ -203,6 +207,7 @@ export default function AdminCategories() {
                 name: '',
                 slug: '',
                 description: '',
+                imageUrl: '',
                 parentId: '',
                 productType: 'other',
                 isActive: true,
@@ -288,6 +293,14 @@ export default function AdminCategories() {
                   className="mt-1 border-[#E6D8D0] dark:border-border text-xs rounded-lg"
                 />
               </div>
+
+              <ImageUploadField
+                label="Category Cover Image (Optional)"
+                value={formData.imageUrl}
+                onChange={(url) => setFormData({ ...formData, imageUrl: url })}
+                placeholder="e.g. /assets/categories/... or https://..."
+                helpText="Featured photo or banner for this category (JPEG, PNG, WebP)"
+              />
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
@@ -412,32 +425,44 @@ export default function AdminCategories() {
                 key={c._id}
                 className="border border-[#E6D8D0] dark:border-border bg-white dark:bg-card rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs hover:shadow-sm transition-all"
               >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="font-playfair font-semibold text-base text-[#342824] dark:text-foreground">
-                      {c.name}
-                    </h3>
-                    <span className="font-mono text-xs text-[#756861] dark:text-muted-foreground bg-muted/40 px-2 py-0.5 rounded border border-border/40">
-                      /{c.slug}
-                    </span>
-                    <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full bg-[#B99A72]/15 text-[#95565A] dark:text-[#B99A72]">
-                      {c.productType}
-                    </span>
-                    {c.isActive ? (
-                      <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
-                        Active
+                <div className="flex items-center gap-3.5 flex-1 min-w-0">
+                  {c.imageUrl && (
+                    <img
+                      src={getAssetUrl(c.imageUrl)}
+                      alt={c.name}
+                      className="w-12 h-12 rounded-xl object-cover border border-[#E6D8D0] dark:border-border shrink-0 bg-stone-50"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = "none";
+                      }}
+                    />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-playfair font-semibold text-base text-[#342824] dark:text-foreground">
+                        {c.name}
+                      </h3>
+                      <span className="font-mono text-xs text-[#756861] dark:text-muted-foreground bg-muted/40 px-2 py-0.5 rounded border border-border/40">
+                        /{c.slug}
                       </span>
-                    ) : (
-                      <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300">
-                        Draft
+                      <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full bg-[#B99A72]/15 text-[#95565A] dark:text-[#B99A72]">
+                        {c.productType}
                       </span>
+                      {c.isActive ? (
+                        <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
+                          Active
+                        </span>
+                      ) : (
+                        <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300">
+                          Draft
+                        </span>
+                      )}
+                    </div>
+                    {c.description && (
+                      <p className="text-xs text-[#756861] dark:text-muted-foreground mt-1 line-clamp-1">
+                        {c.description}
+                      </p>
                     )}
                   </div>
-                  {c.description && (
-                    <p className="text-xs text-[#756861] dark:text-muted-foreground mt-1 line-clamp-1">
-                      {c.description}
-                    </p>
-                  )}
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">

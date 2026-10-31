@@ -2668,14 +2668,13 @@ export default function AdminStudio() {
                   helpText="Upload a clear photo of this bead, stone, or charm (JPEG, PNG, WebP)"
                 />
 
-                <div className="space-y-1">
-                  <Label>Transparent Render Asset URL (Optional for 2D Canvas)</Label>
-                  <Input
-                    placeholder="e.g. /assets/materials/rose-quartz-cutout.png"
-                    value={materialForm.renderAssetUrl}
-                    onChange={(e) => setMaterialForm({ ...materialForm, renderAssetUrl: e.target.value })}
-                  />
-                </div>
+                <ImageUploadField
+                  label="Transparent Render Asset (Optional for 2D Canvas)"
+                  value={materialForm.renderAssetUrl}
+                  onChange={(url) => setMaterialForm({ ...materialForm, renderAssetUrl: url })}
+                  placeholder="e.g. /assets/materials/rose-quartz-cutout.png"
+                  helpText="Optional transparent PNG cutout of this material for canvas rendering"
+                />
 
                 <div className="space-y-1">
                   <Label>Description</Label>
@@ -3270,7 +3269,7 @@ export default function AdminStudio() {
 
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs font-semibold">Product Image URL (Optional)</Label>
+                    <Label className="text-xs font-semibold">Product Showcase Image (Optional)</Label>
                     {templateForm.beadSequence.length > 0 && (
                       <button
                         type="button"
@@ -3286,13 +3285,14 @@ export default function AdminStudio() {
                       </button>
                     )}
                   </div>
-                  <Input
+                  <ImageUploadField
+                    label=""
                     value={templateForm.thumbnailUrl}
-                    onChange={(e) => setTemplateForm({ ...templateForm, thumbnailUrl: e.target.value })}
+                    onChange={(url) => setTemplateForm({ ...templateForm, thumbnailUrl: url })}
                     placeholder="e.g. https://... or /assets/bracelets/harmony.jpg"
-                    className="text-xs rounded-xl"
+                    helpText="Upload a showcase photo or leave empty to auto-render canvas"
                   />
-                  <p className="text-[11px] text-[#756861] dark:text-muted-foreground">
+                  <p className="text-[11px] text-[#756861] dark:text-muted-foreground mt-1">
                     Provide a product showcase photo, or leave blank to automatically render a live circular gemstone arrangement preview.
                   </p>
                 </div>

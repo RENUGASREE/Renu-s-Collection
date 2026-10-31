@@ -16,13 +16,14 @@ import {
 } from "lucide-react";
 
 interface ImageUploadFieldProps {
-  label: string;
+  label?: string;
   value: string;
   onChange: (url: string) => void;
   required?: boolean;
   helpText?: string;
   placeholder?: string;
   className?: string;
+  compact?: boolean;
 }
 
 export default function ImageUploadField({
@@ -33,6 +34,7 @@ export default function ImageUploadField({
   helpText = "Supports JPEG, PNG, or WebP up to 10MB",
   placeholder = "e.g. /assets/... or https://...",
   className = "",
+  compact = false,
 }: ImageUploadFieldProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -93,23 +95,96 @@ export default function ImageUploadField({
     }
   };
 
-  return (
-    <div className={`space-y-2 ${className}`}>
-      <div className="flex items-center justify-between">
-        <Label className="text-xs sm:text-sm font-medium text-[#342824] dark:text-foreground">
-          {label} {required && <span className="text-[#B66F72]">*</span>}
-        </Label>
-        {!value && (
-          <button
+  if (compact) {
+    return (
+      <div className={`space-y-1.5 ${className}`}>
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileInputChange}
+          accept="image/jpeg,image/png,image/webp"
+          className="hidden"
+        />
+        <div className="flex items-center gap-2">
+          <Button
             type="button"
-            onClick={() => setShowUrlInput(!showUrlInput)}
-            className="text-[11px] text-[#B66F72] dark:text-primary hover:underline flex items-center gap-1"
+            variant="outline"
+            size="sm"
+            disabled={isUploading}
+            onClick={() => fileInputRef.current?.click()}
+            className="h-8 px-2.5 text-xs border-[#E6D8D0] dark:border-border shrink-0 hover:bg-[#F1E6DF] dark:hover:bg-muted"
           >
-            <LinkIcon className="h-3 w-3" />
-            <span>{showUrlInput ? "Upload File" : "Paste URL"}</span>
-          </button>
+            {isUploading ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin mr-1 text-[#B66F72]" />
+                <span>{uploadProgress}%</span>
+              </>
+            ) : (
+              <>
+                <Upload className="h-3.5 w-3.5 mr-1 text-[#B66F72]" />
+                <span>Upload</span>
+              </>
+            )}
+          </Button>
+          <Input
+            type="text"
+            placeholder={placeholder}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            className="h-8 text-xs border-[#E6D8D0] dark:border-border flex-1"
+          />
+          {value.trim() && (
+            <div className="flex items-center gap-1 shrink-0">
+              <img
+                src={getAssetUrl(value.trim())}
+                alt="Preview"
+                className="w-8 h-8 rounded-md object-cover border border-[#E6D8D0] bg-white shrink-0"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = "/placeholders/placeholder.png";
+                }}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => onChange("")}
+                className="h-8 w-7 p-0 text-muted-foreground hover:text-rose-600"
+                title="Remove image"
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          )}
+        </div>
+        {uploadError && (
+          <p className="text-[11px] text-rose-600 flex items-center gap-1">
+            <AlertCircle className="h-3 w-3" />
+            {uploadError}
+          </p>
         )}
       </div>
+    );
+  }
+
+  return (
+    <div className={`space-y-2 ${className}`}>
+      {label && (
+        <div className="flex items-center justify-between">
+          <Label className="text-xs sm:text-sm font-medium text-[#342824] dark:text-foreground">
+            {label} {required && <span className="text-[#B66F72]">*</span>}
+          </Label>
+          {!value && (
+            <button
+              type="button"
+              onClick={() => setShowUrlInput(!showUrlInput)}
+              className="text-[11px] text-[#B66F72] dark:text-primary hover:underline flex items-center gap-1"
+            >
+              <LinkIcon className="h-3 w-3" />
+              <span>{showUrlInput ? "Upload File" : "Paste URL"}</span>
+            </button>
+          )}
+        </div>
+      )}
 
       <input
         type="file"

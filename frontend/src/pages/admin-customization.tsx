@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 import AdminNav from '@/components/AdminNav';
 import { SEO } from '@/components/SEO';
+import ImageUploadField from '@/components/ImageUploadField';
 import { Settings, Plus, Pencil, Trash2, Sparkles, Type, Hash, Palette, List, LayoutList, ImageIcon, ImageOff, X, Check } from 'lucide-react';
 
 interface CustomizationField {
@@ -684,29 +685,22 @@ function FieldForm({
                   {/* Inline Image Edit / Replace input */}
                   {isEditingThisImage && (
                     <div className="pt-2 border-t border-[#E6D8D0]/60 dark:border-border/60 flex items-center gap-2">
-                      <Input
-                        value={tempImageUrl}
-                        onChange={(e) => setTempImageUrl(e.target.value)}
-                        placeholder="Image URL (e.g., /assets/... or https://...)"
-                        className={`text-xs h-7 flex-1 ${inputCls}`}
-                      />
-                      {tempImageUrl.trim() && (
-                        <img
-                          src={getAssetUrl(tempImageUrl.trim())}
-                          alt="Preview"
-                          className="w-7 h-7 rounded object-cover border border-[#E6D8D0] shrink-0"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = '/logo.png';
-                          }}
+                      <div className="flex-1">
+                        <ImageUploadField
+                          compact
+                          value={tempImageUrl}
+                          onChange={(url) => setTempImageUrl(url)}
+                          placeholder="Image URL or upload"
                         />
-                      )}
+                      </div>
                       <Button
                         type="button"
                         size="sm"
                         onClick={() => handleSaveOptionImage(index)}
-                        className="h-7 px-2 text-xs bg-[#B66F72] text-white hover:bg-[#95565A]"
+                        className="h-8 px-2.5 text-xs bg-[#B66F72] text-white hover:bg-[#95565A]"
+                        title="Save image"
                       >
-                        <Check className="h-3 w-3" />
+                        <Check className="h-3.5 w-3.5" />
                       </Button>
                       <Button
                         type="button"
@@ -716,9 +710,10 @@ function FieldForm({
                           setEditingImageIdx(null);
                           setTempImageUrl('');
                         }}
-                        className="h-7 px-2 text-xs"
+                        className="h-8 px-2 text-xs"
+                        title="Cancel"
                       >
-                        <X className="h-3 w-3" />
+                        <X className="h-3.5 w-3.5" />
                       </Button>
                     </div>
                   )}
@@ -766,37 +761,13 @@ function FieldForm({
             </div>
 
             {/* Optional Option Image for Color */}
-            <div className="flex items-center gap-2 pt-1">
-              <div className="flex-1">
-                <Input
-                  placeholder="Optional Swatch/Bead Image URL (e.g., /assets/... or https://...)"
-                  value={colorImageUrl}
-                  onChange={(e) => setColorImageUrl(e.target.value)}
-                  className={inputCls}
-                />
-              </div>
-              {colorImageUrl.trim() ? (
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <img
-                    src={getAssetUrl(colorImageUrl.trim())}
-                    alt="Preview"
-                    className="w-9 h-9 rounded-md object-cover border border-[#E6D8D0] bg-white"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = '/logo.png';
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setColorImageUrl('')}
-                    className="h-8 px-1.5 text-xs text-[#756861]"
-                    title="Clear image"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              ) : null}
+            <div className="pt-1">
+              <ImageUploadField
+                compact
+                value={colorImageUrl}
+                onChange={(url) => setColorImageUrl(url)}
+                placeholder="Optional Swatch/Bead Image (or paste URL)"
+              />
             </div>
 
             <Button onClick={handleAddColorOption} variant="outline" size="sm" className="w-full border-[#E6D8D0] dark:border-border hover:bg-[#F1E6DF] dark:hover:bg-muted">
@@ -911,29 +882,22 @@ function FieldForm({
                   {/* Inline Image Edit / Replace input */}
                   {isEditingThisImage && (
                     <div className="pt-2 border-t border-[#E6D8D0]/60 dark:border-border/60 flex items-center gap-2">
-                      <Input
-                        value={tempImageUrl}
-                        onChange={(e) => setTempImageUrl(e.target.value)}
-                        placeholder="Image URL (e.g., /assets/... or https://...)"
-                        className={`text-xs h-7 flex-1 ${inputCls}`}
-                      />
-                      {tempImageUrl.trim() && (
-                        <img
-                          src={getAssetUrl(tempImageUrl.trim())}
-                          alt="Preview"
-                          className="w-7 h-7 rounded object-cover border border-[#E6D8D0] shrink-0"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = '/logo.png';
-                          }}
+                      <div className="flex-1">
+                        <ImageUploadField
+                          compact
+                          value={tempImageUrl}
+                          onChange={(url) => setTempImageUrl(url)}
+                          placeholder="Image URL or upload"
                         />
-                      )}
+                      </div>
                       <Button
                         type="button"
                         size="sm"
                         onClick={() => handleSaveOptionImage(index)}
-                        className="h-7 px-2 text-xs bg-[#B66F72] text-white hover:bg-[#95565A]"
+                        className="h-8 px-2.5 text-xs bg-[#B66F72] text-white hover:bg-[#95565A]"
+                        title="Save image"
                       >
-                        <Check className="h-3 w-3" />
+                        <Check className="h-3.5 w-3.5" />
                       </Button>
                       <Button
                         type="button"
@@ -943,9 +907,10 @@ function FieldForm({
                           setEditingImageIdx(null);
                           setTempImageUrl('');
                         }}
-                        className="h-7 px-2 text-xs"
+                        className="h-8 px-2 text-xs"
+                        title="Cancel"
                       >
-                        <X className="h-3 w-3" />
+                        <X className="h-3.5 w-3.5" />
                       </Button>
                     </div>
                   )}
@@ -979,38 +944,14 @@ function FieldForm({
               />
             </div>
 
-            {/* Optional Image URL for Select / Multiselect Option */}
-            <div className="flex items-center gap-2 pt-1">
-              <div className="flex-1">
-                <Input
-                  placeholder="Optional Option Image URL (e.g., /assets/... or https://...)"
-                  value={newOption.imageUrl}
-                  onChange={(e) => setNewOption({ ...newOption, imageUrl: e.target.value })}
-                  className={inputCls}
-                />
-              </div>
-              {newOption.imageUrl.trim() ? (
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <img
-                    src={getAssetUrl(newOption.imageUrl.trim())}
-                    alt="Preview"
-                    className="w-9 h-9 rounded-md object-cover border border-[#E6D8D0] bg-white"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = '/logo.png';
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setNewOption({ ...newOption, imageUrl: '' })}
-                    className="h-8 px-1.5 text-xs text-[#756861]"
-                    title="Clear image"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              ) : null}
+            {/* Optional Image for Select / Multiselect Option */}
+            <div className="pt-1">
+              <ImageUploadField
+                compact
+                value={newOption.imageUrl}
+                onChange={(url) => setNewOption({ ...newOption, imageUrl: url })}
+                placeholder="Optional Option Image (or paste URL)"
+              />
             </div>
 
             <Button onClick={handleAddOption} variant="outline" size="sm" className="w-full border-[#E6D8D0] dark:border-border hover:bg-[#F1E6DF] dark:hover:bg-muted">
