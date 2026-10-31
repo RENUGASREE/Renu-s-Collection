@@ -2,7 +2,8 @@ import { useMemo } from "react";
 import { estimateFit, type FitResult } from "@/lib/studio/fitEngine";
 import type { BraceletDesign } from "@/lib/studio/designState";
 import type { DesignRule } from "@/lib/studio/studioApi";
-import { Ruler, AlertCircle, CheckCircle2, AlertTriangle, HelpCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Ruler, AlertCircle, CheckCircle2, AlertTriangle, HelpCircle, Sparkles } from "lucide-react";
 
 // ============================================================================
 // STATUS DISPLAY CONFIG
@@ -92,12 +93,14 @@ interface FitIndicatorProps {
   design: BraceletDesign;
   designRule: DesignRule | null;
   onWristChange: (mm: number) => void;
+  onAutoFit?: () => void;
 }
 
 export default function FitIndicator({
   design,
   designRule,
   onWristChange,
+  onAutoFit,
 }: FitIndicatorProps) {
   const result = useMemo(
     () => estimateFit(design.beadSequence, design.wristMm, designRule),
@@ -161,6 +164,24 @@ export default function FitIndicator({
             target={result.targetPathMm}
             barCls={barCls}
           />
+        )}
+
+        {onAutoFit && result.status !== "within_limits" && design.beadSequence.length > 0 && (
+          <div className="pt-2">
+            <Button
+              size="sm"
+              onClick={onAutoFit}
+              className="w-full h-8 text-xs bg-[#B66F72] hover:bg-[#95565A] text-white rounded-xl flex items-center justify-center gap-1.5 shadow-sm"
+              title="Calibrate bead count to fit your wrist size"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>
+                {result.estimatedPathMm && result.targetPathMm && result.estimatedPathMm < result.targetPathMm
+                  ? `Fit to Wrist (+${Math.max(1, Math.round((result.targetPathMm - result.estimatedPathMm) / (result.estimatedPathMm / design.beadSequence.length || 8)))} beads)`
+                  : "Auto-Fit Beads to Circle"}
+              </span>
+            </Button>
+          </div>
         )}
       </div>
 

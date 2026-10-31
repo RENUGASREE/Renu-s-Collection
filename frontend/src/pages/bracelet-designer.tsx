@@ -396,12 +396,31 @@ export default function BraceletDesigner() {
             materialId: found.material.id || (found.material as any)._id,
             variantSku: found.variant.sku,
             materialType: found.material.materialType,
-            diameterMm: found.variant.dimensionsMm?.diameterMm ?? b.diameterMm ?? 8,
+            diameterMm: found.variant.dimensionsMm?.diameterMm || b.diameterMm || 8,
             renderAssetUrl: found.material.renderAssetUrl,
             imageUrl: found.material.imageUrl || b.imageUrl,
             color: found.variant.color,
             displayName: found.material.name,
           });
+        }
+      }
+
+      // Automatically calibrate bead sequence to fit target wrist circumference according to bead size
+      const targetPathMm = (suggestion.wristMm || design.wristMm || 160) + 10;
+      let currentLen = resolvedBeads.reduce((s, b) => s + (b.diameterMm || 8), 0);
+      const avgDiam = currentLen / (resolvedBeads.length || 1) || 8;
+
+      if (resolvedBeads.length > 0 && currentLen < targetPathMm - avgDiam / 2) {
+        const pattern = [...resolvedBeads];
+        let pIdx = 0;
+        while (currentLen + (pattern[pIdx % pattern.length].diameterMm || 8) <= targetPathMm + avgDiam / 2 && resolvedBeads.length < 45) {
+          const tBead = pattern[pIdx % pattern.length];
+          resolvedBeads.push({
+            ...tBead,
+            instanceId: crypto.randomUUID(),
+          });
+          currentLen += tBead.diameterMm || 8;
+          pIdx++;
         }
       }
 
@@ -578,6 +597,53 @@ export default function BraceletDesigner() {
     setDraftWarning(null);
     toast({ title: "Design reset", description: "Canvas cleared." });
   }, [design.wristMm, toast]);
+
+  const handleAutoFitToWrist = useCallback(() => {
+    if (design.beadSequence.length === 0) return;
+    const targetPathMm = (design.wristMm || 160) + (designRule?.fitAllowanceMm ?? 10);
+    const diams = design.beadSequence.map((b) => (b.diameterMm > 0 ? b.diameterMm : 8));
+    let currentLength = diams.reduce((s, d) => s + d, 0);
+    const avgDiam = currentLength / diams.length || 8;
+    const maxBeads = designRule?.maxComponents ?? 45;
+    const minBeads = designRule?.minComponents ?? 12;
+
+    let newSequence = [...design.beadSequence];
+
+    if (currentLength < targetPathMm - avgDiam / 2) {
+      const pattern = [...design.beadSequence];
+      let idx = 0;
+      while (
+        currentLength + (pattern[idx % pattern.length].diameterMm || 8) <= targetPathMm + avgDiam / 2 &&
+        newSequence.length < maxBeads
+      ) {
+        const templateBead = pattern[idx % pattern.length];
+        newSequence.push({
+          ...templateBead,
+          instanceId: crypto.randomUUID(),
+        });
+        currentLength += templateBead.diameterMm || 8;
+        idx++;
+      }
+    } else if (currentLength > targetPathMm + avgDiam / 2 && newSequence.length > minBeads) {
+      while (
+        newSequence.length > minBeads &&
+        currentLength - (newSequence[newSequence.length - 1].diameterMm || 8) >= targetPathMm - avgDiam / 2
+      ) {
+        const removed = newSequence.pop();
+        if (removed) currentLength -= removed.diameterMm || 8;
+      }
+    }
+
+    const updatedDesign: BraceletDesign = {
+      ...design,
+      beadSequence: newSequence,
+    };
+    setHistory((h) => pushHistory(h, updatedDesign));
+    toast({
+      title: "Beads Calibrated to Wrist Size",
+      description: `Arranged ${newSequence.length} beads (${currentLength}mm) for a ${design.wristMm}mm wrist (target ${targetPathMm}mm).`,
+    });
+  }, [design, designRule, toast]);
 
   const handleUndo = useCallback(() => setHistory(undoHistory), []);
   const handleRedo = useCallback(() => setHistory(redoHistory), []);
@@ -855,6 +921,7 @@ export default function BraceletDesigner() {
                   design={design}
                   designRule={designRule}
                   onWristChange={handleWristChange}
+                  onAutoFit={handleAutoFitToWrist}
                 />
                 <PricePanel design={design} onQuoteChange={setLatestQuote} />
                 <AddToCartPanel

@@ -108,7 +108,7 @@ function computeRingLayout(beads: BeadPlacement[]): {
     return {
       cx: CX + ringRadiusPx * Math.cos(centerAngle),
       cy: CY + ringRadiusPx * Math.sin(centerAngle),
-      rpx: (d / 2) * scale,
+      rpx: (d / 2) * scale * 1.04, // Snugness factor so adjacent circular beads touch seamlessly with zero gap
       angle: centerAngle,
       instanceId: beads[i].instanceId,
     };
@@ -176,6 +176,12 @@ function BeadImage({
   src: string; instanceId: string; isSelected: boolean;
 }) {
   const clipId = `clip-${instanceId}`;
+  // Enlarge image slightly (1.20x) inside clip circle to compensate for whitespace padding
+  // around raw photographed bead spheres, ensuring adjacent beads touch snugly with no gaps.
+  const imgScale = 1.20;
+  const imgSize = rpx * 2 * imgScale;
+  const imgOffset = rpx * imgScale;
+
   return (
     <g>
       <defs>
@@ -185,10 +191,10 @@ function BeadImage({
       </defs>
       <image
         href={src}
-        x={cx - rpx}
-        y={cy - rpx}
-        width={rpx * 2}
-        height={rpx * 2}
+        x={cx - imgOffset}
+        y={cy - imgOffset}
+        width={imgSize}
+        height={imgSize}
         clipPath={`url(#${clipId})`}
         preserveAspectRatio="xMidYMid slice"
       />

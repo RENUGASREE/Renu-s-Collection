@@ -678,25 +678,46 @@ async function validateAndPriceSuggestions(
       }
     }
 
-    if (validatedBeads.length < minBeads) {
-      // Top up with valid primary bead to satisfy design rule
-      const fallback = beads[0];
-      while (validatedBeads.length < minBeads && fallback) {
-        validatedBeads.push({
-          variantSku: fallback.sku,
-          materialId: fallback.material._id.toString(),
-          displayName: fallback.name,
-          diameterMm: fallback.diameterMm,
-          color: fallback.color,
-          imageUrl: fallback.imageUrl,
-          renderAssetUrl: fallback.renderAssetUrl,
-        });
-        estimatedLength += fallback.diameterMm;
-      }
-    }
+    // 1b. Automatically calibrate bead count so the sequence precisely fits the target wrist circumference
+    if (validatedBeads.length > 0) {
+      const avgBeadDiam = estimatedLength / validatedBeads.length || 8;
+      const patternToRepeat = [...validatedBeads];
+      let pIdx = 0;
 
-    if (validatedBeads.length > maxBeads) {
-      validatedBeads.splice(maxBeads);
+      // Expand sequence by repeating the pattern if short of target circumference
+      while (
+        estimatedLength + (patternToRepeat[pIdx % patternToRepeat.length].diameterMm || 8) <=
+          targetCircumference + avgBeadDiam / 2 &&
+        validatedBeads.length < maxBeads
+      ) {
+        const nextBead = patternToRepeat[pIdx % patternToRepeat.length];
+        validatedBeads.push({ ...nextBead });
+        estimatedLength += nextBead.diameterMm || 8;
+        pIdx++;
+      }
+
+      // Also ensure minBeads is met
+      while (validatedBeads.length < minBeads && patternToRepeat.length > 0) {
+        const nextBead = patternToRepeat[pIdx % patternToRepeat.length];
+        validatedBeads.push({ ...nextBead });
+        estimatedLength += nextBead.diameterMm || 8;
+        pIdx++;
+      }
+
+      // Trim if it exceeds target circumference and is safely above minBeads
+      while (
+        validatedBeads.length > minBeads &&
+        estimatedLength - (validatedBeads[validatedBeads.length - 1]?.diameterMm || 8) >=
+          targetCircumference - avgBeadDiam / 2 &&
+        estimatedLength > targetCircumference + avgBeadDiam / 2
+      ) {
+        const popped = validatedBeads.pop();
+        if (popped) estimatedLength -= popped.diameterMm || 8;
+      }
+
+      if (validatedBeads.length > maxBeads) {
+        validatedBeads.splice(maxBeads);
+      }
     }
 
     // 2. Validate charms
