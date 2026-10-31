@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { getAssetUrl } from "@/lib/queryClient";
 import {
   Bookmark,
   Sparkles,
@@ -240,7 +241,7 @@ export default function MyDesignsPage() {
                             >
                               {b.imageUrl ? (
                                 <img
-                                  src={b.imageUrl}
+                                  src={getAssetUrl(b.imageUrl)}
                                   alt={b.displayName}
                                   className="w-full h-full object-cover"
                                 />

@@ -1,9 +1,17 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
-export const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || "http://localhost:8000";
+const rawApiUrl = (import.meta as any).env?.VITE_API_BASE_URL || "http://localhost:8000";
+// Normalize if the frontend static site host (renu-s-collection-6lui) was mistakenly configured as the API base
+export const API_BASE_URL = rawApiUrl.replace("renu-s-collection-6lui.onrender.com", "renu-s-collection.onrender.com");
 
 export function getAssetUrl(path: string | null | undefined): string {
   if (!path) return `${(import.meta as any).env?.BASE_URL || "/"}placeholders/placeholder.png`;
+  
+  // If an existing stored path already had the frontend static host baked in with -6lui:
+  if (path.includes("renu-s-collection-6lui.onrender.com/api/")) {
+    return path.replace("renu-s-collection-6lui.onrender.com", "renu-s-collection.onrender.com");
+  }
+
   if (path.startsWith("http://") || path.startsWith("https://")) return path;
 
   // If the path points to an API route (e.g. /api/v1/products/images/:id or api/v1/...),

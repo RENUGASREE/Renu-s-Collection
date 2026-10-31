@@ -5,7 +5,7 @@ import Footer from "@/components/footer";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, getAssetUrl } from "@/lib/queryClient";
 import {
   fetchJewelleryTypesReadiness,
   type JewelleryTypeReadiness,
@@ -287,8 +287,9 @@ export default function CreateYourOwnLanding() {
               }`}
             >
               {types.map((type) => {
-                const img =
-                  type.imageUrl || TYPE_IMAGES[type.slug] || TYPE_IMAGES.bracelet;
+                const img = getAssetUrl(
+                  type.imageUrl || TYPE_IMAGES[type.slug] || TYPE_IMAGES.bracelet
+                );
                 const isAvailable = type.designerStatus === "available" && type.isFullyReady;
                 const route = TYPE_ROUTES[type.slug];
 
@@ -302,6 +303,10 @@ export default function CreateYourOwnLanding() {
                         src={img}
                         alt={type.displayName}
                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src =
+                            TYPE_IMAGES[type.slug] || TYPE_IMAGES.bracelet;
+                        }}
                       />
                       <div className="absolute top-3 right-3 flex flex-col items-end gap-1">
                         {isAvailable ? (

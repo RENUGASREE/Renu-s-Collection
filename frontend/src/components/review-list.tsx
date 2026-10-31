@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { StarRating } from './star-rating';
-import { apiRequest } from '@/lib/queryClient';
+import { apiRequest, getAssetUrl } from '@/lib/queryClient';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { CheckCircle, ThumbsUp, Trash2, Image as ImageIcon, Video, ZoomIn } from 'lucide-react';
@@ -167,7 +167,7 @@ export function ReviewList({ productId, refreshTrigger }: ReviewListProps) {
                   <div key={index} className="relative group overflow-hidden rounded-lg border border-border/50 shadow-sm bg-muted/20">
                     {image.match(/\.(mp4|webm|ogg)$/i) ? (
                       <video
-                        src={image}
+                        src={getAssetUrl(image)}
                         controls
                         className="w-20 h-20 object-cover"
                       />
@@ -175,11 +175,11 @@ export function ReviewList({ productId, refreshTrigger }: ReviewListProps) {
                       <button
                         type="button"
                         className="relative w-20 h-20 block cursor-pointer overflow-hidden focus:outline-none focus:ring-2 focus:ring-primary/40 rounded-lg text-left"
-                        onClick={() => setActiveLightboxImage(image)}
+                        onClick={() => setActiveLightboxImage(getAssetUrl(image))}
                         title="Click to view enlarged image"
                       >
                         <img
-                          src={image}
+                          src={getAssetUrl(image)}
                           alt={`Review media ${index + 1}`}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         />

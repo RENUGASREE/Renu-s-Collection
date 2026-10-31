@@ -3,7 +3,7 @@ import Footer from "@/components/footer";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
-import { apiRequest, formatApiErrorMessage } from "@/lib/queryClient";
+import { apiRequest, formatApiErrorMessage, getAssetUrl } from "@/lib/queryClient";
 import { SEO } from "@/components/SEO";
 import { useToast } from "@/hooks/use-toast";
 import AdminNav from "@/components/AdminNav";
@@ -376,7 +376,7 @@ export default function AdminReviews() {
                         {r.images.map((img, iIdx) => (
                           <img 
                             key={iIdx} 
-                            src={img} 
+                            src={getAssetUrl(img)} 
                             alt="Review attachment" 
                             className="w-14 h-14 object-cover rounded-lg border border-[#E6D8D0] dark:border-border"
                           />

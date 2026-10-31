@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { apiRequest } from '@/lib/queryClient';
+import { apiRequest, getAssetUrl } from '@/lib/queryClient';
 import { StarRating } from './star-rating';
 import { Upload, X, CheckCircle2 } from 'lucide-react';
 
@@ -387,7 +387,7 @@ export function ReviewForm({ productId, onSuccess, onCancel }: ReviewFormProps) 
                 {images.map((image, index) => (
                   <div key={index} className="relative group overflow-hidden rounded-lg border border-border/50 shadow-sm">
                     <img
-                      src={image}
+                      src={getAssetUrl(image)}
                       alt={`Review preview ${index + 1}`}
                       className="w-20 h-20 object-cover"
                     />
