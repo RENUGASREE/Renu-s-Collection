@@ -2590,9 +2590,9 @@ export default function AdminStudio() {
                               return (
                                 <div
                                   key={idx}
-                                  className="w-5 h-5 rounded-full border border-black/15 shadow-xs flex-shrink-0"
+                                  className="w-5 h-5 rounded-full shadow-xs flex-shrink-0 overflow-hidden"
                                   style={{
-                                    backgroundColor: app.color,
+                                    backgroundColor: app.imageSrc ? "transparent" : app.color,
                                     backgroundImage: app.imageSrc ? `url(${app.imageSrc})` : undefined,
                                     backgroundSize: "cover",
                                   }}
@@ -3508,9 +3508,9 @@ export default function AdminStudio() {
                               title={`#${idx + 1}: ${b.displayName} (${b.variantSku})`}
                             >
                               <div
-                                className="w-6 h-6 rounded-full border border-black/20 shadow-xs flex-shrink-0 cursor-pointer"
+                                className="w-6 h-6 rounded-full shadow-xs flex-shrink-0 cursor-pointer overflow-hidden"
                                 style={{
-                                  backgroundColor: app.color,
+                                  backgroundColor: app.imageSrc ? "transparent" : app.color,
                                   backgroundImage: app.imageSrc ? `url(${app.imageSrc})` : undefined,
                                   backgroundSize: "cover",
                                 }}

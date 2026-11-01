@@ -419,20 +419,29 @@ export function AIDesignAssistantModal({
                                 title={`${b.displayName} (${b.diameterMm}mm)`}
                               >
                                 <div
-                                  className="rounded-full overflow-hidden shadow-sm flex items-center justify-center relative border border-black/15 shadow-[0_1px_2px_rgba(0,0,0,0.12)]"
+                                  className={`rounded-full overflow-hidden flex items-center justify-center relative ${
+                                    appearance.imageSrc
+                                      ? "shadow-[0_1px_2px_rgba(0,0,0,0.18)]"
+                                      : "border border-black/15 shadow-[0_1px_2px_rgba(0,0,0,0.12)]"
+                                  }`}
                                   style={{
                                     width: `${diameterPx}px`,
                                     height: `${diameterPx}px`,
-                                    backgroundColor: appearance.color,
+                                    backgroundColor: appearance.imageSrc ? "transparent" : appearance.color,
                                   }}
                                 >
                                   {appearance.imageSrc ? (
                                     <img
                                       src={appearance.imageSrc}
                                       alt={b.displayName}
-                                      className="w-full h-full object-cover rounded-full scale-125"
+                                      className="w-full h-full object-cover rounded-full scale-125 pointer-events-none select-none"
                                       loading="lazy"
                                       onError={(e) => {
+                                        const parent = e.currentTarget.parentElement;
+                                        if (parent) {
+                                          parent.style.backgroundColor = appearance.color;
+                                          parent.classList.add("border", "border-black/15");
+                                        }
                                         e.currentTarget.style.display = "none";
                                       }}
                                     />
