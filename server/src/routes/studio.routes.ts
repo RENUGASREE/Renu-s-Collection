@@ -251,7 +251,14 @@ router.get(
   "/admin/templates",
   requireAuth,
   requireAdmin,
-  studioController.listTemplates
+  studioController.listAdminTemplates
+);
+
+router.get(
+  "/admin/templates/:slug",
+  requireAuth,
+  requireAdmin,
+  studioController.getAdminTemplate
 );
 
 router.post(

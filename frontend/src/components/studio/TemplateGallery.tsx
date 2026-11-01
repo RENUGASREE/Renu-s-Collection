@@ -177,7 +177,10 @@ export function TemplateGallery({
 
     fetchDesignTemplates()
       .then((data) => {
-        if (!cancelled) setTemplates(data);
+        if (!cancelled) {
+          // Strictly display published templates only
+          setTemplates((data || []).filter((t) => t.isPublished));
+        }
       })
       .catch((err) => {
         if (!cancelled) setError(err.message || "Failed to load starter templates");

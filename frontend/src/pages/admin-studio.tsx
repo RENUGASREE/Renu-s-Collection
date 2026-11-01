@@ -2590,14 +2590,40 @@ export default function AdminStudio() {
                               return (
                                 <div
                                   key={idx}
-                                  className="w-5 h-5 rounded-full shadow-xs flex-shrink-0 overflow-hidden"
+                                  className={`w-5 h-5 rounded-full shrink-0 aspect-square flex items-center justify-center relative overflow-hidden ${
+                                    app.imageSrc
+                                      ? "shadow-[0_1px_2px_rgba(0,0,0,0.18)]"
+                                      : "border border-black/15 shadow-xs"
+                                  }`}
                                   style={{
                                     backgroundColor: app.imageSrc ? "transparent" : app.color,
-                                    backgroundImage: app.imageSrc ? `url(${app.imageSrc})` : undefined,
-                                    backgroundSize: "cover",
                                   }}
                                   title={`#${idx + 1}: ${b.displayName} (${b.variantSku})`}
-                                />
+                                >
+                                  {app.imageSrc ? (
+                                    <img
+                                      src={app.imageSrc}
+                                      alt={b.displayName}
+                                      className="w-full h-full object-cover rounded-full scale-125 pointer-events-none select-none"
+                                      loading="lazy"
+                                      onError={(e) => {
+                                        const parent = e.currentTarget.parentElement;
+                                        if (parent) {
+                                          parent.style.backgroundColor = app.color;
+                                          parent.classList.add("border", "border-black/15");
+                                        }
+                                        e.currentTarget.style.display = "none";
+                                      }}
+                                    />
+                                  ) : (
+                                    <div
+                                      className="w-full h-full rounded-full"
+                                      style={{
+                                        background: `radial-gradient(circle at 35% 30%, rgba(255,255,255,0.45), transparent 70%)`,
+                                      }}
+                                    />
+                                  )}
+                                </div>
                               );
                             })}
                           </div>
@@ -3504,21 +3530,47 @@ export default function AdminStudio() {
                           return (
                             <div
                               key={idx}
-                              className="group relative flex items-center justify-center"
+                              className="group relative flex items-center justify-center shrink-0 w-7 h-7"
                               title={`#${idx + 1}: ${b.displayName} (${b.variantSku})`}
                             >
                               <div
-                                className="w-6 h-6 rounded-full shadow-xs flex-shrink-0 cursor-pointer overflow-hidden"
+                                className={`w-7 h-7 rounded-full overflow-hidden shrink-0 aspect-square flex items-center justify-center relative cursor-pointer ${
+                                  app.imageSrc
+                                    ? "shadow-[0_1px_2px_rgba(0,0,0,0.18)]"
+                                    : "border border-black/15 shadow-xs"
+                                }`}
                                 style={{
                                   backgroundColor: app.imageSrc ? "transparent" : app.color,
-                                  backgroundImage: app.imageSrc ? `url(${app.imageSrc})` : undefined,
-                                  backgroundSize: "cover",
                                 }}
-                              />
+                              >
+                                {app.imageSrc ? (
+                                  <img
+                                    src={app.imageSrc}
+                                    alt={b.displayName}
+                                    className="w-full h-full object-cover rounded-full scale-125 pointer-events-none select-none"
+                                    loading="lazy"
+                                    onError={(e) => {
+                                      const parent = e.currentTarget.parentElement;
+                                      if (parent) {
+                                        parent.style.backgroundColor = app.color;
+                                        parent.classList.add("border", "border-black/15");
+                                      }
+                                      e.currentTarget.style.display = "none";
+                                    }}
+                                  />
+                                ) : (
+                                  <div
+                                    className="w-full h-full rounded-full"
+                                    style={{
+                                      background: `radial-gradient(circle at 35% 30%, rgba(255,255,255,0.45), transparent 70%)`,
+                                    }}
+                                  />
+                                )}
+                              </div>
                               <button
                                 type="button"
                                 onClick={() => handleRemoveBeadAt(idx)}
-                                className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-rose-600 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-[8px]"
+                                className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-600 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-bold z-10 shadow-xs hover:bg-rose-700"
                                 title="Remove bead"
                               >
                                 ×

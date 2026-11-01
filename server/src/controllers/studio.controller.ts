@@ -1074,13 +1074,27 @@ export async function deleteSavedDesign(
 // ============================================================================
 
 export async function listTemplates(
-  req: Request,
+  _req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
-    const isAdmin = req.user?.role === "admin";
-    const templates = await getDesignTemplates(!isAdmin);
+    // Studio starter templates must ALWAYS be published only, regardless of who is browsing
+    const templates = await getDesignTemplates(true);
+    res.json({ success: true, data: templates });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function listAdminTemplates(
+  _req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    // Admin management view retrieves all templates (both published and drafts)
+    const templates = await getDesignTemplates(false);
     res.json({ success: true, data: templates });
   } catch (error) {
     next(error);
@@ -1094,8 +1108,22 @@ export async function getTemplate(
 ): Promise<void> {
   try {
     const { slug } = req.params;
-    const isAdmin = req.user?.role === "admin";
-    const template = await getDesignTemplateBySlug(slug, isAdmin);
+    // Public endpoint strictly requires published status
+    const template = await getDesignTemplateBySlug(slug, false);
+    res.json({ success: true, data: template });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getAdminTemplate(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { slug } = req.params;
+    const template = await getDesignTemplateBySlug(slug, true);
     res.json({ success: true, data: template });
   } catch (error) {
     next(error);
