@@ -2561,6 +2561,16 @@ export default function AdminStudio() {
                           </div>
                         </div>
 
+                        {tpl.thumbnailUrl && (
+                          <div className="w-full h-32 rounded-xl overflow-hidden bg-stone-100 dark:bg-muted mb-3 border border-[#E6D8D0]/60 relative">
+                            <img
+                              src={getAssetUrl(tpl.thumbnailUrl.trim())}
+                              alt={tpl.name}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        )}
+
                         {tpl.description && (
                           <p className="text-xs text-[#756861] dark:text-muted-foreground mb-3 line-clamp-2">
                             {tpl.description}

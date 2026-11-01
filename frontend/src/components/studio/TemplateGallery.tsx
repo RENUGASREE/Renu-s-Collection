@@ -20,6 +20,7 @@ import {
   DesignTemplate,
 } from "@/lib/studio/studioApi";
 import { getBeadAppearance } from "@/lib/studio/appearance";
+import { getAssetUrl } from "@/lib/queryClient";
 
 interface TemplateGalleryProps {
   open: boolean;
@@ -31,11 +32,15 @@ function TemplateCardVisual({ template }: { template: DesignTemplate }) {
   const [imgFailed, setImgFailed] = useState(false);
   const beadCount = template.beadSequence?.length || 0;
 
+  useEffect(() => {
+    setImgFailed(false);
+  }, [template.thumbnailUrl]);
+
   if (template.thumbnailUrl && !imgFailed) {
     return (
       <div className="w-full h-36 rounded-xl overflow-hidden bg-stone-100 dark:bg-muted mb-3 relative group border border-[#E6D8D0]/60 dark:border-border">
         <img
-          src={template.thumbnailUrl}
+          src={getAssetUrl(template.thumbnailUrl.trim())}
           alt={template.name}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           onError={() => setImgFailed(true)}
