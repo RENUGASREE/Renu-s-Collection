@@ -115,7 +115,12 @@ export const upsertMakingChargeSchema = z.object({
         name: z.string().min(1).max(100).trim(),
         fee: z.number().min(0),
         isOptional: z.boolean().default(true),
-        description: z.string().max(500).optional(),
+        description: z
+          .string()
+          .max(500)
+          .optional()
+          .nullable()
+          .transform((v) => (v ? v.trim() : undefined)),
       })
     )
     .optional()

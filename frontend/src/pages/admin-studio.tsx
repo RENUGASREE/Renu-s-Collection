@@ -980,13 +980,40 @@ export default function AdminStudio() {
 
   const handleSaveMakingCharge = async () => {
     if (!currentMakingCharge) return;
+
+    for (let i = 0; i < currentMakingCharge.serviceCharges.length; i++) {
+      const sc = currentMakingCharge.serviceCharges[i];
+      if (!sc.name || !sc.name.trim()) {
+        toast({
+          title: "Validation Error",
+          description: `Finishing service #${i + 1} must have a title/name.`,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     try {
+      const payload = {
+        ...currentMakingCharge,
+        baseFee: Math.max(0, Number(currentMakingCharge.baseFee) || 0),
+        serviceCharges: currentMakingCharge.serviceCharges.map((sc) => ({
+          name: sc.name.trim(),
+          fee: Math.max(0, Number(sc.fee) || 0),
+          isOptional: sc.isOptional !== undefined ? sc.isOptional : true,
+          description: sc.description?.trim() || undefined,
+        })),
+      };
+
       const res = await apiRequest(
         "PUT",
         `/api/v1/studio/admin/making-charges/${selectedPricingType}/${selectedPricingConstruction}`,
-        currentMakingCharge
+        payload
       );
-      if (!res.ok) throw new Error("Save charge failed");
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.message || "Save charge failed");
+      }
       toast({
         title: "Making Charge Saved",
         description: `Craftsmanship fees for ${selectedPricingType} (${selectedPricingConstruction}) updated.`,
@@ -2188,7 +2215,12 @@ export default function AdminStudio() {
                 {/* Service Charges */}
                 <div className="space-y-3 pt-3 border-t border-[#E6D8D0]/60 dark:border-border/60">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs font-semibold">Optional Finishing / Presentation Services</Label>
+                    <div>
+                      <Label className="text-xs font-semibold">Optional Finishing / Presentation Services</Label>
+                      <p className="text-[11px] text-[#756861] dark:text-muted-foreground mt-0.5">
+                        Add or customize gift boxes, velvet pouches, engraved tags, or special packaging options.
+                      </p>
+                    </div>
                     <Button
                       type="button"
                       variant="ghost"
@@ -2196,48 +2228,90 @@ export default function AdminStudio() {
                       onClick={() => {
                         const updated = [
                           ...currentMakingCharge.serviceCharges,
-                          { name: "Custom Gift Note", fee: 25, isOptional: true, description: "Personalized calligraphed note card" },
+                          { name: "", fee: 0, isOptional: true, description: "" },
                         ];
                         setCurrentMakingCharge({ ...currentMakingCharge, serviceCharges: updated });
                       }}
-                      className="text-xs text-[#B66F72] h-7 px-2"
+                      className="text-xs text-[#B66F72] hover:text-[#95565A] hover:bg-[#B66F72]/10 h-7 px-2 shrink-0"
                     >
                       <Plus className="w-3 h-3 mr-1" /> Add Service
                     </Button>
                   </div>
 
-                  {currentMakingCharge.serviceCharges.map((sc, scIdx) => (
-                    <div key={scIdx} className="flex items-center gap-3 p-3 rounded-xl border border-[#E6D8D0] bg-[#FBF7F3] dark:bg-background/60">
-                      <div className="flex-1">
-                        <p className="font-semibold text-xs text-[#342824] dark:text-foreground">{sc.name}</p>
-                        <p className="text-[11px] text-[#756861] dark:text-muted-foreground">{sc.description}</p>
-                      </div>
-                      <div className="w-24">
-                        <Input
-                          type="number"
-                          value={sc.fee}
-                          onChange={(e) => {
-                            const updated = [...currentMakingCharge.serviceCharges];
-                            updated[scIdx].fee = Number(e.target.value);
-                            setCurrentMakingCharge({ ...currentMakingCharge, serviceCharges: updated });
-                          }}
-                          className="text-xs h-8 rounded-lg"
-                        />
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          const updated = currentMakingCharge.serviceCharges.filter((_, i) => i !== scIdx);
-                          setCurrentMakingCharge({ ...currentMakingCharge, serviceCharges: updated });
-                        }}
-                        className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
+                  {currentMakingCharge.serviceCharges.length === 0 ? (
+                    <div className="text-center py-6 border border-dashed border-[#E6D8D0] rounded-xl bg-stone-50/50 dark:bg-muted/10 text-xs text-[#756861]">
+                      No optional finishing services added yet. Click &quot;+ Add Service&quot; above to offer gift wrap, velvet pouches, or calligraphed notes.
                     </div>
-                  ))}
+                  ) : (
+                    <div className="space-y-2.5">
+                      {currentMakingCharge.serviceCharges.map((sc, scIdx) => (
+                        <div
+                          key={scIdx}
+                          className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-xl border border-[#E6D8D0] bg-[#FBF7F3] dark:bg-background/60 shadow-2xs"
+                        >
+                          <div className="flex-1 space-y-1.5">
+                            <Input
+                              type="text"
+                              value={sc.name}
+                              placeholder="Service title (e.g. Velvet Gift Box, Custom Note)"
+                              onChange={(e) => {
+                                const updated = [...currentMakingCharge.serviceCharges];
+                                updated[scIdx] = { ...updated[scIdx], name: e.target.value };
+                                setCurrentMakingCharge({ ...currentMakingCharge, serviceCharges: updated });
+                              }}
+                              className="text-xs font-semibold h-8 rounded-lg bg-white dark:bg-card"
+                            />
+                            <Input
+                              type="text"
+                              value={sc.description || ""}
+                              placeholder="Description (e.g. Luxurious satin-lined presentation packaging)"
+                              onChange={(e) => {
+                                const updated = [...currentMakingCharge.serviceCharges];
+                                updated[scIdx] = { ...updated[scIdx], description: e.target.value };
+                                setCurrentMakingCharge({ ...currentMakingCharge, serviceCharges: updated });
+                              }}
+                              className="text-[11px] h-7 rounded-lg text-[#756861] dark:text-muted-foreground bg-white dark:bg-card"
+                            />
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <div className="relative w-28">
+                              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-[#756861]">
+                                ₹
+                              </span>
+                              <Input
+                                type="number"
+                                min={0}
+                                value={sc.fee}
+                                placeholder="Fee"
+                                onChange={(e) => {
+                                  const updated = [...currentMakingCharge.serviceCharges];
+                                  updated[scIdx] = {
+                                    ...updated[scIdx],
+                                    fee: Math.max(0, Number(e.target.value) || 0),
+                                  };
+                                  setCurrentMakingCharge({ ...currentMakingCharge, serviceCharges: updated });
+                                }}
+                                className="text-xs h-8 pl-6 rounded-lg font-semibold bg-white dark:bg-card"
+                              />
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                const updated = currentMakingCharge.serviceCharges.filter((_, i) => i !== scIdx);
+                                setCurrentMakingCharge({ ...currentMakingCharge, serviceCharges: updated });
+                              }}
+                              className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg shrink-0"
+                              title="Delete service"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="pt-4 border-t border-[#E6D8D0]/60 dark:border-border/60 flex justify-end">

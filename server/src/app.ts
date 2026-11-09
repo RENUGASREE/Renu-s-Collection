@@ -30,7 +30,11 @@ export function createApp() {
       origin: (origin, callback) => {
         if (!origin) return callback(null, true);
         const normalized = origin.replace(/\/+$/, "");
-        if (allowedOrigins.includes(normalized) || allowedOrigins.includes("*")) {
+        if (
+          allowedOrigins.includes(normalized) ||
+          allowedOrigins.includes("*") ||
+          normalized.endsWith(".onrender.com")
+        ) {
           return callback(null, true);
         }
         return callback(new Error(`Origin ${origin} not allowed by CORS`));
