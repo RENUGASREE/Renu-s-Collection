@@ -22,13 +22,26 @@ router.post("/razorpay", async (req: Request, res: Response, next: NextFunction)
       return res.status(500).json({ success: false, error: "Webhook secret not configured" });
     }
 
-    const body = JSON.stringify(req.body);
+    // Use original raw request body bytes captured prior to JSON parsing
+    const rawBody: Buffer =
+      req.rawBody ||
+      (typeof req.body === "string"
+        ? Buffer.from(req.body, "utf8")
+        : Buffer.from(JSON.stringify(req.body), "utf8"));
+
     const expected = crypto
       .createHmac("sha256", webhookSecret)
-      .update(body)
+      .update(rawBody)
       .digest("hex");
 
-    if (signature !== expected) {
+    const signatureBuffer = Buffer.from(signature, "utf8");
+    const expectedBuffer = Buffer.from(expected, "utf8");
+
+    const isMatch =
+      signatureBuffer.length === expectedBuffer.length &&
+      crypto.timingSafeEqual(signatureBuffer, expectedBuffer);
+
+    if (!isMatch) {
       return res.status(401).json({ success: false, error: "Invalid signature" });
     }
 
@@ -38,15 +51,15 @@ router.post("/razorpay", async (req: Request, res: Response, next: NextFunction)
 
     switch (eventType) {
       case "payment.captured":
-        await handlePaymentCaptured(payload.payment.entity);
+        await handlePaymentCaptured(payload.payment?.entity || event.payload?.payment?.entity);
         break;
       
       case "payment.failed":
-        await handlePaymentFailed(payload.payment.entity);
+        await handlePaymentFailed(payload.payment?.entity || event.payload?.payment?.entity);
         break;
       
       case "refund.processed":
-        await handleRefundProcessed(payload.refund.entity);
+        await handleRefundProcessed(payload.refund?.entity || event.payload?.refund?.entity);
         break;
       
       default:
