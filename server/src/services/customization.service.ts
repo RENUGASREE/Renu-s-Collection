@@ -12,24 +12,135 @@ export const customizationService = {
   calculatePrice,
   validateCustomization,
   generatePreview,
+  resolveProductCustomization,
 };
 
-export async function getProductCustomization(productId: string) {
+function isCharmField(f: { key?: string; label?: string }): boolean {
+  const k = (f.key || "").toLowerCase().trim();
+  const l = (f.label || "").toLowerCase().trim();
+  return (
+    k === "charm" ||
+    k === "charms" ||
+    k === "choose_charm" ||
+    k === "chooseyourcharm" ||
+    l === "charm" ||
+    l === "charms" ||
+    l === "choose your charm" ||
+    l.includes("charm")
+  );
+}
+
+function fieldsMatch(f1: { key?: string; label?: string }, f2: { key?: string; label?: string }): boolean {
+  const k1 = (f1.key || "").toLowerCase().trim();
+  const k2 = (f2.key || "").toLowerCase().trim();
+  const l1 = (f1.label || "").toLowerCase().trim();
+  const l2 = (f2.label || "").toLowerCase().trim();
+
+  if (k1 && k2 && k1 === k2) return true;
+  if (l1 && l2 && l1 === l2) return true;
+  if (isCharmField(f1) && isCharmField(f2)) return true;
+
+  return false;
+}
+
+export function mergeCustomizationFields(
+  baseFields: ICustomizationField[],
+  categoryFields: ICustomizationField[]
+): ICustomizationField[] {
+  if (!categoryFields || categoryFields.length === 0) return baseFields || [];
+  if (!baseFields || baseFields.length === 0) return categoryFields;
+
+  const merged: ICustomizationField[] = [];
+  const handledCategoryKeys = new Set<string>();
+
+  for (const baseField of baseFields) {
+    const overridingCatField = categoryFields.find((catF) => fieldsMatch(baseField, catF));
+    if (overridingCatField) {
+      merged.push(overridingCatField);
+      handledCategoryKeys.add(overridingCatField.key);
+    } else {
+      merged.push(baseField);
+    }
+  }
+
+  for (const catField of categoryFields) {
+    if (!handledCategoryKeys.has(catField.key)) {
+      const alreadyMerged = merged.some((m) => fieldsMatch(m, catField));
+      if (!alreadyMerged) {
+        merged.push(catField);
+      }
+    }
+  }
+
+  return merged;
+}
+
+export interface ResolvedCustomizationConfig {
+  product: any;
+  category: any;
+  fields: ICustomizationField[];
+  previewLayers: any[];
+  config: any;
+}
+
+export async function resolveProductCustomization(productId: string): Promise<ResolvedCustomizationConfig> {
   const product = await Product.findById(productId).lean();
   if (!product) {
     throw new AppError("Product not found", 404);
   }
 
-  const category = await Category.findById(product.categoryId).lean();
-  const config = await CustomizationConfig.findOne({
-    $or: [
-      { categoryId: product.categoryId },
-      { productType: category?.productType }
-    ],
-    isActive: true
-  }).lean();
+  const category = product.categoryId
+    ? await Category.findById(product.categoryId).lean()
+    : null;
 
-  const fields = config?.fields?.length ? config.fields : category?.customizationFields ?? [];
+  // 1. Retrieve category-specific CustomizationConfig first
+  const categoryConfig = product.categoryId
+    ? await CustomizationConfig.findOne({
+        categoryId: product.categoryId,
+        isActive: true,
+      }).lean()
+    : null;
+
+  const categoryFields: ICustomizationField[] =
+    (categoryConfig?.fields && categoryConfig.fields.length > 0
+      ? categoryConfig.fields
+      : category?.customizationFields) || [];
+
+  // 2. Retrieve base product-type configuration separately with deterministic rule
+  let baseConfig = null;
+  if (category?.productType) {
+    const baseQuery: any = {
+      productType: category.productType,
+      isActive: true,
+    };
+    if (product.categoryId) {
+      baseQuery.categoryId = { $ne: product.categoryId };
+    }
+    // Deterministic selection: template (without categoryId) or oldest base configurator
+    baseConfig = await CustomizationConfig.findOne(baseQuery)
+      .sort({ createdAt: 1 })
+      .lean();
+  }
+
+  const baseFields: ICustomizationField[] = baseConfig?.fields || [];
+
+  // 3. Merge fields safely: category-specific linked fields take precedence,
+  // while non-conflicting base fields (Bead Colour, Bracelet Size) are preserved
+  const resolvedFields = mergeCustomizationFields(baseFields, categoryFields);
+
+  return {
+    product,
+    category,
+    fields: resolvedFields,
+    previewLayers: categoryConfig?.previewLayers?.length
+      ? categoryConfig.previewLayers
+      : baseConfig?.previewLayers || [],
+    config: categoryConfig || baseConfig,
+  };
+}
+
+export async function getProductCustomization(productId: string) {
+  const { product, fields, previewLayers } = await resolveProductCustomization(productId);
 
   // If product is not customizable, return empty customization config immediately
   if (!product.isCustomizable) {
@@ -126,27 +237,14 @@ export async function getProductCustomization(productId: string) {
     productName: product.name,
     basePrice: product.salePrice ?? product.price,
     fields: enrichedFields.sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0)),
-    previewLayers: config?.previewLayers || [],
+    previewLayers,
     isCustomizable: product.isCustomizable,
   };
 }
 
 export async function calculatePrice(productId: string, selections: Record<string, string | string[]>) {
-  const product = await Product.findById(productId).lean();
-  if (!product) {
-    throw new AppError("Product not found", 404);
-  }
+  const { product, fields } = await resolveProductCustomization(productId);
 
-  const category = await Category.findById(product.categoryId).lean();
-  const config = await CustomizationConfig.findOne({ 
-    $or: [
-      { categoryId: product.categoryId },
-      { productType: category?.productType }
-    ],
-    isActive: true 
-  }).lean();
-
-  const fields = config?.fields?.length ? config.fields : category?.customizationFields ?? [];
   const basePrice = product.salePrice && product.salePrice < product.price ? product.salePrice : product.price;
   let priceModifier = 0;
   const breakdown: { field: string; option: string; modifier: number }[] = [];
@@ -204,25 +302,12 @@ export async function calculatePrice(productId: string, selections: Record<strin
 }
 
 export async function validateCustomization(productId: string, selections: Record<string, string | string[]>) {
-  const product = await Product.findById(productId).lean();
-  if (!product) {
-    throw new AppError("Product not found", 404);
-  }
+  const { product, fields } = await resolveProductCustomization(productId);
 
   if (!product.isCustomizable) {
     throw new AppError("This product is not customizable", 400);
   }
 
-  const category = await Category.findById(product.categoryId).lean();
-  const config = await CustomizationConfig.findOne({ 
-    $or: [
-      { categoryId: product.categoryId },
-      { productType: category?.productType }
-    ],
-    isActive: true 
-  }).lean();
-
-  const fields = config?.fields?.length ? config.fields : category?.customizationFields ?? [];
   const errors: string[] = [];
   const warnings: string[] = [];
 
@@ -352,21 +437,8 @@ export async function getCustomizationOptions(productType: string) {
 }
 
 export async function generatePreview(productId: string, selections: Record<string, string | string[]>) {
-  const product = await Product.findById(productId).lean();
-  if (!product) {
-    throw new AppError("Product not found", 404);
-  }
+  const { product, fields, previewLayers } = await resolveProductCustomization(productId);
 
-  const category = await Category.findById(product.categoryId).lean();
-  const config = await CustomizationConfig.findOne({ 
-    $or: [
-      { categoryId: product.categoryId },
-      { productType: category?.productType }
-    ],
-    isActive: true 
-  }).lean();
-
-  const fields = config?.fields?.length ? config.fields : category?.customizationFields ?? [];
   const basePrice = product.salePrice ?? product.price;
   let modifier = 0;
 
@@ -391,7 +463,7 @@ export async function generatePreview(productId: string, selections: Record<stri
   return {
     previewUrl,
     totalPrice: basePrice + modifier,
-    layers: config?.previewLayers || [],
+    layers: previewLayers || [],
   };
 }
 
