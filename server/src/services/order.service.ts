@@ -626,6 +626,25 @@ export async function createOrderFromCart(
       }
       await clearCart(userId);
     } catch (codErr) {
+      if (order.deductedItemIds && order.deductedItemIds.length > 0) {
+        const regularItems = orderItems
+          .filter((i) => i.productId && i.itemType !== "custom_design")
+          .map((i) => ({ productId: i.productId!.toString(), quantity: i.quantity }));
+        for (const item of regularItems) {
+          try {
+            await adjustStock({
+              productId: item.productId,
+              quantityChange: item.quantity,
+              action: "release",
+              reason: "COD placement failed rollback",
+              orderId: order.id,
+              performedBy: userId,
+            });
+          } catch (restockErr) {
+            console.error(`[createOrderFromCart] Failed to restore stock during COD error rollback:`, restockErr);
+          }
+        }
+      }
       if (order.studioReservationId) {
         await restockStudioReservation(order._id, "COD placement failed rollback");
       }
