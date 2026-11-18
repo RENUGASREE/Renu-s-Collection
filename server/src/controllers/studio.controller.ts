@@ -326,9 +326,22 @@ export async function listMaterials(
   next: NextFunction
 ): Promise<void> {
   try {
-    const { jewelleryType, materialType, search, page = 1, limit = 50 } = req.query as any;
+    const { jewelleryType, materialType, search, page = 1, limit = 50, scope = "studio" } = req.query as any;
 
-    const query: any = { isActive: true };
+    const andClauses: any[] = [{ isActive: true }];
+
+    if (scope === "studio") {
+      // Backward compatibility: materials with "studio" scope OR legacy records where visibilityScopes is missing/empty
+      andClauses.push({
+        $or: [
+          { visibilityScopes: "studio" },
+          { visibilityScopes: { $exists: false } },
+          { visibilityScopes: { $size: 0 } },
+        ],
+      });
+    } else if (scope && scope !== "all") {
+      andClauses.push({ visibilityScopes: scope });
+    }
 
     if (jewelleryType) {
       const jTypeSlug = String(jewelleryType).toLowerCase().trim();
@@ -341,17 +354,21 @@ export async function listMaterials(
       if (!jType) {
         throw new AppError(`Jewellery category "${jewelleryType}" is currently unavailable`, 404);
       }
-      query.allowedJewelleryTypes = jTypeSlug;
+      andClauses.push({ allowedJewelleryTypes: jTypeSlug });
     }
 
     if (materialType) {
-      query.materialType = materialType;
+      andClauses.push({ materialType });
     }
 
     if (search && typeof search === "string" && search.trim()) {
       const regex = new RegExp(search.trim(), "i");
-      query.$or = [{ name: regex }, { code: regex }, { "variants.sku": regex }];
+      andClauses.push({
+        $or: [{ name: regex }, { code: regex }, { "variants.sku": regex }],
+      });
     }
+
+    const query: any = andClauses.length === 1 ? andClauses[0] : { $and: andClauses };
 
     const skip = (Number(page) - 1) * Number(limit);
     const [materials, total] = await Promise.all([
@@ -385,10 +402,13 @@ export async function listAdminMaterials(
   next: NextFunction
 ): Promise<void> {
   try {
-    const { jewelleryType, materialType, isActive, search, page = 1, limit = 50 } = req.query as any;
+    const { jewelleryType, materialType, isActive, search, page = 1, limit = 50, scope } = req.query as any;
 
     const query: any = {};
 
+    if (scope && scope !== "all") {
+      query.visibilityScopes = scope;
+    }
     if (jewelleryType) {
       query.allowedJewelleryTypes = jewelleryType;
     }
@@ -435,6 +455,7 @@ export async function listAdminMaterials(
 
     const data = materials.map((m) => {
       const doc = m.toObject ? m.toObject() : JSON.parse(JSON.stringify(m));
+      doc.visibilityScopes = doc.visibilityScopes && doc.visibilityScopes.length > 0 ? doc.visibilityScopes : ["studio"];
       doc.variants = (doc.variants || []).map((v: any) => {
         const sku = v.sku?.toUpperCase();
         const resInfo = reservationCountsBySku[sku] || { reserved: 0, committed: 0 };
@@ -599,6 +620,7 @@ export async function updateMaterial(
     if (updates.additionalImages) material.additionalImages = updates.additionalImages;
     if (updates.allowedJewelleryTypes) material.allowedJewelleryTypes = updates.allowedJewelleryTypes;
     if (updates.supportedConstructionTypes) material.supportedConstructionTypes = updates.supportedConstructionTypes;
+    if (updates.visibilityScopes) material.visibilityScopes = updates.visibilityScopes;
     if (typeof updates.isActive !== "undefined") material.isActive = updates.isActive;
     if (typeof updates.sortOrder !== "undefined") material.sortOrder = updates.sortOrder;
 

@@ -158,6 +158,11 @@ export async function getStudioReadinessReport(isAdmin: boolean = false): Promis
     const materials = await StudioMaterial.find({
       isActive: true,
       allowedJewelleryTypes: t.slug,
+      $or: [
+        { visibilityScopes: "studio" },
+        { visibilityScopes: { $exists: false } },
+        { visibilityScopes: { $size: 0 } },
+      ],
     }).lean();
 
     const eligibleCount = materials.length;
@@ -285,6 +290,7 @@ export interface PublicStudioMaterial {
   renderAssetUrl?: string;
   additionalImages: string[];
   allowedJewelleryTypes: string[];
+  visibilityScopes: string[];
   sortOrder: number;
   variants: PublicMaterialVariant[];
 }
@@ -314,6 +320,7 @@ export function toPublicMaterial(mat: IStudioMaterial): PublicStudioMaterial {
     renderAssetUrl: mat.renderAssetUrl,
     additionalImages: mat.additionalImages || [],
     allowedJewelleryTypes: mat.allowedJewelleryTypes || [],
+    visibilityScopes: mat.visibilityScopes && mat.visibilityScopes.length > 0 ? mat.visibilityScopes : ["studio"],
     sortOrder: mat.sortOrder,
     variants: activeVariants,
   };
@@ -466,6 +473,15 @@ export async function calculateDesignPrice(params: {
     if (!mat.allowedJewelleryTypes.includes(jewelleryType)) {
       throw new AppError(
         `Component "${mat.name}" (${sku}) is not eligible for use in ${jType.displayName}`,
+        400
+      );
+    }
+
+    // Verify feature visibility scope for Studio (with backward-compatible fallback)
+    const scopes = mat.visibilityScopes && mat.visibilityScopes.length > 0 ? mat.visibilityScopes : ["studio"];
+    if (!scopes.includes("studio")) {
+      throw new AppError(
+        `Component "${mat.name}" (${sku}) is not enabled for use in Create Your Own Studio`,
         400
       );
     }

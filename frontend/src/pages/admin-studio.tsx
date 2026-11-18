@@ -111,6 +111,7 @@ interface StudioMaterial {
   renderAssetUrl?: string;
   additionalImages: string[];
   allowedJewelleryTypes: string[];
+  visibilityScopes?: string[];
   isActive: boolean;
   sortOrder: number;
   variants: MaterialVariant[];
@@ -219,6 +220,7 @@ export default function AdminStudio() {
     imageUrl: "",
     renderAssetUrl: "",
     allowedJewelleryTypes: ["bracelet"],
+    visibilityScopes: ["studio"],
     isActive: true,
   });
 
@@ -1277,6 +1279,7 @@ export default function AdminStudio() {
                     imageUrl: "",
                     renderAssetUrl: "",
                     allowedJewelleryTypes: ["bracelet"],
+                    visibilityScopes: ["studio"],
                     isActive: true,
                   });
                   setShowMaterialModal(true);
@@ -1365,6 +1368,23 @@ export default function AdminStudio() {
                               </span>
                             ))}
                           </div>
+
+                          {/* Feature availability pills */}
+                          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                            <span className="text-[11px] font-medium text-[#756861]">Available in:</span>
+                            {(mat.visibilityScopes && mat.visibilityScopes.length > 0 ? mat.visibilityScopes : ["studio"]).map((s) => (
+                              <span
+                                key={s}
+                                className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                                  s === "bracelet_customization"
+                                    ? "bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800/40"
+                                    : "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800/40"
+                                }`}
+                              >
+                                {s === "studio" ? "Create Your Own Studio" : "Bracelet Customization"}
+                              </span>
+                            ))}
+                          </div>
                         </div>
                       </div>
 
@@ -1435,6 +1455,7 @@ export default function AdminStudio() {
                               imageUrl: mat.imageUrl,
                               renderAssetUrl: mat.renderAssetUrl || "",
                               allowedJewelleryTypes: mat.allowedJewelleryTypes,
+                              visibilityScopes: mat.visibilityScopes && mat.visibilityScopes.length > 0 ? mat.visibilityScopes : ["studio"],
                               isActive: mat.isActive,
                             });
                             setShowMaterialModal(true);
@@ -2869,6 +2890,57 @@ export default function AdminStudio() {
                       </label>
                     ))}
                   </div>
+                </div>
+
+                <div className="space-y-1.5 pt-2">
+                  <Label>Available in (Website Features)</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="flex items-center gap-2 p-2 rounded-lg border cursor-pointer text-xs">
+                      <input
+                        type="checkbox"
+                        checked={materialForm.visibilityScopes.includes("studio")}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setMaterialForm({
+                              ...materialForm,
+                              visibilityScopes: [...materialForm.visibilityScopes, "studio"],
+                            });
+                          } else {
+                            setMaterialForm({
+                              ...materialForm,
+                              visibilityScopes: materialForm.visibilityScopes.filter((x) => x !== "studio"),
+                            });
+                          }
+                        }}
+                        className="accent-[#B66F72]"
+                      />
+                      <span>Create Your Own Studio</span>
+                    </label>
+                    <label className="flex items-center gap-2 p-2 rounded-lg border cursor-pointer text-xs">
+                      <input
+                        type="checkbox"
+                        checked={materialForm.visibilityScopes.includes("bracelet_customization")}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setMaterialForm({
+                              ...materialForm,
+                              visibilityScopes: [...materialForm.visibilityScopes, "bracelet_customization"],
+                            });
+                          } else {
+                            setMaterialForm({
+                              ...materialForm,
+                              visibilityScopes: materialForm.visibilityScopes.filter((x) => x !== "bracelet_customization"),
+                            });
+                          }
+                        }}
+                        className="accent-[#B66F72]"
+                      />
+                      <span>Bracelet Customization</span>
+                    </label>
+                  </div>
+                  <p className="text-[11px] text-[#756861] dark:text-muted-foreground">
+                    Control which customer-facing sections can load and display this material.
+                  </p>
                 </div>
 
                 <div className="pt-2">

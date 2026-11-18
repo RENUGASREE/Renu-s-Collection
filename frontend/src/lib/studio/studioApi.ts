@@ -35,6 +35,7 @@ export interface PublicMaterial {
   renderAssetUrl?: string;
   additionalImages: string[];
   allowedJewelleryTypes: string[];
+  visibilityScopes?: string[];
   sortOrder: number;
   variants: PublicVariant[];
 }

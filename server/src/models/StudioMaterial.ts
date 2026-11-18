@@ -15,6 +15,9 @@ export const STUDIO_MATERIAL_TYPES = [
 
 export type StudioMaterialType = (typeof STUDIO_MATERIAL_TYPES)[number];
 
+export const VISIBILITY_SCOPES = ["studio", "bracelet_customization"] as const;
+export type VisibilityScope = (typeof VISIBILITY_SCOPES)[number];
+
 export const SELLING_UNITS = ["piece", "pair", "cm", "unit"] as const;
 export type SellingUnit = (typeof SELLING_UNITS)[number];
 
@@ -51,6 +54,7 @@ export interface IStudioMaterial extends Document {
   additionalImages: string[];
   allowedJewelleryTypes: string[];
   supportedConstructionTypes?: string[];
+  visibilityScopes: VisibilityScope[];
   isActive: boolean;
   sortOrder: number;
   variants: IMaterialVariant[];
@@ -162,6 +166,12 @@ const studioMaterialSchema = new Schema<IStudioMaterial>(
     supportedConstructionTypes: {
       type: [String],
       default: [],
+    },
+    visibilityScopes: {
+      type: [String],
+      enum: VISIBILITY_SCOPES,
+      default: ["studio"],
+      index: true,
     },
     isActive: {
       type: Boolean,

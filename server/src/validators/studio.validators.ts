@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { STUDIO_MATERIAL_TYPES, SELLING_UNITS } from "../models/StudioMaterial.js";
+import { STUDIO_MATERIAL_TYPES, SELLING_UNITS, VISIBILITY_SCOPES } from "../models/StudioMaterial.js";
 
 const mediaUrlSchema = z.string().min(1).max(2048).refine(
   (val) => {
@@ -49,6 +49,7 @@ export const createMaterialSchema = z.object({
   additionalImages: z.array(mediaUrlSchema).optional().default([]),
   allowedJewelleryTypes: z.array(z.string().min(1)).min(1),
   supportedConstructionTypes: z.array(z.string().min(1)).optional().default([]),
+  visibilityScopes: z.array(z.enum(VISIBILITY_SCOPES)).optional().default(["studio"]),
   isActive: z.boolean().optional().default(true),
   sortOrder: z.number().int().optional().default(0),
   variants: z.array(createVariantSchema).optional().default([]),

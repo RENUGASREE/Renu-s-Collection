@@ -8,7 +8,13 @@ export { Coupon, type ICoupon } from "./Coupon.js";
 export { CustomizationConfig, type ICustomizationConfig } from "./CustomizationConfig.js";
 export { InventoryLog, type IInventoryLog } from "./InventoryLog.js";
 export { WishlistItem, type IWishlistItem } from "./Wishlist.js";
-export { StudioMaterial, type IStudioMaterial, type IMaterialVariant } from "./StudioMaterial.js";
+export {
+  StudioMaterial,
+  type IStudioMaterial,
+  type IMaterialVariant,
+  VISIBILITY_SCOPES,
+  type VisibilityScope,
+} from "./StudioMaterial.js";
 export { JewelleryType, type IJewelleryType } from "./JewelleryType.js";
 export { DesignRule, type IDesignRule } from "./DesignRule.js";
 export { MakingCharge, type IMakingCharge } from "./MakingCharge.js";
