@@ -45,6 +45,7 @@ import {
   RefreshCw,
   Sliders,
   AlertCircle,
+  AlertTriangle,
   Eye,
   EyeOff,
   Archive,
@@ -61,6 +62,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+
+export interface ComponentTypeItem {
+  _id?: string;
+  typeId: string;
+  displayName: string;
+  description?: string;
+  displayOrder: number;
+  isActive: boolean;
+  materialCount?: number;
+}
 
 interface JewelleryType {
   slug: string;
@@ -243,9 +254,42 @@ export default function AdminStudio() {
     isActive: true,
   });
 
+  // Component Types Management State
+  const [componentTypes, setComponentTypes] = useState<ComponentTypeItem[]>([]);
+  const [loadingComponentTypes, setLoadingComponentTypes] = useState(false);
+  const [showComponentTypeModal, setShowComponentTypeModal] = useState(false);
+  const [editingComponentTypeId, setEditingComponentTypeId] = useState<string | null>(null);
+  const [editingDisplayName, setEditingDisplayName] = useState<string>("");
+  const [newTypeForm, setNewTypeForm] = useState({
+    typeId: "",
+    displayName: "",
+    description: "",
+    displayOrder: 0,
+    isActive: true,
+  });
+  const [typeBlockedDialog, setTypeBlockedDialog] = useState<{
+    typeId: string;
+    displayName: string;
+    message: string;
+    materialCount: number;
+  } | null>(null);
+
   // Confirm disable / delete variant dialogs
   const [disablingVariant, setDisablingVariant] = useState<{ materialId: string; sku: string } | null>(null);
-  const [deletingVariant, setDeletingVariant] = useState<{ materialId: string; sku: string } | null>(null);
+  const [deletingVariant, setDeletingVariant] = useState<{
+    materialId: string;
+    materialName: string;
+    sku: string;
+    variantId?: string;
+    isActive?: boolean;
+  } | null>(null);
+  const [variantBlockedDialog, setVariantBlockedDialog] = useState<{
+    materialId: string;
+    materialName: string;
+    sku: string;
+    variantId?: string;
+    message: string;
+  } | null>(null);
   const [syncVariantSkus, setSyncVariantSkus] = useState(true);
 
   // State: Live Readiness
@@ -270,11 +314,13 @@ export default function AdminStudio() {
   useEffect(() => {
     fetchJewelleryTypes(showArchivedTypes);
     fetchMaterials();
+    fetchComponentTypes();
   }, [showArchivedTypes]);
 
   useEffect(() => {
     if (activeTab === "materials") {
       fetchMaterials();
+      fetchComponentTypes();
     } else if (activeTab === "types") {
       fetchJewelleryTypes(showArchivedTypes);
     } else if (activeTab === "reservations") {
@@ -299,6 +345,21 @@ export default function AdminStudio() {
   // ==========================================================================
   // API LOADERS
   // ==========================================================================
+
+  const fetchComponentTypes = async () => {
+    try {
+      setLoadingComponentTypes(true);
+      const res = await apiRequest("GET", "/api/v1/studio/admin/component-types");
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data)) {
+        setComponentTypes(json.data);
+      }
+    } catch (err: any) {
+      console.error("Failed to load component types:", err);
+    } finally {
+      setLoadingComponentTypes(false);
+    }
+  };
 
   const fetchJewelleryTypes = async (includeArchived = showArchivedTypes) => {
     try {
@@ -912,20 +973,191 @@ export default function AdminStudio() {
 
   const handleConfirmDeleteVariant = async () => {
     if (!deletingVariant) return;
+    const targetIdentifier = deletingVariant.variantId || deletingVariant.sku;
     try {
-      const res = await apiRequest(
+      await apiRequest(
         "DELETE",
-        `/api/v1/studio/admin/materials/${deletingVariant.materialId}/variants/${encodeURIComponent(deletingVariant.sku)}`
+        `/api/v1/studio/admin/materials/${deletingVariant.materialId}/variants/${encodeURIComponent(targetIdentifier)}`
       );
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => null);
-        throw new Error(errJson?.message || "Delete variant failed");
-      }
       toast({ title: "Variant Deleted", description: `SKU ${deletingVariant.sku} was permanently removed.` });
       setDeletingVariant(null);
       fetchMaterials();
     } catch (err: any) {
-      toast({ title: "Failed to Delete SKU", description: err.message, variant: "destructive" });
+      const errMsg = err?.message || "";
+      const is409 = errMsg.includes("409") || err?.status === 409;
+      if (is409) {
+        const cleanMessage = errMsg.replace(/^\d+:\s*/, "");
+        setVariantBlockedDialog({
+          materialId: deletingVariant.materialId,
+          materialName: deletingVariant.materialName,
+          sku: deletingVariant.sku,
+          variantId: deletingVariant.variantId,
+          message:
+            cleanMessage ||
+            `Cannot permanently delete SKU "${deletingVariant.sku}" because it is referenced in orders or designs.`,
+        });
+        setDeletingVariant(null);
+        return;
+      }
+      toast({ title: "Failed to Delete SKU", description: errMsg, variant: "destructive" });
+    }
+  };
+
+  const handleDeactivateFromBlockedDialog = async () => {
+    if (!variantBlockedDialog) return;
+    const targetIdentifier = variantBlockedDialog.variantId || variantBlockedDialog.sku;
+    try {
+      await apiRequest(
+        "PATCH",
+        `/api/v1/studio/admin/materials/${variantBlockedDialog.materialId}/variants/${encodeURIComponent(targetIdentifier)}`,
+        { isActive: false }
+      );
+      toast({
+        title: "Variant Deactivated",
+        description: `SKU ${variantBlockedDialog.sku} has been deactivated and will not appear in new customer orders or studio designs.`,
+      });
+      setVariantBlockedDialog(null);
+      fetchMaterials();
+    } catch (err: any) {
+      toast({ title: "Deactivation Failed", description: err.message, variant: "destructive" });
+    }
+  };
+
+  // ==========================================================================
+  // COMPONENT TYPES ACTIONS
+  // ==========================================================================
+
+  const handleSaveComponentType = async () => {
+    try {
+      if (!newTypeForm.displayName.trim()) {
+        toast({ title: "Validation Error", description: "Display name is required.", variant: "destructive" });
+        return;
+      }
+
+      const res = await apiRequest("POST", "/api/v1/studio/admin/component-types", {
+        displayName: newTypeForm.displayName.trim(),
+        typeId: newTypeForm.typeId.trim() || undefined,
+        description: newTypeForm.description.trim() || undefined,
+        displayOrder: Number(newTypeForm.displayOrder) || 0,
+        isActive: newTypeForm.isActive,
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        throw new Error(errData?.message || "Creation failed");
+      }
+
+      toast({
+        title: "Component Type Added",
+        description: `Added "${newTypeForm.displayName}" to component types.`,
+      });
+
+      setNewTypeForm({
+        typeId: "",
+        displayName: "",
+        description: "",
+        displayOrder: 0,
+        isActive: true,
+      });
+      fetchComponentTypes();
+    } catch (err: any) {
+      toast({ title: "Failed to Add Type", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleUpdateComponentType = async (typeId: string, displayName: string) => {
+    try {
+      if (!displayName.trim()) {
+        toast({ title: "Validation Error", description: "Display name cannot be empty.", variant: "destructive" });
+        return;
+      }
+
+      const res = await apiRequest("PATCH", `/api/v1/studio/admin/component-types/${typeId}`, {
+        displayName: displayName.trim(),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        throw new Error(errData?.message || "Update failed");
+      }
+
+      toast({ title: "Display Name Updated", description: `Updated display name to "${displayName}".` });
+      setEditingComponentTypeId(null);
+      fetchComponentTypes();
+    } catch (err: any) {
+      toast({ title: "Update Failed", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleToggleComponentTypeActive = async (type: ComponentTypeItem) => {
+    try {
+      const res = await apiRequest("PATCH", `/api/v1/studio/admin/component-types/${type.typeId}`, {
+        isActive: !type.isActive,
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        throw new Error(errData?.message || "Status update failed");
+      }
+
+      toast({
+        title: type.isActive ? "Type Deactivated" : "Type Activated",
+        description: `${type.displayName} is now ${type.isActive ? "inactive (hidden from new materials)" : "active"}.`,
+      });
+      fetchComponentTypes();
+    } catch (err: any) {
+      toast({ title: "Update Failed", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleDeleteComponentType = async (type: ComponentTypeItem) => {
+    try {
+      const res = await apiRequest("DELETE", `/api/v1/studio/admin/component-types/${type.typeId}`);
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        if (res.status === 409) {
+          setTypeBlockedDialog({
+            typeId: type.typeId,
+            displayName: type.displayName,
+            message: json?.message || `Cannot delete "${type.displayName}" because it is currently used by materials.`,
+            materialCount: json?.materialCount || type.materialCount || 1,
+          });
+          return;
+        }
+        throw new Error(json?.message || "Delete failed");
+      }
+
+      toast({
+        title: "Component Type Removed",
+        description: `"${type.displayName}" has been permanently removed.`,
+      });
+      fetchComponentTypes();
+    } catch (err: any) {
+      toast({ title: "Failed to Remove Type", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleDeactivateFromTypeBlockedDialog = async () => {
+    if (!typeBlockedDialog) return;
+    try {
+      const res = await apiRequest("PATCH", `/api/v1/studio/admin/component-types/${typeBlockedDialog.typeId}`, {
+        isActive: false,
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        throw new Error(errData?.message || "Deactivation failed");
+      }
+
+      toast({
+        title: "Component Type Deactivated",
+        description: `"${typeBlockedDialog.displayName}" is now deactivated to protect existing material records.`,
+      });
+      setTypeBlockedDialog(null);
+      fetchComponentTypes();
+    } catch (err: any) {
+      toast({ title: "Deactivation Failed", description: err.message, variant: "destructive" });
     }
   };
 
@@ -1235,13 +1467,13 @@ export default function AdminStudio() {
                   className="h-9 px-3 text-xs rounded-xl border border-[#E6D8D0] dark:border-border bg-white dark:bg-card text-[#342824] dark:text-foreground"
                 >
                   <option value="all">All Component Types</option>
-                  <option value="bead">Beads</option>
-                  <option value="stone">Stones</option>
-                  <option value="spacer">Spacers</option>
-                  <option value="charm">Charms</option>
-                  <option value="clasp">Clasps</option>
-                  <option value="chain">Chains</option>
-                  <option value="pendant">Pendants</option>
+                  {componentTypes
+                    .filter((t) => t.isActive || filterType === t.typeId)
+                    .map((t) => (
+                      <option key={t.typeId} value={t.typeId}>
+                        {t.displayName}
+                      </option>
+                    ))}
                 </select>
 
                 <select
@@ -1268,27 +1500,42 @@ export default function AdminStudio() {
                 </select>
               </div>
 
-              <Button
-                onClick={() => {
-                  setEditingMaterial(null);
-                  setMaterialForm({
-                    name: "",
-                    code: "",
-                    description: "",
-                    materialType: "bead",
-                    imageUrl: "",
-                    renderAssetUrl: "",
-                    allowedJewelleryTypes: ["bracelet"],
-                    visibilityScopes: ["studio"],
-                    isActive: true,
-                  });
-                  setShowMaterialModal(true);
-                }}
-                className="bg-[#B66F72] hover:bg-[#95565A] text-white text-xs rounded-xl h-9 px-4 flex items-center gap-1.5 shrink-0"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Add Shared Material</span>
-              </Button>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  onClick={() => {
+                    fetchComponentTypes();
+                    setShowComponentTypeModal(true);
+                  }}
+                  variant="outline"
+                  className="text-xs rounded-xl h-9 px-3.5 border-[#E6D8D0] dark:border-border flex items-center gap-1.5 shrink-0 bg-white dark:bg-card hover:bg-stone-50"
+                  title="Configure and manage component types"
+                >
+                  <Sliders className="w-3.5 h-3.5 text-[#B99A72]" />
+                  <span>Manage Component Types</span>
+                </Button>
+
+                <Button
+                  onClick={() => {
+                    setEditingMaterial(null);
+                    setMaterialForm({
+                      name: "",
+                      code: "",
+                      description: "",
+                      materialType: componentTypes.find((t) => t.isActive)?.typeId || "bead",
+                      imageUrl: "",
+                      renderAssetUrl: "",
+                      allowedJewelleryTypes: ["bracelet"],
+                      visibilityScopes: ["studio"],
+                      isActive: true,
+                    });
+                    setShowMaterialModal(true);
+                  }}
+                  className="bg-[#B66F72] hover:bg-[#95565A] text-white text-xs rounded-xl h-9 px-4 flex items-center gap-1.5 shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Shared Material</span>
+                </Button>
+              </div>
             </div>
 
             {materialStatusFilter === "inactive" && (
@@ -1657,7 +1904,15 @@ export default function AdminStudio() {
                                       <Button
                                         size="sm"
                                         variant="ghost"
-                                        onClick={() => setDeletingVariant({ materialId: mat._id, sku: v.sku })}
+                                        onClick={() =>
+                                          setDeletingVariant({
+                                            materialId: mat._id,
+                                            materialName: mat.name,
+                                            sku: v.sku,
+                                            variantId: (v as any)._id,
+                                            isActive: v.isActive,
+                                          })
+                                        }
                                         className="h-7 w-7 p-0 text-stone-400 hover:text-rose-600 hover:bg-rose-50"
                                         title="Delete SKU Variant"
                                       >
@@ -2821,16 +3076,20 @@ export default function AdminStudio() {
                     <select
                       value={materialForm.materialType}
                       onChange={(e) => setMaterialForm({ ...materialForm, materialType: e.target.value })}
-                      className="w-full h-9 px-3 rounded-lg border border-[#E6D8D0] bg-white text-xs"
+                      className="w-full h-9 px-3 rounded-lg border border-[#E6D8D0] bg-white text-xs capitalize"
                     >
-                      <option value="bead">Bead</option>
-                      <option value="stone">Stone</option>
-                      <option value="spacer">Spacer</option>
-                      <option value="charm">Charm</option>
-                      <option value="clasp">Clasp</option>
-                      <option value="chain">Chain</option>
-                      <option value="pendant">Pendant</option>
-                      <option value="findings">Findings</option>
+                      {!componentTypes.some((t) => t.typeId === materialForm.materialType && t.isActive) && materialForm.materialType && (
+                        <option value={materialForm.materialType}>
+                          {materialForm.materialType} (Preserved / Inactive)
+                        </option>
+                      )}
+                      {componentTypes
+                        .filter((t) => t.isActive)
+                        .map((t) => (
+                          <option key={t.typeId} value={t.typeId}>
+                            {t.displayName}
+                          </option>
+                        ))}
                     </select>
                   </div>
                 </div>
@@ -3197,8 +3456,16 @@ export default function AdminStudio() {
           <AlertDialogContent className="rounded-2xl border border-[#E6D8D0] bg-white">
             <AlertDialogHeader>
               <AlertDialogTitle className="font-playfair text-lg text-rose-700">Delete SKU Variant?</AlertDialogTitle>
-              <AlertDialogDescription className="text-xs text-[#756861]">
-                Are you sure you want to permanently delete SKU variant <span className="font-mono font-bold text-stone-800">"{deletingVariant?.sku}"</span>? This will permanently remove this variant.
+              <AlertDialogDescription className="text-xs text-[#756861] space-y-2">
+                <p>
+                  Are you sure you want to permanently delete SKU variant{" "}
+                  <span className="font-mono font-bold text-stone-800">"{deletingVariant?.sku}"</span> for material{" "}
+                  <strong className="text-stone-800">{deletingVariant?.materialName}</strong>? This will permanently remove
+                  this variant if it has no historical orders or active references.
+                </p>
+                <p className="text-[11px] text-stone-500">
+                  Variants referenced in historical orders cannot be deleted and should be deactivated instead.
+                </p>
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -3212,6 +3479,288 @@ export default function AdminStudio() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* DIALOG: VARIANT DELETION BLOCKED (HISTORICAL ORDERS / REFERENCES) */}
+        <AlertDialog open={!!variantBlockedDialog} onOpenChange={(open) => !open && setVariantBlockedDialog(null)}>
+          <AlertDialogContent className="rounded-2xl border border-amber-200 bg-white">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="font-playfair text-lg text-amber-800 flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-amber-600" />
+                Permanent Deletion Unavailable
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-xs text-[#756861] space-y-3">
+                <p className="text-stone-800 font-medium">{variantBlockedDialog?.message}</p>
+                <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 text-[11px]">
+                  <strong>Safe Alternative:</strong> Deactivating SKU{" "}
+                  <span className="font-mono font-bold">"{variantBlockedDialog?.sku}"</span> prevents it from being selected
+                  in any new customer orders or Studio designs, while preserving historical order details.
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+              <AlertDialogCancel className="text-xs rounded-xl">Dismiss</AlertDialogCancel>
+              <Button
+                onClick={handleDeactivateFromBlockedDialog}
+                className="bg-amber-600 hover:bg-amber-700 text-white text-xs rounded-xl flex items-center gap-1.5"
+              >
+                <EyeOff className="w-3.5 h-3.5" />
+                <span>Deactivate Variant Instead</span>
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* DIALOG: COMPONENT TYPE DELETION BLOCKED */}
+        <AlertDialog open={!!typeBlockedDialog} onOpenChange={(open) => !open && setTypeBlockedDialog(null)}>
+          <AlertDialogContent className="rounded-2xl border border-amber-200 bg-white">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="font-playfair text-lg text-amber-800 flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-amber-600" />
+                Cannot Delete Component Type
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-xs text-[#756861] space-y-3">
+                <p className="text-stone-800">{typeBlockedDialog?.message}</p>
+                <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 text-[11px]">
+                  <strong>Recommended:</strong> Deactivate{" "}
+                  <strong>{typeBlockedDialog?.displayName}</strong> to hide it from material creation while keeping existing materials intact.
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+              <AlertDialogCancel className="text-xs rounded-xl">Close</AlertDialogCancel>
+              <Button
+                onClick={handleDeactivateFromTypeBlockedDialog}
+                className="bg-amber-600 hover:bg-amber-700 text-white text-xs rounded-xl flex items-center gap-1.5"
+              >
+                <EyeOff className="w-3.5 h-3.5" />
+                <span>Deactivate Type Instead</span>
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* MODAL: COMPONENT TYPES MANAGEMENT */}
+        {showComponentTypeModal && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <Card className="max-w-2xl w-full bg-white dark:bg-card rounded-2xl border border-[#E6D8D0] shadow-xl p-6 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between pb-4 border-b border-[#E6D8D0] dark:border-border">
+                <div>
+                  <h3 className="font-playfair text-xl font-semibold text-[#342824] dark:text-foreground">
+                    Component Types Management
+                  </h3>
+                  <p className="text-xs text-[#756861] dark:text-muted-foreground mt-0.5">
+                    Manage component categories (Bead, Stone, Charm, etc.) used across Shared Materials and Studio.
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setShowComponentTypeModal(false);
+                    setEditingComponentTypeId(null);
+                  }}
+                  className="h-8 w-8 p-0 rounded-full"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+
+              {/* Add New Component Type Form */}
+              <div className="mt-5 p-4 rounded-xl bg-[#FBF7F3] dark:bg-muted/20 border border-[#E6D8D0] dark:border-border space-y-3">
+                <span className="text-xs font-semibold text-[#756861] uppercase tracking-wider block">
+                  Add New Component Type
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Display Name (e.g. "Connector")</Label>
+                    <Input
+                      placeholder="e.g. Connector, Tassel, Wire"
+                      value={newTypeForm.displayName}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const autoId = val.toLowerCase().replace(/[^a-z0-9_-]+/g, "_").replace(/^_+|_+$/g, "");
+                        setNewTypeForm({
+                          ...newTypeForm,
+                          displayName: val,
+                          typeId: autoId,
+                        });
+                      }}
+                      className="h-9 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Internal Identifier (Immutable once saved)</Label>
+                    <Input
+                      placeholder="e.g. connector"
+                      value={newTypeForm.typeId}
+                      onChange={(e) =>
+                        setNewTypeForm({
+                          ...newTypeForm,
+                          typeId: e.target.value.toLowerCase().replace(/[^a-z0-9_-]+/g, "_"),
+                        })
+                      }
+                      className="h-9 text-xs font-mono lowercase"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <p className="text-[11px] text-[#756861]">
+                    Newly added types become available immediately in filters and material creation.
+                  </p>
+                  <Button
+                    size="sm"
+                    onClick={handleSaveComponentType}
+                    className="bg-[#B66F72] hover:bg-[#95565A] text-white text-xs h-8 px-3 rounded-lg flex items-center gap-1 shrink-0"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Type</span>
+                  </Button>
+                </div>
+              </div>
+
+              {/* Component Types List */}
+              <div className="mt-6 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-[#756861] uppercase tracking-wider">
+                    Existing Types ({componentTypes.length})
+                  </span>
+                  <span className="text-[11px] text-[#756861]">
+                    Types in use cannot be permanently deleted, but can be safely deactivated.
+                  </span>
+                </div>
+
+                {loadingComponentTypes ? (
+                  <div className="py-8 text-center text-xs text-[#756861]">Loading component types...</div>
+                ) : componentTypes.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-[#756861]">No component types found.</div>
+                ) : (
+                  <div className="border border-[#E6D8D0] dark:border-border rounded-xl overflow-hidden divide-y divide-[#E6D8D0]/60 dark:divide-border/60">
+                    {componentTypes.map((t) => (
+                      <div
+                        key={t.typeId}
+                        className={`p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs bg-white dark:bg-card hover:bg-stone-50/50 ${
+                          !t.isActive ? "opacity-60 bg-stone-50/30" : ""
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          {editingComponentTypeId === t.typeId ? (
+                            <div className="flex items-center gap-2">
+                              <Input
+                                value={editingDisplayName}
+                                onChange={(e) => setEditingDisplayName(e.target.value)}
+                                className="h-7 text-xs w-40"
+                                autoFocus
+                              />
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleUpdateComponentType(t.typeId, editingDisplayName)}
+                                className="h-7 w-7 p-0 text-emerald-700 hover:bg-emerald-50"
+                                title="Save display name"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setEditingComponentTypeId(null)}
+                                className="h-7 w-7 p-0 text-stone-400 hover:bg-stone-100"
+                                title="Cancel edit"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-[#342824] dark:text-foreground text-sm">
+                                {t.displayName}
+                              </span>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  setEditingComponentTypeId(t.typeId);
+                                  setEditingDisplayName(t.displayName);
+                                }}
+                                className="h-6 w-6 p-0 text-stone-400 hover:text-stone-700"
+                                title="Edit display name"
+                              >
+                                <Pencil className="w-3 h-3" />
+                              </Button>
+                            </div>
+                          )}
+
+                          <Badge variant="outline" className="font-mono text-[10px] lowercase text-[#B99A72] border-[#B99A72]/30">
+                            {t.typeId}
+                          </Badge>
+
+                          {(t.materialCount ?? 0) > 0 ? (
+                            <Badge variant="secondary" className="text-[10px]">
+                              {t.materialCount} {t.materialCount === 1 ? "material" : "materials"}
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[10px] text-stone-400 border-stone-200">
+                              Unused
+                            </Badge>
+                          )}
+
+                          {t.isActive ? (
+                            <Badge className="text-[10px] bg-emerald-100 text-emerald-800 border-emerald-200">
+                              Active
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[10px] text-rose-700 border-rose-300 bg-rose-50">
+                              Inactive
+                            </Badge>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-1.5 self-end sm:self-auto">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleToggleComponentTypeActive(t)}
+                            className={`h-7 px-2 text-xs flex items-center gap-1 ${
+                              t.isActive
+                                ? "text-stone-500 hover:text-amber-700 hover:bg-amber-50"
+                                : "text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50"
+                            }`}
+                            title={t.isActive ? "Deactivate type" : "Activate type"}
+                          >
+                            {t.isActive ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                            <span>{t.isActive ? "Deactivate" : "Activate"}</span>
+                          </Button>
+
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDeleteComponentType(t)}
+                            className="h-7 w-7 p-0 text-stone-400 hover:text-rose-600 hover:bg-rose-50"
+                            title="Delete type"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-6 pt-4 border-t border-[#E6D8D0] flex justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowComponentTypeModal(false)}
+                  className="rounded-xl text-xs"
+                >
+                  Done
+                </Button>
+              </div>
+            </Card>
+          </div>
+        )}
 
         {/* MODAL: ADD / EDIT JEWELLERY CATEGORY */}
         {showTypeModal && (

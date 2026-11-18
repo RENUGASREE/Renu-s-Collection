@@ -7,6 +7,8 @@ import {
   updateMaterialSchema,
   createVariantSchema,
   updateVariantSchema,
+  createComponentTypeSchema,
+  updateComponentTypeSchema,
   createJewelleryTypeSchema,
   updateJewelleryTypeSchema,
   upsertDesignRuleSchema,
@@ -29,6 +31,9 @@ const router = Router();
 
 // List published jewellery types (e.g. Bracelets available; others coming soon)
 router.get("/jewellery-types", optionalAuth, studioController.listJewelleryTypes);
+
+// List active component types (e.g. Bead, Stone, Charm, Spacer, Clasp, etc.)
+router.get("/component-types", optionalAuth, studioController.listComponentTypes);
 
 // Studio category readiness report (component availability, design rules, making charges)
 router.get("/jewellery-types/readiness", optionalAuth, studioController.getJewelleryTypesReadiness);
@@ -105,6 +110,37 @@ router.post(
 // ============================================================================
 // ADMIN MANAGEMENT ENDPOINTS (Guarded with requireAuth & requireAdmin)
 // ============================================================================
+
+// Component Types Management
+router.get(
+  "/admin/component-types",
+  requireAuth,
+  requireAdmin,
+  studioController.listComponentTypes
+);
+
+router.post(
+  "/admin/component-types",
+  requireAuth,
+  requireAdmin,
+  validateBody(createComponentTypeSchema),
+  studioController.createComponentType
+);
+
+router.patch(
+  "/admin/component-types/:typeId",
+  requireAuth,
+  requireAdmin,
+  validateBody(updateComponentTypeSchema),
+  studioController.updateComponentType
+);
+
+router.delete(
+  "/admin/component-types/:typeId",
+  requireAuth,
+  requireAdmin,
+  studioController.deleteComponentType
+);
 
 // Jewellery Types Management
 router.get(

@@ -1,6 +1,10 @@
 import { Request, Response, NextFunction } from "express";
+import { Types } from "mongoose";
 import { JewelleryType } from "../models/JewelleryType.js";
 import { StudioMaterial } from "../models/StudioMaterial.js";
+import { ComponentType, ensureDefaultComponentTypes } from "../models/ComponentType.js";
+import { Category } from "../models/Category.js";
+import { CustomizationConfig } from "../models/CustomizationConfig.js";
 import { DesignRule } from "../models/DesignRule.js";
 import { MakingCharge } from "../models/MakingCharge.js";
 import { StudioReservation } from "../models/StudioReservation.js";
@@ -29,6 +33,174 @@ import {
   reconcileStudioReservation,
 } from "../services/studio-inventory.service.js";
 import { AppError } from "../middleware/errorHandler.js";
+
+// ============================================================================
+// COMPONENT TYPES CONTROLLERS
+// ============================================================================
+
+export async function listComponentTypes(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    await ensureDefaultComponentTypes();
+    const isAdmin = req.user?.role === "admin" || req.query.admin === "true";
+    const filter: any = {};
+    if (!isAdmin && req.query.includeInactive !== "true") {
+      filter.isActive = true;
+    }
+
+    const types = await ComponentType.find(filter)
+      .sort({ displayOrder: 1, createdAt: 1 })
+      .lean();
+
+    // Attach usage count for each component type across materials
+    const usageCounts = await StudioMaterial.aggregate([
+      { $group: { _id: "$materialType", count: { $sum: 1 } } },
+    ]);
+    const usageMap = new Map<string, number>();
+    usageCounts.forEach((c) => {
+      if (c._id) usageMap.set(String(c._id).toLowerCase(), c.count);
+    });
+
+    const data = types.map((t) => ({
+      ...t,
+      materialCount: usageMap.get(t.typeId.toLowerCase()) || 0,
+    }));
+
+    res.json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function createComponentType(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    await ensureDefaultComponentTypes();
+    const { displayName, typeId, description, displayOrder, isActive } = req.body;
+
+    if (!displayName || !displayName.trim()) {
+      throw new AppError("Display name is required", 400);
+    }
+
+    const normalizedTypeId = (
+      typeId && typeId.trim()
+        ? typeId.trim()
+        : displayName.trim().replace(/[^a-zA-Z0-9_-]+/g, "_").replace(/^_+|_+$/g, "")
+    ).toLowerCase();
+
+    if (!normalizedTypeId) {
+      throw new AppError("A valid internal type identifier could not be determined", 400);
+    }
+
+    const existing = await ComponentType.findOne({ typeId: normalizedTypeId });
+    if (existing) {
+      throw new AppError(`Component type with identifier "${normalizedTypeId}" already exists`, 409);
+    }
+
+    const newType = await ComponentType.create({
+      typeId: normalizedTypeId,
+      displayName: displayName.trim(),
+      description: description?.trim(),
+      displayOrder: typeof displayOrder === "number" ? displayOrder : 0,
+      isActive: isActive !== false,
+    });
+
+    res.status(201).json({
+      success: true,
+      data: newType,
+      message: `Component type "${newType.displayName}" created successfully`,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function updateComponentType(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const targetTypeId = req.params.typeId.toLowerCase().trim();
+    const { displayName, description, displayOrder, isActive } = req.body;
+
+    const compType = await ComponentType.findOne({ typeId: targetTypeId });
+    if (!compType) {
+      throw new AppError(`Component type "${targetTypeId}" not found`, 404);
+    }
+
+    if (displayName && displayName.trim()) {
+      compType.displayName = displayName.trim();
+    }
+    if (description !== undefined) {
+      compType.description = description.trim();
+    }
+    if (typeof displayOrder === "number") {
+      compType.displayOrder = displayOrder;
+    }
+    if (typeof isActive === "boolean") {
+      compType.isActive = isActive;
+    }
+
+    await compType.save();
+
+    res.json({
+      success: true,
+      data: compType,
+      message: `Component type "${compType.displayName}" updated successfully`,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function deleteComponentType(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const targetTypeId = req.params.typeId.toLowerCase().trim();
+    const compType = await ComponentType.findOne({ typeId: targetTypeId });
+    if (!compType) {
+      throw new AppError(`Component type "${targetTypeId}" not found`, 404);
+    }
+
+    // Safety check: is this component type currently used by any materials?
+    const materialCount = await StudioMaterial.countDocuments({
+      materialType: targetTypeId,
+    });
+
+    if (materialCount > 0) {
+      res.status(409).json({
+        success: false,
+        canDeactivate: true,
+        isUsed: true,
+        materialCount,
+        message: `Cannot permanently delete component type "${compType.displayName}" because it is currently used by ${materialCount} shared material(s). You can deactivate it instead to prevent new materials from using it while preserving existing records.`,
+      });
+      return;
+    }
+
+    await ComponentType.deleteOne({ _id: compType._id });
+
+    res.json({
+      success: true,
+      message: `Component type "${compType.displayName}" has been permanently removed`,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
 
 // ============================================================================
 // JEWELLERY TYPES CONTROLLERS
@@ -681,7 +853,7 @@ export async function updateVariant(
 ): Promise<void> {
   try {
     const { id, sku } = req.params;
-    const targetSku = decodeURIComponent(sku).toUpperCase();
+    const targetParam = decodeURIComponent(sku).trim();
     const updates = req.body;
 
     const material = await StudioMaterial.findById(id);
@@ -689,15 +861,21 @@ export async function updateVariant(
       throw new AppError("Material not found", 404);
     }
 
-    const variant = material.variants.find((v) => v.sku === targetSku);
+    const variant = material.variants.find(
+      (v: any) =>
+        (v._id && v._id.toString() === targetParam) ||
+        (v.sku && v.sku.toUpperCase() === targetParam.toUpperCase())
+    );
     if (!variant) {
-      throw new AppError(`Variant with SKU "${targetSku}" not found on this material`, 404);
+      throw new AppError(`Variant "${targetParam}" not found on this material`, 404);
     }
+
+    const currentSku = variant.sku;
 
     // Support updating the variant SKU itself
     if (updates.sku) {
       const newSku = updates.sku.trim().toUpperCase();
-      if (newSku !== targetSku) {
+      if (newSku !== currentSku) {
         const existingWithSku = await StudioMaterial.findOne({
           _id: { $ne: material._id },
           "variants.sku": newSku,
@@ -743,43 +921,134 @@ export async function deleteVariant(
 ): Promise<void> {
   try {
     const { id, sku } = req.params;
-    const targetSku = decodeURIComponent(sku).toUpperCase();
+    const targetParam = decodeURIComponent(sku).trim();
 
     const material = await StudioMaterial.findById(id);
     if (!material) {
       throw new AppError("Material not found", 404);
     }
 
-    const variantIndex = material.variants.findIndex((v) => v.sku === targetSku);
+    // Match variant by actual variant _id or SKU (case-insensitive)
+    const variantIndex = material.variants.findIndex(
+      (v: any) =>
+        (v._id && v._id.toString() === targetParam) ||
+        (v.sku && v.sku.toUpperCase() === targetParam.toUpperCase())
+    );
     if (variantIndex === -1) {
-      throw new AppError(`Variant "${targetSku}" not found`, 404);
+      throw new AppError(`Variant "${targetParam}" not found`, 404);
     }
 
-    // Safeguard: Check if this SKU is used in historical orders, saved designs, or reservations
-    const [orderCount, savedCount, reservationCount] = await Promise.all([
-      Order.countDocuments({ "items.customDesign.beadSequence.variantSku": targetSku }),
-      SavedDesign.countDocuments({
-        $or: [
-          { "beadSequence.variantSku": targetSku },
-          { "charms.variantSku": targetSku },
-        ],
-      }),
-      StudioReservation.countDocuments({ "components.variantSku": targetSku }),
-    ]);
+    const variant = material.variants[variantIndex];
+    const targetSku = variant.sku;
+    const variantId = variant._id ? variant._id.toString() : null;
 
-    const reasons: string[] = [];
-    if (orderCount > 0) reasons.push(`${orderCount} historical order(s)`);
-    if (savedCount > 0) reasons.push(`${savedCount} saved design(s)`);
-    if (reservationCount > 0) reasons.push(`${reservationCount} active stock reservation(s)`);
+    // Safeguard 1: Historical Orders check
+    // Uses both variant SKU and actual variant ObjectId / reference across studioDesign and customization
+    const orderQueries: any[] = [
+      { "items.studioDesign.beadSequence.variantSku": targetSku },
+      { "items.studioDesign.charms.variantSku": targetSku },
+      { "items.studioDesign.components.variantSku": targetSku },
+      { "items.customDesign.beadSequence.variantSku": targetSku },
+      { "items.customDesign.charms.variantSku": targetSku },
+      { "items.customization.breakdown.variantSku": targetSku },
+      { "items.customization.breakdown.sku": targetSku },
+      { "items.customization.selections.Charm": targetSku },
+      { "items.customization.selections.charm": targetSku },
+    ];
 
-    if (reasons.length > 0 && req.query.force !== "true") {
-      throw new AppError(
-        `Cannot permanently delete SKU "${targetSku}" because it is referenced in: ${reasons.join(", ")}. Please deactivate it instead to preserve order records.`,
-        409
+    if (variantId) {
+      orderQueries.push(
+        { "items.studioDesign.beadSequence.variantId": variantId },
+        { "items.studioDesign.charms.variantId": variantId },
+        { "items.studioDesign.components.variantId": variantId },
+        { "items.customDesign.beadSequence.variantId": variantId },
+        { "items.customDesign.charms.variantId": variantId }
       );
+      if (Types.ObjectId.isValid(variantId)) {
+        const vObjId = new Types.ObjectId(variantId);
+        orderQueries.push(
+          { "items.studioDesign.beadSequence.variantId": vObjId },
+          { "items.studioDesign.charms.variantId": vObjId },
+          { "items.studioDesign.components.variantId": vObjId }
+        );
+      }
     }
 
-    // Permanently remove the variant
+    const orderCount = await Order.countDocuments({ $or: orderQueries });
+
+    if (orderCount > 0) {
+      res.status(409).json({
+        success: false,
+        canDeactivate: true,
+        isHistoricalOrder: true,
+        orderCount,
+        message: `Cannot permanently delete SKU "${targetSku}" because it is referenced in ${orderCount} historical order(s). Historical order records cannot be altered. Please deactivate this variant instead so it is hidden from future orders while preserving order history.`,
+      });
+      return;
+    }
+
+    // Safeguard 2: Check other protected references (Saved Designs, Reservations, Templates, Customizations)
+    const savedDesignQueries: any[] = [
+      { "beadSequence.variantSku": targetSku },
+      { "charms.variantSku": targetSku },
+      { "components.variantSku": targetSku },
+    ];
+    const reservationQueries: any[] = [
+      { "components.variantSku": targetSku },
+    ];
+
+    if (variantId) {
+      savedDesignQueries.push(
+        { "beadSequence.variantId": variantId },
+        { "charms.variantId": variantId },
+        { "components.variantId": variantId }
+      );
+      reservationQueries.push({ "components.variantId": variantId });
+    }
+
+    const [savedCount, reservationCount, templateCount, configCount, categoryCount] =
+      await Promise.all([
+        SavedDesign.countDocuments({ $or: savedDesignQueries }),
+        StudioReservation.countDocuments({ $or: reservationQueries }),
+        DesignTemplate.countDocuments({
+          $or: [
+            { "beadSequence.variantSku": targetSku },
+            { "charms.variantSku": targetSku },
+          ],
+        }),
+        CustomizationConfig.countDocuments({
+          $or: [
+            { "fields.options.variantSku": targetSku },
+            ...(variantId ? [{ "fields.options.variantId": variantId }] : []),
+          ],
+        }),
+        Category.countDocuments({
+          $or: [
+            { "customizationFields.options.variantSku": targetSku },
+            ...(variantId ? [{ "customizationFields.options.variantId": variantId }] : []),
+          ],
+        }),
+      ]);
+
+    const otherReasons: string[] = [];
+    if (savedCount > 0) otherReasons.push(`${savedCount} saved design(s)`);
+    if (reservationCount > 0) otherReasons.push(`${reservationCount} active stock reservation(s)`);
+    if (templateCount > 0) otherReasons.push(`${templateCount} design template(s)`);
+    if (configCount > 0 || categoryCount > 0)
+      otherReasons.push(`${configCount + categoryCount} product customization option(s)`);
+
+    if (otherReasons.length > 0) {
+      res.status(409).json({
+        success: false,
+        canDeactivate: true,
+        isHistoricalOrder: false,
+        reasons: otherReasons,
+        message: `Cannot permanently delete SKU "${targetSku}" because it is referenced in: ${otherReasons.join(", ")}. Please remove these references or deactivate the variant instead.`,
+      });
+      return;
+    }
+
+    // Permanently remove the variant when verified to have 0 historical orders or protected references
     material.variants.splice(variantIndex, 1);
     await material.save();
 
@@ -806,10 +1075,30 @@ export async function deleteMaterial(
     }
 
     const skus = (material.variants || []).map((v) => v.sku);
+    const variantIds = (material.variants || [])
+      .map((v: any) => v._id?.toString())
+      .filter(Boolean);
 
-    // Safeguard: Check if any variant SKU is used in historical orders, saved designs, or reservations
+    // Safeguard: Check if any variant SKU or ID is used in historical orders, saved designs, or reservations
+    const orderQueries: any[] = [
+      { "items.studioDesign.beadSequence.variantSku": { $in: skus } },
+      { "items.studioDesign.charms.variantSku": { $in: skus } },
+      { "items.studioDesign.components.variantSku": { $in: skus } },
+      { "items.customDesign.beadSequence.variantSku": { $in: skus } },
+      { "items.customDesign.charms.variantSku": { $in: skus } },
+      { "items.customization.breakdown.variantSku": { $in: skus } },
+      { "items.customization.breakdown.sku": { $in: skus } },
+    ];
+    if (variantIds.length > 0) {
+      orderQueries.push(
+        { "items.studioDesign.beadSequence.variantId": { $in: variantIds } },
+        { "items.studioDesign.charms.variantId": { $in: variantIds } },
+        { "items.studioDesign.components.variantId": { $in: variantIds } }
+      );
+    }
+
     const [orderCount, savedCount, reservationCount] = await Promise.all([
-      Order.countDocuments({ "items.customDesign.beadSequence.variantSku": { $in: skus } }),
+      Order.countDocuments({ $or: orderQueries }),
       SavedDesign.countDocuments({
         $or: [
           { "beadSequence.variantSku": { $in: skus } },
@@ -825,10 +1114,12 @@ export async function deleteMaterial(
     if (reservationCount > 0) reasons.push(`${reservationCount} stock reservation(s)`);
 
     if (reasons.length > 0) {
-      throw new AppError(
-        `Cannot permanently delete material "${material.name}" because its variants (${skus.join(", ")}) are referenced by: ${reasons.join(", ")}. Please deactivate or archive it instead to protect historical records.`,
-        409
-      );
+      res.status(409).json({
+        success: false,
+        canDeactivate: true,
+        message: `Cannot permanently delete material "${material.name}" because its variants (${skus.join(", ")}) are referenced by: ${reasons.join(", ")}. Please deactivate or archive it instead to protect historical records.`,
+      });
+      return;
     }
 
     await StudioMaterial.findByIdAndDelete(id);

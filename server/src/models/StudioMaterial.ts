@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document, Model } from "mongoose";
+import mongoose, { Schema, Document, Model, Types } from "mongoose";
 
 export const STUDIO_MATERIAL_TYPES = [
   "bead",
@@ -13,7 +13,7 @@ export const STUDIO_MATERIAL_TYPES = [
   "other",
 ] as const;
 
-export type StudioMaterialType = (typeof STUDIO_MATERIAL_TYPES)[number];
+export type StudioMaterialType = string;
 
 export const VISIBILITY_SCOPES = ["studio", "bracelet_customization"] as const;
 export type VisibilityScope = (typeof VISIBILITY_SCOPES)[number];
@@ -31,6 +31,7 @@ export interface IMaterialDimensions {
 }
 
 export interface IMaterialVariant {
+  _id?: Types.ObjectId | string;
   sku: string;
   color?: string;
   finish?: string;
@@ -141,8 +142,9 @@ const studioMaterialSchema = new Schema<IStudioMaterial>(
     },
     materialType: {
       type: String,
-      enum: STUDIO_MATERIAL_TYPES,
       required: true,
+      trim: true,
+      lowercase: true,
       index: true,
     },
     imageUrl: {

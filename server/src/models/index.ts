@@ -27,4 +27,10 @@ export {
   type IStudioReservationItem,
 } from "./StudioReservation.js";
 export { ContactMessage, type IContactMessage } from "./ContactMessage.js";
+export {
+  ComponentType,
+  type IComponentType,
+  DEFAULT_COMPONENT_TYPES,
+  ensureDefaultComponentTypes,
+} from "./ComponentType.js";
 

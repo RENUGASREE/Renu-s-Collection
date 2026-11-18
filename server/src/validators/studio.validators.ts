@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { STUDIO_MATERIAL_TYPES, SELLING_UNITS, VISIBILITY_SCOPES } from "../models/StudioMaterial.js";
+import { SELLING_UNITS, VISIBILITY_SCOPES } from "../models/StudioMaterial.js";
 
 const mediaUrlSchema = z.string().min(1).max(2048).refine(
   (val) => {
@@ -43,7 +43,7 @@ export const createMaterialSchema = z.object({
   name: z.string().min(1).max(150).trim(),
   code: z.string().min(2).max(64).trim().toUpperCase(),
   description: z.string().max(2000).optional(),
-  materialType: z.enum(STUDIO_MATERIAL_TYPES),
+  materialType: z.string().min(1).max(64).trim().toLowerCase(),
   imageUrl: mediaUrlSchema,
   renderAssetUrl: mediaUrlSchema.optional(),
   additionalImages: z.array(mediaUrlSchema).optional().default([]),
@@ -145,11 +145,33 @@ export const priceQuoteSchema = z.object({
 
 export const materialQuerySchema = z.object({
   jewelleryType: z.string().optional(),
-  materialType: z.enum(STUDIO_MATERIAL_TYPES).optional(),
+  materialType: z.string().optional(),
   isActive: z.enum(["true", "false"]).optional(),
   search: z.string().optional(),
   page: z.coerce.number().int().positive().optional().default(1),
   limit: z.coerce.number().int().positive().max(100).optional().default(50),
+});
+
+export const createComponentTypeSchema = z.object({
+  displayName: z.string().min(1).max(100).trim(),
+  typeId: z
+    .string()
+    .min(1)
+    .max(64)
+    .trim()
+    .toLowerCase()
+    .regex(/^[a-z0-9_-]+$/, "Internal identifier must contain only lowercase letters, numbers, underscores or hyphens")
+    .optional(),
+  description: z.string().max(1000).optional(),
+  displayOrder: z.number().int().optional(),
+  isActive: z.boolean().optional().default(true),
+});
+
+export const updateComponentTypeSchema = z.object({
+  displayName: z.string().min(1).max(100).trim().optional(),
+  description: z.string().max(1000).optional(),
+  displayOrder: z.number().int().optional(),
+  isActive: z.boolean().optional(),
 });
 
 // ============================================================================
