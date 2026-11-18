@@ -10,13 +10,22 @@ import { useNavigate } from 'react-router-dom';
 import AdminNav from '@/components/AdminNav';
 import { SEO } from '@/components/SEO';
 import ImageUploadField from '@/components/ImageUploadField';
-import { Settings, Plus, Pencil, Trash2, Sparkles, Type, Hash, Palette, List, LayoutList, ImageIcon, ImageOff, X, Check } from 'lucide-react';
+import { Settings, Plus, Pencil, Trash2, Sparkles, Type, Hash, Palette, List, LayoutList, ImageIcon, ImageOff, X, Check, Link2 } from 'lucide-react';
+
+interface CustomizationOption {
+  value: string;
+  label: string;
+  priceModifier?: number;
+  imageUrl?: string;
+  materialId?: string | null;
+  variantSku?: string | null;
+}
 
 interface CustomizationField {
   key: string;
   label: string;
   type: 'select' | 'multiselect' | 'color' | 'text' | 'number';
-  options?: { value: string; label: string; priceModifier?: number; imageUrl?: string }[];
+  options?: CustomizationOption[];
   required?: boolean;
   sortOrder?: number;
 }
@@ -403,6 +412,103 @@ function FieldForm({
   const [colorImageUrl, setColorImageUrl] = useState('');
   const [editingImageIdx, setEditingImageIdx] = useState<number | null>(null);
   const [tempImageUrl, setTempImageUrl] = useState('');
+  const [sharedCharms, setSharedCharms] = useState<any[]>([]);
+  const [selectedCharmSku, setSelectedCharmSku] = useState<string>('');
+  const [charmCustomLabel, setCharmCustomLabel] = useState<string>('');
+  const [charmPriceModifier, setCharmPriceModifier] = useState<number>(0);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadCharms() {
+      try {
+        const res = await apiRequest('GET', '/api/v1/studio/admin/materials?materialType=charm&scope=bracelet_customization&isActive=true');
+        const json = await res.json();
+        if (isMounted && json.data) {
+          setSharedCharms(json.data);
+        }
+      } catch (err) {
+        console.error('Failed to load shared charms:', err);
+      }
+    }
+    loadCharms();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const availableVariants = React.useMemo(() => {
+    const list: Array<{
+      materialId: string;
+      materialName: string;
+      imageUrl?: string;
+      sku: string;
+      color: string;
+      finish?: string;
+      stock: number;
+      sellingRate: number;
+    }> = [];
+    for (const mat of sharedCharms) {
+      for (const v of mat.variants || []) {
+        if (v.isActive) {
+          list.push({
+            materialId: mat._id,
+            materialName: mat.name,
+            imageUrl: mat.imageUrl,
+            sku: v.sku,
+            color: v.color || '',
+            finish: v.finish || '',
+            stock: typeof v.stock === 'number' ? v.stock : 0,
+            sellingRate: typeof v.sellingRate === 'number' ? v.sellingRate : 0,
+          });
+        }
+      }
+    }
+    return list;
+  }, [sharedCharms]);
+
+  const handleSelectCharmVariant = (sku: string) => {
+    setSelectedCharmSku(sku);
+    const variant = availableVariants.find((v) => v.sku === sku);
+    if (variant) {
+      const labelText = variant.color ? `${variant.materialName} (${variant.color})` : variant.materialName;
+      setCharmCustomLabel(labelText);
+      setCharmPriceModifier(variant.sellingRate || 0);
+    }
+  };
+
+  const handleAddSharedCharmOption = () => {
+    if (!selectedCharmSku) return;
+    const variant = availableVariants.find((v) => v.sku === selectedCharmSku);
+    if (!variant) return;
+
+    const optValue = variant.sku;
+    const optLabel = charmCustomLabel.trim() || variant.materialName;
+
+    const alreadyExists = formData.options?.some((o) => o.variantSku === variant.sku || o.value === optValue);
+    if (alreadyExists) {
+      alert('This charm variant is already added to options.');
+      return;
+    }
+
+    setFormData({
+      ...formData,
+      options: [
+        ...(formData.options || []),
+        {
+          value: optValue,
+          label: optLabel,
+          priceModifier: Number(charmPriceModifier) || 0,
+          imageUrl: variant.imageUrl,
+          materialId: variant.materialId,
+          variantSku: variant.sku,
+        },
+      ],
+    });
+
+    setSelectedCharmSku('');
+    setCharmCustomLabel('');
+    setCharmPriceModifier(0);
+  };
 
   const resolveColor = (val: string) => {
     if (!val) return '#cccccc';
@@ -812,9 +918,16 @@ function FieldForm({
                       <span className="font-medium text-sm text-[#342824] dark:text-foreground truncate block">
                         {option.label}
                       </span>
-                      <Badge variant="outline" className="text-[10px] border-[#E6D8D0] dark:border-border">
-                        {option.value}
-                      </Badge>
+                      <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                        <Badge variant="outline" className="text-[10px] border-[#E6D8D0] dark:border-border">
+                          {option.value}
+                        </Badge>
+                        {option.variantSku && (
+                          <Badge variant="outline" className="text-[10px] bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-300">
+                            Shared Charm: {option.variantSku}
+                          </Badge>
+                        )}
+                      </div>
                     </div>
 
                     {option.priceModifier !== undefined && option.priceModifier !== 0 && (
@@ -958,6 +1071,76 @@ function FieldForm({
               <Plus className="h-3.5 w-3.5 mr-1.5" />
               Add Option
             </Button>
+          </div>
+
+          {/* Link Shared Charm Variant from Central Inventory */}
+          <div className="p-3.5 bg-[#FBF7F3] dark:bg-muted/30 rounded-xl border border-[#E6D8D0] dark:border-border space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-[#B66F72] dark:text-primary uppercase tracking-wider flex items-center gap-1.5">
+                <Link2 className="h-3.5 w-3.5" />
+                Link Shared Charm Variant (Inventory Sync)
+              </p>
+              <span className="text-[11px] text-[#756861] dark:text-muted-foreground">
+                {availableVariants.length} active variants available
+              </span>
+            </div>
+            <p className="text-xs text-[#756861] dark:text-muted-foreground">
+              Select an existing charm variant from Shared Materials. Customer options will display live stock and use central inventory without duplicating material records.
+            </p>
+
+            <div className="space-y-2">
+              <div>
+                <Label className="text-xs text-[#756861] dark:text-muted-foreground">Select Charm Variant</Label>
+                <select
+                  value={selectedCharmSku}
+                  onChange={(e) => handleSelectCharmVariant(e.target.value)}
+                  className="w-full mt-1 px-3 py-2 border border-[#E6D8D0] dark:border-border rounded-md bg-white dark:bg-background text-[#342824] dark:text-foreground text-xs focus:outline-none focus:ring-2 focus:ring-[#B66F72]/30"
+                >
+                  <option value="">-- Choose a shared charm variant --</option>
+                  {availableVariants.map((v) => (
+                    <option key={v.sku} value={v.sku}>
+                      {v.materialName} {v.color ? `(${v.color})` : ''} - SKU: {v.sku} | Stock: {v.stock} | Rate: ₹{v.sellingRate}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {selectedCharmSku && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  <div>
+                    <Label className="text-xs text-[#756861] dark:text-muted-foreground">Customer Label</Label>
+                    <Input
+                      placeholder="Customer label"
+                      value={charmCustomLabel}
+                      onChange={(e) => setCharmCustomLabel(e.target.value)}
+                      className={inputCls}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-[#756861] dark:text-muted-foreground">+₹ Price Modifier</Label>
+                    <Input
+                      type="number"
+                      placeholder="+₹ Modifier"
+                      value={charmPriceModifier}
+                      onChange={(e) => setCharmPriceModifier(Number(e.target.value))}
+                      className={inputCls}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <Button
+                type="button"
+                onClick={handleAddSharedCharmOption}
+                disabled={!selectedCharmSku}
+                variant="outline"
+                size="sm"
+                className="w-full mt-2 border-[#B66F72] text-[#B66F72] hover:bg-[#B66F72]/10"
+              >
+                <Plus className="h-3.5 w-3.5 mr-1.5" />
+                Link Selected Charm to Field
+              </Button>
+            </div>
           </div>
         </div>
       )}

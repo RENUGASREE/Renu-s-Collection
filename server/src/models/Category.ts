@@ -1,11 +1,20 @@
 import mongoose, { Schema, Document, Model, Types } from "mongoose";
 import { ProductType } from "../types/index.js";
 
+export interface ICustomizationOptionItem {
+  value: string;
+  label: string;
+  priceModifier?: number;
+  imageUrl?: string;
+  materialId?: Types.ObjectId | string | null;
+  variantSku?: string | null;
+}
+
 export interface ICustomizationField {
   key: string;
   label: string;
   type: "select" | "multiselect" | "color" | "text" | "number";
-  options?: { value: string; label: string; priceModifier?: number; imageUrl?: string }[];
+  options?: ICustomizationOptionItem[];
   required?: boolean;
   sortOrder?: number;
 }
@@ -42,6 +51,8 @@ const customizationFieldSchema = new Schema<ICustomizationField>(
         label: String,
         priceModifier: { type: Number, default: 0 },
         imageUrl: String,
+        materialId: { type: Schema.Types.ObjectId, ref: "StudioMaterial", default: null },
+        variantSku: { type: String, trim: true, uppercase: true, default: null },
       },
     ],
     required: { type: Boolean, default: false },

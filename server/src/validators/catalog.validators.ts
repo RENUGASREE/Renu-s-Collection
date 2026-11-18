@@ -33,6 +33,8 @@ const customizationOptionSchema = z.object({
   label: z.string(),
   priceModifier: z.number().optional().default(0),
   imageUrl: z.string().optional(),
+  materialId: z.string().optional().nullable(),
+  variantSku: z.string().optional().nullable(),
 });
 
 const customizationFieldValidationSchema = z.object({

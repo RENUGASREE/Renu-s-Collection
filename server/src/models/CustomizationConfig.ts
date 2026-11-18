@@ -10,6 +10,8 @@ export interface ICustomizationOption {
     label: string;
     priceModifier: number;
     imageUrl?: string;
+    materialId?: Types.ObjectId | string | null;
+    variantSku?: string | null;
     metadata?: Record<string, string>;
   }[];
   required: boolean;
@@ -48,6 +50,8 @@ const customizationOptionSchema = new Schema<ICustomizationOption>(
         label: String,
         priceModifier: { type: Number, default: 0 },
         imageUrl: String,
+        materialId: { type: Schema.Types.ObjectId, ref: "StudioMaterial", default: null },
+        variantSku: { type: String, trim: true, uppercase: true, default: null },
         metadata: Schema.Types.Mixed,
       },
     ],

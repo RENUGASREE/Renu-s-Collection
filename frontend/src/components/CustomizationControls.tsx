@@ -12,6 +12,10 @@ interface CustomizationOption {
   priceModifier?: number;
   imageUrl?: string;
   metadata?: Record<string, string>;
+  materialId?: string | null;
+  variantSku?: string | null;
+  inStock?: boolean;
+  stock?: number;
 }
 
 interface CustomizationField {

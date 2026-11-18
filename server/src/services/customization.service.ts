@@ -1,6 +1,7 @@
 import { Category, ICustomizationField } from "../models/Category.js";
 import { CustomizationConfig } from "../models/CustomizationConfig.js";
 import { Product } from "../models/Product.js";
+import { StudioMaterial } from "../models/StudioMaterial.js";
 import { AppError } from "../middleware/errorHandler.js";
 
 const PLACEHOLDER =
@@ -42,11 +43,89 @@ export async function getProductCustomization(productId: string) {
     };
   }
 
+  // Gather all linked variant SKUs across fields
+  const linkedSkus = new Set<string>();
+  for (const field of fields) {
+    for (const opt of (field.options || []) as any[]) {
+      if (opt.variantSku) {
+        linkedSkus.add(String(opt.variantSku).toUpperCase().trim());
+      }
+    }
+  }
+
+  // Fetch authoritative live stock and validity from StudioMaterial
+  const variantMap = new Map<string, { inStock: boolean; stock: number; imageUrl?: string; materialName: string }>();
+  if (linkedSkus.size > 0) {
+    const materials = await StudioMaterial.find({
+      "variants.sku": { $in: Array.from(linkedSkus) },
+      isActive: true,
+      visibilityScopes: "bracelet_customization",
+    }).lean();
+
+    for (const mat of materials) {
+      for (const v of mat.variants || []) {
+        const skuUpper = v.sku.toUpperCase();
+        if (linkedSkus.has(skuUpper) && v.isActive) {
+          variantMap.set(skuUpper, {
+            inStock: typeof v.stock === "number" && v.stock > 0,
+            stock: typeof v.stock === "number" ? v.stock : 0,
+            imageUrl: mat.imageUrl,
+            materialName: mat.name,
+          });
+        }
+      }
+    }
+  }
+
+  // Filter and enrich options: only active, in-stock variants are returned
+  const enrichedFields = fields.map((field: any) => {
+    if (!field.options || field.options.length === 0) return field;
+
+    const filteredOptions = field.options
+      .map((opt: any) => {
+        if (!opt.variantSku) {
+          // Unlinked / manual option: preserved as-is with inStock: true
+          return {
+            ...opt,
+            inStock: true,
+          };
+        }
+
+        const sku = String(opt.variantSku).toUpperCase().trim();
+        const vInfo = variantMap.get(sku);
+
+        // If not found in active bracelet_customization materials or stock is 0, mark out of stock
+        if (!vInfo || !vInfo.inStock) {
+          return {
+            ...opt,
+            inStock: false,
+            stock: vInfo?.stock ?? 0,
+          };
+        }
+
+        return {
+          ...opt,
+          inStock: true,
+          stock: vInfo.stock,
+          imageUrl: opt.imageUrl || vInfo.imageUrl,
+          variantSku: sku,
+          materialId: opt.materialId,
+        };
+      })
+      // Customer-facing requirements: "Show only active, in-stock variants"
+      .filter((opt: any) => opt.inStock);
+
+    return {
+      ...field,
+      options: filteredOptions,
+    };
+  });
+
   return {
     productId: product._id,
     productName: product.name,
     basePrice: product.salePrice ?? product.price,
-    fields: fields.sort((a: ICustomizationField, b: ICustomizationField) => (a.sortOrder || 0) - (b.sortOrder || 0)),
+    fields: enrichedFields.sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0)),
     previewLayers: config?.previewLayers || [],
     isCustomizable: product.isCustomizable,
   };
@@ -166,7 +245,7 @@ export async function validateCustomization(productId: string, selections: Recor
         if (field.options && field.options.length > 0) {
           const values = Array.isArray(rawVal) ? rawVal : [rawVal];
           for (const v of values) {
-            const option = field.options?.find((o: { value: string; label: string }) => {
+            const option = field.options?.find((o: any) => {
               if (typeof v === "string") {
                 return (
                   o.value.trim().toLowerCase() === v.trim().toLowerCase() ||
@@ -177,6 +256,18 @@ export async function validateCustomization(productId: string, selections: Recor
             });
             if (!option) {
               errors.push(`Invalid option for ${field.label}: ${v}`);
+            } else if ((option as any).variantSku) {
+              const sku = String((option as any).variantSku).toUpperCase().trim();
+              const mat = await StudioMaterial.findOne({
+                "variants.sku": sku,
+                isActive: true,
+                visibilityScopes: "bracelet_customization",
+              }).lean();
+
+              const variant = mat?.variants?.find((va) => va.sku.toUpperCase() === sku);
+              if (!mat || !variant || !variant.isActive || typeof variant.stock !== "number" || variant.stock < 1) {
+                errors.push(`${option.label || v} is currently out of stock`);
+              }
             }
           }
         }
