@@ -60,7 +60,7 @@ async function main() {
     // -------------------------------------------------------------------------
     const realProductId = "6ae45687cf110d86232fc1d5";
 
-    await runTest("Test 1: Real product customization resolves with category precedence and base preservation", async () => {
+    await runTest("Test 1: Real bracelet product customization resolves ONLY 'Choose Your Charm' with linked variants", async () => {
       const customization = await getProductCustomization(realProductId);
       assert(customization.isCustomizable === true, "Product must be customizable");
 
@@ -68,16 +68,25 @@ async function main() {
       const fieldKeys = customization.fields.map((f: any) => f.key);
       console.log("   Resolved field keys for real bracelet:", fieldKeys);
 
-      // Requirement 2: Bead Colour remains available
-      const beadField = customization.fields.find((f: any) => f.key === "Bead Colour");
-      assert(!!beadField, "Bead Colour field must be preserved from base configurator");
-      assert(beadField.options.length > 0, "Bead Colour must have its color swatch options");
+      // Requirement: Regular bracelet product page must display ONLY "Choose Your Charm"
+      assert(
+        customization.fields.length === 1,
+        `Expected exactly 1 customization field ('Choose Your Charm'), got ${customization.fields.length}: ${fieldKeys.join(", ")}`
+      );
 
-      // Requirement 3: Bracelet Size remains available
-      const sizeField = customization.fields.find((f: any) => f.key === "Bracelet Size");
-      assert(!!sizeField, "Bracelet Size field must be preserved from base configurator");
+      // Verify Bead Colour is NOT present
+      const beadField = customization.fields.find(
+        (f: any) => f.key.toLowerCase().includes("bead") || f.label.toLowerCase().includes("bead")
+      );
+      assert(!beadField, "Bead Colour must NOT appear on regular bracelet product page");
 
-      // Requirement 4 & 5 & 6: Linked Shell Charms appears, no Heart/Butterfly, no duplicates
+      // Verify Bracelet Size is NOT present
+      const sizeField = customization.fields.find(
+        (f: any) => f.key.toLowerCase().includes("size") || f.label.toLowerCase().includes("size")
+      );
+      assert(!sizeField, "Bracelet Size must NOT appear on regular bracelet product page");
+
+      // Verify Charm field is present with linked variants
       const charmFields = customization.fields.filter(
         (f: any) =>
           f.key.toLowerCase().includes("charm") || f.label.toLowerCase().includes("charm")
@@ -108,32 +117,26 @@ async function main() {
     // -------------------------------------------------------------------------
     // Test 2: Price calculation and validation use the same resolved fields
     // -------------------------------------------------------------------------
-    await runTest("Test 2: Price calculation uses resolved fields (Bead Colour + Linked Charm)", async () => {
-      // EmeraldGreen has priceModifier: 2 in base, Shell Charms (Purple) has priceModifier: 12 in category
+    await runTest("Test 2: Price calculation uses resolved category fields (Linked Charm)", async () => {
+      // Shell Charms (Purple) has priceModifier: 12 in category
       const priceRes = await calculatePrice(realProductId, {
-        "Bead Colour": "emeraldGreen",
-        "Bracelet Size": "16",
         Charm: ["CH-SHELL-PURPLE"],
       });
 
       console.log("   Price calculation result:", priceRes);
-      assert(priceRes.priceModifier === 14, `Expected total priceModifier 14 (2 + 12), got ${priceRes.priceModifier}`);
-      assert(priceRes.totalPrice === priceRes.basePrice + 14, "Total price must equal base price + modifier");
+      assert(priceRes.priceModifier === 12, `Expected total priceModifier 12, got ${priceRes.priceModifier}`);
+      assert(priceRes.totalPrice === priceRes.basePrice + 12, "Total price must equal base price + modifier");
     });
 
-    await runTest("Test 3: Validation uses resolved fields (validates linked charm live stock and required base fields)", async () => {
+    await runTest("Test 3: Validation uses resolved category fields (validates linked charm live stock)", async () => {
       // Valid selection
       const validRes = await validateCustomization(realProductId, {
-        "Bead Colour": "rosepink",
-        "Bracelet Size": "16",
         Charm: ["CH-SHELL-PURPLE"],
       });
       assert(validRes.valid === true, `Expected validation to pass. Errors: ${validRes.errors.join(", ")}`);
 
       // Invalid selection (old heart charm is no longer a valid option)
       const invalidHeartRes = await validateCustomization(realProductId, {
-        "Bead Colour": "rosepink",
-        "Bracelet Size": "16",
         Charm: ["heart"],
       });
       assert(invalidHeartRes.valid === false, "Old Heart Charm must be rejected by validator");
@@ -162,8 +165,6 @@ async function main() {
         assert(!shellCharmOos, "Out of stock charm variant must be filtered out from getProductCustomization");
 
         const valOos = await validateCustomization(realProductId, {
-          "Bead Colour": "rosepink",
-          "Bracelet Size": "16",
           Charm: ["CH-SHELL-PURPLE"],
         });
         assert(valOos.valid === false, "Out of stock charm variant must fail validation");
@@ -270,10 +271,8 @@ async function main() {
     // -------------------------------------------------------------------------
     // Test 7: generatePreview uses resolved fields and layers
     // -------------------------------------------------------------------------
-    await runTest("Test 7: generatePreview works with resolved fields", async () => {
+    await runTest("Test 7: generatePreview works with resolved category fields", async () => {
       const previewRes = await generatePreview(realProductId, {
-        "Bead Colour": "rosepink",
-        "Bracelet Size": "16",
         Charm: ["CH-SHELL-PURPLE"],
       });
 

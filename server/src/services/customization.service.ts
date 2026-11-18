@@ -106,7 +106,20 @@ export async function resolveProductCustomization(productId: string): Promise<Re
       ? categoryConfig.fields
       : category?.customizationFields) || [];
 
-  // 2. Retrieve base product-type configuration separately with deterministic rule
+  // 2. Authoritative category-specific resolution:
+  // When category-specific fields exist, use them authoritatively without merging
+  // unrelated fields from generic product-type configurators.
+  if (categoryFields.length > 0) {
+    return {
+      product,
+      category,
+      fields: categoryFields,
+      previewLayers: categoryConfig?.previewLayers || [],
+      config: categoryConfig,
+    };
+  }
+
+  // 3. Fallback: Retrieve base product-type configuration only when no category-specific configuration exists
   let baseConfig = null;
   if (category?.productType) {
     const baseQuery: any = {
@@ -122,20 +135,12 @@ export async function resolveProductCustomization(productId: string): Promise<Re
       .lean();
   }
 
-  const baseFields: ICustomizationField[] = baseConfig?.fields || [];
-
-  // 3. Merge fields safely: category-specific linked fields take precedence,
-  // while non-conflicting base fields (Bead Colour, Bracelet Size) are preserved
-  const resolvedFields = mergeCustomizationFields(baseFields, categoryFields);
-
   return {
     product,
     category,
-    fields: resolvedFields,
-    previewLayers: categoryConfig?.previewLayers?.length
-      ? categoryConfig.previewLayers
-      : baseConfig?.previewLayers || [],
-    config: categoryConfig || baseConfig,
+    fields: baseConfig?.fields || [],
+    previewLayers: baseConfig?.previewLayers || [],
+    config: baseConfig,
   };
 }
 
