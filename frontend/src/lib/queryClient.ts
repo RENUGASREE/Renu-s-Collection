@@ -156,20 +156,28 @@ export async function refreshAccessToken(): Promise<boolean> {
   return refreshPromise;
 }
 
-export async function uploadImageFile(
-  file: File,
+export async function uploadImageFiles(
+  files: File[],
   onProgress?: (percent: number) => void
-): Promise<string> {
-  const validTypes = ["image/jpeg", "image/png", "image/webp"];
-  if (!validTypes.includes(file.type)) {
-    throw new Error("Invalid format. Please select a JPEG, PNG, or WebP image.");
+): Promise<any[]> {
+  if (!files || files.length === 0) {
+    throw new Error("No files selected for upload.");
   }
-  if (file.size > 10 * 1024 * 1024) {
-    throw new Error("File is too large. Image size must be under 10MB.");
+
+  const validTypes = ["image/jpeg", "image/png", "image/webp"];
+  for (const file of files) {
+    if (!validTypes.includes(file.type)) {
+      throw new Error(`Invalid format for ${file.name}. Please select a JPEG, PNG, or WebP image.`);
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      throw new Error(`File ${file.name} is too large. Image size must be under 10MB.`);
+    }
   }
 
   const uploadFormData = new FormData();
-  uploadFormData.append("images", file);
+  files.forEach((file) => {
+    uploadFormData.append("images", file);
+  });
 
   const doUpload = (authToken: string | null): Promise<any> => {
     return new Promise((resolve, reject) => {
@@ -203,7 +211,9 @@ export async function uploadImageFile(
             json?.message ||
             json?.error ||
             `Upload failed with HTTP status ${xhr.status}`;
-          reject(new Error(msg));
+          const err: any = new Error(msg);
+          err.status = xhr.status;
+          reject(err);
         }
       };
 
@@ -215,29 +225,49 @@ export async function uploadImageFile(
     });
   };
 
+  // If a token refresh is currently in progress, wait for it before proceeding
+  if (refreshPromise) {
+    await refreshPromise;
+  }
+
   let token = localStorage.getItem("authToken");
   let result: any;
   try {
     result = await doUpload(token);
   } catch (err: any) {
-    if (err?.message?.includes("401") || err?.message?.includes("Authentication")) {
+    const isUnauthorized =
+      err?.status === 401 ||
+      err?.message?.includes("401") ||
+      err?.message?.toLowerCase().includes("invalid or expired access token") ||
+      err?.message?.toLowerCase().includes("authentication required") ||
+      err?.message?.toLowerCase().includes("unauthorized");
+
+    if (isUnauthorized) {
       const refreshed = await refreshAccessToken();
       if (refreshed) {
         token = localStorage.getItem("authToken");
         result = await doUpload(token);
       } else {
-        throw err;
+        throw new Error("Your session has expired. Please log in again to continue.");
       }
     } else {
       throw err;
     }
   }
 
-  const uploaded = result.data?.[0];
-  if (!uploaded?.url) {
+  return result.data || [];
+}
+
+export async function uploadImageFile(
+  file: File,
+  onProgress?: (percent: number) => void
+): Promise<string> {
+  const items = await uploadImageFiles([file], onProgress);
+  const uploaded = items[0];
+  if (!uploaded?.url && !uploaded?.secureUrl) {
     throw new Error("No image URL returned from upload server.");
   }
-  return uploaded.url;
+  return uploaded.secureUrl || uploaded.url;
 }
 
 export async function apiRequest(

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { apiRequest, API_BASE_URL, refreshAccessToken, getAssetUrl, formatApiErrorMessage } from "@/lib/queryClient";
+import { apiRequest, API_BASE_URL, refreshAccessToken, getAssetUrl, formatApiErrorMessage, uploadImageFiles } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -285,78 +285,12 @@ export default function AdminProductForm() {
     setUploadError(null);
 
     try {
-      const uploadFormData = new FormData();
-      validFiles.forEach((file) => {
-        uploadFormData.append("images", file);
+      const uploadedItems = await uploadImageFiles(validFiles, (percent) => {
+        setUploadProgress(Math.max(10, Math.round(percent * 0.9)));
       });
-
-      let currentToken = localStorage.getItem("authToken");
-
-      const doUpload = (authToken: string | null): Promise<any> => {
-        return new Promise((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.open("POST", `${API_BASE_URL}/api/v1/products/images/upload`);
-          xhr.withCredentials = true;
-
-          if (authToken) {
-            xhr.setRequestHeader("Authorization", `Bearer ${authToken}`);
-          }
-
-          xhr.upload.onprogress = (event) => {
-            if (event.lengthComputable) {
-              const percent = Math.round((event.loaded / event.total) * 90);
-              setUploadProgress(Math.max(10, percent));
-            }
-          };
-
-          xhr.onload = () => {
-            let json: any = null;
-            try {
-              json = JSON.parse(xhr.responseText);
-            } catch (_) {
-              // ignore
-            }
-
-            if (xhr.status >= 200 && xhr.status < 300 && json?.success) {
-              resolve(json);
-            } else {
-              const msg =
-                json?.message ||
-                json?.error ||
-                `Upload failed with HTTP status ${xhr.status}`;
-              reject(new Error(msg));
-            }
-          };
-
-          xhr.onerror = () => {
-            reject(new Error("Network error during image upload. Check server connection."));
-          };
-
-          xhr.send(uploadFormData);
-        });
-      };
-
-      let uploadResult: any;
-      try {
-        uploadResult = await doUpload(currentToken);
-      } catch (firstErr: any) {
-        // If 401, try token refresh once
-        if (firstErr?.message?.includes("401") || firstErr?.message?.includes("Authentication")) {
-          const refreshed = await refreshAccessToken();
-          if (refreshed) {
-            currentToken = localStorage.getItem("authToken");
-            uploadResult = await doUpload(currentToken);
-          } else {
-            throw firstErr;
-          }
-        } else {
-          throw firstErr;
-        }
-      }
 
       setUploadProgress(100);
 
-      const uploadedItems = uploadResult.data || [];
       if (uploadedItems.length > 0) {
         setFormData((prev) => {
           const nextMedia = [...prev.media];
