@@ -311,7 +311,9 @@ export class MongoToSupabaseMigrator {
 
   private async migrateUsers(): Promise<{ count: number; status: "success" }> {
     console.log("\n--- Migrating Users (with Duplicate Reconcilation) ---");
-    const docs = await User.find({}).lean();
+    const docs = await User.find({})
+      .select("+passwordHash +refreshTokenHash +previousRefreshTokenHash +previousRefreshTokenExpiresAt +passwordResetToken +passwordResetExpires")
+      .lean();
     console.log(`Found ${docs.length} source user records.`);
 
     // Group users by lowercase email to detect and reconcile duplicates safely

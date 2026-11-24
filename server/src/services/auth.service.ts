@@ -76,7 +76,7 @@ export function sanitizeUser(user: IUserRecord | any): AuthUserResponse {
   };
 }
 
-async function issueTokens(
+export async function issueTokens(
   user: IUserRecord,
   isRotation = false,
   repo = getUserRepo()
