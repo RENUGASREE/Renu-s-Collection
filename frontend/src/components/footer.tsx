@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
+import { Instagram } from "lucide-react";
 
 export default function Footer() {
   return (
@@ -15,9 +16,25 @@ export default function Footer() {
           <span className="text-foreground">Renu's</span>
           <span className="text-primary"> Collections</span>
         </div>
-        <p className="text-muted-foreground mb-4" data-testid="footer-tagline">
+        <p className="text-muted-foreground mb-3" data-testid="footer-tagline">
           Refined Adornment. Uncompromising Elegance.
         </p>
+
+        {/* Instagram Social Connect */}
+        <div className="flex items-center justify-center gap-2 mb-4">
+          <a
+            href="https://www.instagram.com/renus_collections05/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-primary/25 bg-primary/5 hover:bg-primary/15 text-primary transition-all text-xs font-medium"
+            title="Follow Renu's Collections on Instagram"
+          >
+            <Instagram className="w-4 h-4 text-primary" />
+            <span>@renus_collections05</span>
+            <span className="text-muted-foreground hidden sm:inline">• Follow us on Instagram for custom enquiries & designs</span>
+          </a>
+        </div>
+
         <div className="flex flex-wrap justify-center gap-4 mb-4 text-sm">
           <Link to="/" className="text-primary hover:underline">Home</Link>
           <Link to="/about" className="text-primary hover:underline">About</Link>

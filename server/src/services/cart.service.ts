@@ -33,6 +33,21 @@ export interface ICartWithCompatibility extends ICartRecord {
   markModified: (path: string) => void;
 }
 
+export interface UnitConfigurationData {
+  unitIndex: number;
+  unitId?: string;
+  label?: string;
+  selections: Record<string, any>;
+  priceModifier?: number;
+  breakdown?: Array<{
+    field: string;
+    option: string;
+    modifier?: number;
+    variantSku?: string;
+    materialId?: string;
+  }>;
+}
+
 export interface AddCartItemInput {
   product_id?: string;
   productId?: string;
@@ -42,15 +57,17 @@ export interface AddCartItemInput {
   image_url?: string;
   imageUrl?: string;
   customization?: {
-    selections: Record<string, string | string[] | number>;
+    selections: Record<string, any>;
     previewImageUrl?: string;
     priceModifier?: number;
+    totalPriceModifier?: number;
     engraving?: string;
     breakdown?: Array<{
       field: string;
       option: string;
       modifier?: number;
     }>;
+    unitConfigurations?: UnitConfigurationData[];
   };
 }
 
@@ -274,6 +291,65 @@ export async function addCartItem(
     // Securely validate and recalculate customization price modifier from database
     if (
       customizationData &&
+      Array.isArray(customizationData.unitConfigurations) &&
+      customizationData.unitConfigurations.length > 0
+    ) {
+      if (!product.isCustomizable) {
+        throw new AppError("This product is not customizable", 400);
+      }
+      if (customizationData.unitConfigurations.length !== requestedQty) {
+        throw new AppError(
+          `Number of individual bracelet configurations (${customizationData.unitConfigurations.length}) must match quantity (${requestedQty})`,
+          400
+        );
+      }
+
+      let totalModifier = 0;
+      const combinedBreakdown: Array<{ field: string; option: string; modifier?: number }> = [];
+
+      for (let idx = 0; idx < customizationData.unitConfigurations.length; idx++) {
+        const unit = customizationData.unitConfigurations[idx];
+        unit.unitIndex = idx + 1;
+        unit.label = unit.label || `Bracelet ${idx + 1}`;
+        unit.unitId = unit.unitId || `unit-${idx + 1}`;
+
+        if (unit.selections && Object.keys(unit.selections).length > 0) {
+          const validation = await activeCustomizationService.validateCustomization(
+            product.id,
+            unit.selections as Record<string, string | string[]>
+          );
+          if (!validation.valid) {
+            throw new AppError(`For ${unit.label}: ${validation.errors.join(", ")}`, 400);
+          }
+
+          try {
+            const priceResult = await activeCustomizationService.calculatePrice(
+              product.id,
+              unit.selections as Record<string, string | string[]>
+            );
+            unit.priceModifier = priceResult.priceModifier;
+            unit.breakdown = priceResult.breakdown;
+            totalModifier += unit.priceModifier;
+            combinedBreakdown.push(...priceResult.breakdown);
+          } catch (err: any) {
+            if (err instanceof AppError) throw err;
+            unit.priceModifier = unit.priceModifier || 0;
+            totalModifier += unit.priceModifier;
+          }
+        } else {
+          unit.priceModifier = 0;
+          unit.breakdown = [];
+        }
+      }
+
+      customizationData.totalPriceModifier = totalModifier;
+      customizationData.priceModifier = Math.round((totalModifier / requestedQty) * 100) / 100;
+      customizationData.breakdown = combinedBreakdown;
+      if (!customizationData.selections || Object.keys(customizationData.selections).length === 0) {
+        customizationData.selections = customizationData.unitConfigurations[0]?.selections || {};
+      }
+    } else if (
+      customizationData &&
       customizationData.selections &&
       Object.keys(customizationData.selections).length > 0
     ) {
@@ -303,12 +379,19 @@ export async function addCartItem(
       }
     }
 
-    // Check for existing item with same product and matching customization selections
+    // Check for existing item with same product and matching customization selections/units
     const existing = cart.items.find((i) => {
       if (!i.productId || i.productId !== product!.id || i.savedForLater) return false;
 
       if (!i.customization && !customizationData) return true;
       if (!i.customization || !customizationData) return false;
+
+      // If either has unitConfigurations, they must match identically to be merged
+      if (i.customization.unitConfigurations || customizationData.unitConfigurations) {
+        const existingUnits = JSON.stringify(i.customization.unitConfigurations || []);
+        const newUnits = JSON.stringify(customizationData.unitConfigurations || []);
+        return existingUnits === newUnits;
+      }
 
       const existingSelections = JSON.stringify(i.customization.selections || {});
       const newSelections = JSON.stringify(customizationData.selections || {});
@@ -368,6 +451,7 @@ export async function updateCartItemQuantity(
   userId: string,
   itemId: string,
   quantity: number,
+  customizationOverride?: any,
   clientOrPool?: IDbClient | IDbPool
 ): Promise<ICartItemRecord[]> {
   if (!isValidEntityId(userId)) {
@@ -401,7 +485,60 @@ export async function updateCartItemQuantity(
         }
       }
 
-      await getCartRepo().updateItem(itemId, { quantity }, client);
+      // If item has unit configurations, synchronize unit count with updated quantity
+      let updatedCustomization = item.customization ? { ...item.customization } : undefined;
+
+      // If an explicit customization override was provided (e.g. individual unit removed)
+      if (
+        customizationOverride &&
+        Array.isArray(customizationOverride.unitConfigurations)
+      ) {
+        if (customizationOverride.unitConfigurations.length !== quantity) {
+          throw new AppError(
+            `Unit configurations count (${customizationOverride.unitConfigurations.length}) must match updated quantity (${quantity})`,
+            400
+          );
+        }
+        const totalMod = customizationOverride.unitConfigurations.reduce(
+          (acc: number, u: any) => acc + (u.priceModifier || 0),
+          0
+        );
+        updatedCustomization = {
+          ...customizationOverride,
+          totalPriceModifier: totalMod,
+          priceModifier: Math.round((totalMod / quantity) * 100) / 100,
+        };
+      } else if (
+        updatedCustomization &&
+        Array.isArray(updatedCustomization.unitConfigurations) &&
+        updatedCustomization.unitConfigurations.length > 0
+      ) {
+        const currentUnits = [...updatedCustomization.unitConfigurations];
+        if (quantity > currentUnits.length) {
+          // Append independent unit configuration slots
+          for (let i = currentUnits.length + 1; i <= quantity; i++) {
+            currentUnits.push({
+              unitIndex: i,
+              unitId: `unit-${i}`,
+              label: `Bracelet ${i}`,
+              selections: {},
+              priceModifier: 0,
+              breakdown: [],
+            });
+          }
+        } else if (quantity < currentUnits.length) {
+          // Remove trailing units
+          currentUnits.splice(quantity);
+        }
+        updatedCustomization.unitConfigurations = currentUnits;
+
+        // Recalculate total and average price modifier
+        const totalMod = currentUnits.reduce((acc: number, u: any) => acc + (u.priceModifier || 0), 0);
+        updatedCustomization.totalPriceModifier = totalMod;
+        updatedCustomization.priceModifier = Math.round((totalMod / quantity) * 100) / 100;
+      }
+
+      await getCartRepo().updateItem(itemId, { quantity, customization: updatedCustomization }, client);
     }
 
     return getCartItems(userId, client);
@@ -548,15 +685,50 @@ export async function mergeGuestCart(
         if (i.itemType !== guestItem.itemType) return false;
         if (i.productId !== guestItem.productId) return false;
 
+        const gUnits = guestItem.customization?.unitConfigurations;
+        const uUnits = i.customization?.unitConfigurations;
+        if (gUnits || uUnits) {
+          if (!gUnits || !uUnits) return false;
+          // Must match unit configurations identically to be eligible for merging
+          return JSON.stringify(gUnits) === JSON.stringify(uUnits);
+        }
+
         const gSelections = JSON.stringify(guestItem.customization?.selections || {});
         const uSelections = JSON.stringify(i.customization?.selections || {});
         return gSelections === uSelections;
       });
 
       if (existing) {
+        const newQuantity = existing.quantity + guestItem.quantity;
+        let updatedCustomization = existing.customization;
+
+        if (existing.customization?.unitConfigurations && guestItem.customization?.unitConfigurations) {
+          const combinedUnits: UnitConfigurationData[] = [
+            ...existing.customization.unitConfigurations,
+          ];
+          for (let u = 0; u < guestItem.customization.unitConfigurations.length; u++) {
+            const guestUnit = guestItem.customization.unitConfigurations[u];
+            const nextIdx = combinedUnits.length + 1;
+            combinedUnits.push({
+              unitIndex: nextIdx,
+              label: `Bracelet ${nextIdx}`,
+              selections: JSON.parse(JSON.stringify(guestUnit.selections || {})),
+              priceModifier: guestUnit.priceModifier,
+              breakdown: guestUnit.breakdown,
+            });
+          }
+          updatedCustomization = {
+            ...existing.customization,
+            unitConfigurations: combinedUnits,
+          };
+        }
+
         await getCartRepo().updateItem(
           existing.id,
-          { quantity: existing.quantity + guestItem.quantity },
+          {
+            quantity: newQuantity,
+            customization: updatedCustomization,
+          },
           client
         );
       } else {

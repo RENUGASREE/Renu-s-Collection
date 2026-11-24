@@ -8,7 +8,7 @@ import {
   openGridFSDownloadStream,
   deleteGridFSImage,
 } from "../services/gridfs.service.js";
-import { detectImageFormat } from "../middleware/upload.js";
+import { detectImageFormat, detectImageTransparency } from "../middleware/upload.js";
 import { Product } from "../models/Product.js";
 import { AppError } from "../middleware/errorHandler.js";
 import {
@@ -375,6 +375,18 @@ export class UploadController {
           );
         }
         file.mimetype = verifiedFormat;
+      }
+
+      // If transparency is explicitly required, enforce that uploaded buffers possess an alpha channel
+      if (req.query.requireTransparency === "true") {
+        for (const file of files) {
+          if (!detectImageTransparency(file.buffer)) {
+            throw new AppError(
+              `Image "${file.originalname}" does not contain transparency. Studio material cutout assets must possess an alpha channel (transparent PNG or WebP).`,
+              400
+            );
+          }
+        }
       }
 
       // 1. Primary path: Supabase Storage

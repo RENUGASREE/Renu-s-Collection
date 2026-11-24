@@ -35,7 +35,14 @@ interface OrderItem {
   quantity: number;
   subtotal: number;
   customization?: {
-    selections: Record<string, string | string[]>;
+    selections?: Record<string, string | string[]>;
+    unitConfigurations?: Array<{
+      unitIndex: number;
+      label: string;
+      selections: Record<string, string | string[]>;
+      priceModifier?: number;
+      breakdown?: { field: string; option: string; modifier?: number }[];
+    }>;
     previewImageUrl?: string;
     engraving?: string;
     breakdown?: { field: string; option: string; modifier?: number }[];
@@ -301,7 +308,37 @@ export default function OrderDetails() {
                         {item.customization && (
                           <div className="mt-2 p-2.5 rounded-lg bg-[#FBF7F3]/80 dark:bg-muted/40 border border-[#E6D8D0]/60 dark:border-border/40 text-xs space-y-1">
                             <span className="font-semibold text-[10px] text-[#B99A72] uppercase tracking-wider">Customization Spec</span>
-                            {item.customization.breakdown && item.customization.breakdown.length > 0 ? (
+                            {item.customization.unitConfigurations && item.customization.unitConfigurations.length > 0 ? (
+                              <div className="space-y-2 pt-0.5">
+                                {item.customization.unitConfigurations.map((unit, uIdx) => (
+                                  <div key={uIdx} className="border-l-2 border-[#B99A72] pl-2 py-0.5">
+                                    <div className="flex items-center justify-between font-semibold text-[11px] text-[#B99A72]">
+                                      <span>{unit.label || `Bracelet ${uIdx + 1}`}</span>
+                                      {unit.priceModifier ? (
+                                        <span className="text-[#B66F72] font-normal">
+                                          +₹{unit.priceModifier.toLocaleString('en-IN')}
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                    <div className="text-xs text-[#756861] dark:text-muted-foreground">
+                                      {unit.breakdown && unit.breakdown.length > 0 ? (
+                                        unit.breakdown.map((b, bIdx) => (
+                                          <span key={bIdx} className="inline-block mr-2 text-xs">
+                                            {b.field}: <strong className="text-[#342824] dark:text-foreground font-medium">{b.option}</strong>{b.modifier ? ` (+₹${b.modifier})` : ''}
+                                          </span>
+                                        ))
+                                      ) : unit.selections && Object.keys(unit.selections).length > 0 ? (
+                                        Object.entries(unit.selections).map(([k, v]) => (
+                                          <span key={k} className="inline-block mr-2 text-xs">
+                                            <span className="capitalize">{k.replace(/_/g, ' ')}</span>: <strong className="text-[#342824] dark:text-foreground font-medium">{Array.isArray(v) ? v.join(', ') : String(v)}</strong>
+                                          </span>
+                                        ))
+                                      ) : null}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : item.customization.breakdown && item.customization.breakdown.length > 0 ? (
                               <div className="space-y-0.5 pt-0.5">
                                 {item.customization.breakdown.map((b, bIdx) => (
                                   <div key={bIdx} className="flex justify-between text-xs text-[#756861] dark:text-muted-foreground">

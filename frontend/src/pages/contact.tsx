@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Mail, Phone, MapPin, Send, Clock, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Mail, Phone, MapPin, Send, Clock, Loader2, CheckCircle2, AlertCircle, Instagram } from "lucide-react";
 import Footer from "@/components/footer";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -158,6 +158,40 @@ export default function Contact() {
                     <p className="text-muted-foreground">
                       Monday–Sunday, 10:00 AM–7:00 PM IST
                     </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start space-x-4">
+                  <div className="p-3 bg-primary/15 rounded-lg flex-shrink-0">
+                    <Instagram className="h-6 w-6 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold text-foreground mb-1">Instagram</h3>
+                      <span className="text-[10px] font-semibold tracking-wider uppercase px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                        Follow & DM
+                      </span>
+                    </div>
+                    <a
+                      href="https://www.instagram.com/renus_collections05/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary font-medium hover:underline text-sm block mb-1"
+                    >
+                      @renus_collections05
+                    </a>
+                    <p className="text-xs text-muted-foreground leading-relaxed mb-2">
+                      Follow us on Instagram for upcoming bracelet releases and raw material showcases.
+                    </p>
+                    <a
+                      href="https://www.instagram.com/renus_collections05/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center text-xs font-semibold text-primary hover:underline group"
+                    >
+                      <span>For custom bracelet enquiries and personalized designs, DM us on Instagram</span>
+                      <span className="ml-1 transition-transform group-hover:translate-x-0.5">→</span>
+                    </a>
                   </div>
                 </div>
 

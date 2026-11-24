@@ -858,7 +858,18 @@ export default function AdminStudio() {
   const handleSaveMaterial = async () => {
     try {
       if (!materialForm.name.trim() || !materialForm.code.trim() || !materialForm.imageUrl.trim()) {
-        toast({ title: "Validation Error", description: "Name, Code, and Image URL are required.", variant: "destructive" });
+        toast({ title: "Validation Error", description: "Name, Code, and Material Image are required.", variant: "destructive" });
+        return;
+      }
+
+      // Transparent render asset is strictly compulsory when creating new studio materials
+      const effectiveRenderAsset = (materialForm.renderAssetUrl || "").trim() || (editingMaterial ? (editingMaterial.renderAssetUrl || "") : "");
+      if (!effectiveRenderAsset) {
+        toast({
+          title: "Validation Error",
+          description: "Transparent Image is required for studio materials. Please upload a transparent cutout image before saving.",
+          variant: "destructive",
+        });
         return;
       }
 
@@ -3104,12 +3115,18 @@ export default function AdminStudio() {
                 />
 
                 <ImageUploadField
-                  label="Transparent Render Asset (Optional for 2D Canvas)"
+                  label="Transparent Image (Required)"
+                  required
                   value={materialForm.renderAssetUrl}
                   onChange={(url) => setMaterialForm({ ...materialForm, renderAssetUrl: url })}
-                  placeholder="e.g. /assets/materials/rose-quartz-cutout.png"
-                  helpText="Optional transparent PNG cutout of this material for canvas rendering"
+                  placeholder="e.g. /assets/materials/rose-quartz-cutout.png or https://..."
+                  helpText="Required transparent PNG cutout of this material for 2D studio canvas and bespoke rendering"
                 />
+                {!materialForm.renderAssetUrl && !editingMaterial && (
+                  <p className="text-[11px] text-[#B66F72] -mt-2 font-medium">
+                    * Transparent PNG cutout is compulsory for all newly created studio materials.
+                  </p>
+                )}
 
                 <div className="space-y-1">
                   <Label>Description</Label>

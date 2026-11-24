@@ -42,7 +42,7 @@ router.patch("/cart-items/:id", requireAuth, async (req, res, next) => {
   try {
     const userId = authUserId(req);
     const quantity = Number(req.body.quantity ?? 1);
-    const items = await cartService.updateCartItemQuantity(userId, req.params.id, quantity);
+    const items = await cartService.updateCartItemQuantity(userId, req.params.id, quantity, req.body.customization);
     res.json(items.map((item, idx) => cartService.toLegacyCartItem(item as never, idx)));
   } catch (e) {
     next(e);

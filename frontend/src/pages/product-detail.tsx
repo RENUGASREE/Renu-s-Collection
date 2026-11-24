@@ -32,6 +32,8 @@ import {
   PackageX,
   Check,
   Palette,
+  Instagram,
+  Copy,
 } from "lucide-react";
 
 interface Product {
@@ -78,9 +80,21 @@ interface CustomizationConfig {
   isCustomizable: boolean;
 }
 
+export interface UnitConfiguration {
+  unitIndex: number;
+  label: string;
+  selections: Record<string, string | string[]>;
+  priceModifier?: number;
+  breakdown?: { field: string; option: string; modifier: number }[];
+}
+
 export default function ProductDetail() {
   const { productId } = useParams<{ productId: string }>();
   const [quantity, setQuantity] = useState(1);
+  const [unitConfigurations, setUnitConfigurations] = useState<UnitConfiguration[]>([
+    { unitIndex: 1, label: "Bracelet 1", selections: {}, priceModifier: 0, breakdown: [] },
+  ]);
+  const [activeUnitIndex, setActiveUnitIndex] = useState(0);
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -89,7 +103,14 @@ export default function ProductDetail() {
   const [imageHasError, setImageHasError] = useState<Record<number, boolean>>({});
 
   const [customizationConfig, setCustomizationConfig] = useState<CustomizationConfig | null>(null);
-  const [customizationSelections, setCustomizationSelections] = useState<Record<string, string | string[]>>({});
+  const currentUnit = unitConfigurations[activeUnitIndex] || unitConfigurations[0] || {
+    unitIndex: 1,
+    label: "Bracelet 1",
+    selections: {},
+    priceModifier: 0,
+    breakdown: [],
+  };
+  const customizationSelections = currentUnit.selections || {};
   const [customizationPrice, setCustomizationPrice] = useState<{
     basePrice: number;
     priceModifier: number;
@@ -187,32 +208,140 @@ export default function ProductDetail() {
     fetchWishlist();
   }, [fetchProduct, fetchWishlist]);
 
-  useEffect(() => {
-    if (product && customizationMode === 'customized' && Object.keys(customizationSelections).length > 0) {
-      const calculatePrice = async () => {
-        try {
-          const response = await apiRequest(
-            "POST",
-            `/api/v1/customization/products/${productId}/customization/calculate-price`,
-            {
-              selections: customizationSelections,
-            }
-          );
-          const data = await response.json();
-          setCustomizationPrice(data.data);
-        } catch (err) {
-          console.error("Failed to calculate price:", err);
+  const handleQuantityChange = (newQty: number) => {
+    const clampedQty = Math.max(1, newQty);
+    setQuantity(clampedQty);
+    setUnitConfigurations((prev) => {
+      if (clampedQty > prev.length) {
+        const added: UnitConfiguration[] = [];
+        for (let i = prev.length; i < clampedQty; i++) {
+          added.push({
+            unitIndex: i + 1,
+            label: `Bracelet ${i + 1}`,
+            selections: {},
+            priceModifier: 0,
+            breakdown: [],
+          });
         }
-      };
-      calculatePrice();
-    } else if (customizationMode === 'standard') {
-      setCustomizationPrice(null);
+        return [...prev, ...added];
+      } else if (clampedQty < prev.length) {
+        return prev.slice(0, clampedQty);
+      }
+      return prev;
+    });
+    if (activeUnitIndex >= clampedQty) {
+      setActiveUnitIndex(clampedQty - 1);
     }
-  }, [customizationSelections, productId, product, customizationMode]);
+  };
 
   const handleCustomizationChange = (key: string, value: string | string[]) => {
-    setCustomizationSelections((prev) => ({ ...prev, [key]: value }));
+    setUnitConfigurations((prev) => {
+      const copy = [...prev];
+      const targetIdx = activeUnitIndex < copy.length ? activeUnitIndex : 0;
+      const unit = copy[targetIdx] || {
+        unitIndex: targetIdx + 1,
+        label: `Bracelet ${targetIdx + 1}`,
+        selections: {},
+      };
+      copy[targetIdx] = {
+        ...unit,
+        selections: {
+          ...unit.selections,
+          [key]: value,
+        },
+      };
+      return copy;
+    });
   };
+
+  const handleCopyFromFirstUnit = (targetIndex: number) => {
+    if (targetIndex <= 0 || !unitConfigurations[0]) return;
+    const sourceSelections = JSON.parse(JSON.stringify(unitConfigurations[0].selections || {}));
+    setUnitConfigurations((prev) => {
+      const copy = [...prev];
+      if (copy[targetIndex]) {
+        copy[targetIndex] = {
+          ...copy[targetIndex],
+          selections: sourceSelections,
+        };
+      }
+      return copy;
+    });
+    toast({
+      title: "Design Copied",
+      description: `Copied selections from Bracelet 1 to Bracelet ${targetIndex + 1}.`,
+    });
+  };
+
+  useEffect(() => {
+    if (!product || customizationMode !== 'customized') {
+      if (customizationMode === 'standard') {
+        setCustomizationPrice(null);
+      }
+      return;
+    }
+
+    let isMounted = true;
+    const calculateAllUnits = async () => {
+      try {
+        let totalModifier = 0;
+        const allBreakdowns: { field: string; option: string; modifier: number }[] = [];
+        const activeUnits = unitConfigurations.slice(0, quantity);
+
+        for (const unit of activeUnits) {
+          if (Object.keys(unit.selections || {}).length > 0) {
+            try {
+              const response = await apiRequest(
+                "POST",
+                `/api/v1/customization/products/${productId}/customization/calculate-price`,
+                {
+                  selections: unit.selections,
+                }
+              );
+              const data = await response.json();
+              if (data.data) {
+                const mod = data.data.priceModifier || 0;
+                totalModifier += mod;
+                unit.priceModifier = mod;
+                unit.breakdown = data.data.breakdown || [];
+                if (data.data.breakdown) {
+                  allBreakdowns.push(...data.data.breakdown);
+                }
+              }
+            } catch (err) {
+              console.error("Failed to calculate unit price:", err);
+            }
+          } else {
+            unit.priceModifier = 0;
+            unit.breakdown = [];
+          }
+        }
+
+        if (!isMounted) return;
+
+        const baseUnit =
+          product.salePrice && product.salePrice < product.price
+            ? product.salePrice
+            : product.price;
+        const baseTotal = baseUnit * quantity;
+
+        setCustomizationPrice({
+          basePrice: baseTotal,
+          priceModifier: totalModifier,
+          totalPrice: baseTotal + totalModifier,
+          breakdown: allBreakdowns,
+        });
+      } catch (err) {
+        console.error("Failed to calculate prices:", err);
+      }
+    };
+
+    calculateAllUnits();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [unitConfigurations, productId, product, customizationMode, quantity]);
 
   const getProductImage = (prod: Product, index = selectedImageIndex) => {
     if (!prod.media || prod.media.length === 0) return "";
@@ -242,39 +371,46 @@ export default function ProductDetail() {
       return;
     }
 
-    // Validate customization if product is customizable
+    // Validate customization for every individual unit if product is customizable
     if (product.isCustomizable && showCustomization) {
-      try {
-        const validateResponse = await apiRequest(
-          "POST",
-          `/api/v1/customization/products/${productId}/customization/validate`,
-          {
-            selections: customizationSelections,
+      const activeUnits = unitConfigurations.slice(0, quantity);
+      for (let i = 0; i < activeUnits.length; i++) {
+        const unit = activeUnits[i];
+        try {
+          const validateResponse = await apiRequest(
+            "POST",
+            `/api/v1/customization/products/${productId}/customization/validate`,
+            {
+              selections: unit.selections || {},
+            }
+          );
+          const validateData = await validateResponse.json();
+          if (!validateData.data?.valid) {
+            setActiveUnitIndex(i);
+            toast({
+              title: `Invalid Customization for ${unit.label || `Bracelet ${i + 1}`}`,
+              description: validateData.data?.errors?.join(", ") || "Please configure all required options.",
+              variant: "destructive",
+            });
+            return;
           }
-        );
-        const validateData = await validateResponse.json();
-        if (!validateData.data.valid) {
-          toast({
-            title: "Invalid Customization",
-            description: validateData.data.errors.join(", "),
-            variant: "destructive",
-          });
-          return;
+        } catch (err) {
+          console.error("Validation error:", err);
         }
-      } catch (err) {
-        console.error("Validation error:", err);
       }
     }
 
     setAddingToCart(true);
     try {
+      const activeUnits = unitConfigurations.slice(0, quantity);
       const cartItem = {
         productId: product._id,
         quantity: quantity,
         customization:
-          product.isCustomizable && customizationMode === 'customized' && Object.keys(customizationSelections).length > 0
+          product.isCustomizable && customizationMode === 'customized'
             ? {
-                selections: customizationSelections,
+                selections: activeUnits[0]?.selections || {},
+                unitConfigurations: activeUnits,
                 previewImageUrl:
                   customizationConfig?.previewLayers[0]?.imageUrl || getProductImage(product, 0),
                 priceModifier: customizationPrice?.priceModifier || 0,
@@ -327,39 +463,46 @@ export default function ProductDetail() {
       return;
     }
 
-    // Validate customization if product is customizable
+    // Validate customization for every individual unit if product is customizable
     if (product.isCustomizable && showCustomization) {
-      try {
-        const validateResponse = await apiRequest(
-          "POST",
-          `/api/v1/customization/products/${productId}/customization/validate`,
-          {
-            selections: customizationSelections,
+      const activeUnits = unitConfigurations.slice(0, quantity);
+      for (let i = 0; i < activeUnits.length; i++) {
+        const unit = activeUnits[i];
+        try {
+          const validateResponse = await apiRequest(
+            "POST",
+            `/api/v1/customization/products/${productId}/customization/validate`,
+            {
+              selections: unit.selections || {},
+            }
+          );
+          const validateData = await validateResponse.json();
+          if (!validateData.data?.valid) {
+            setActiveUnitIndex(i);
+            toast({
+              title: `Invalid Customization for ${unit.label || `Bracelet ${i + 1}`}`,
+              description: validateData.data?.errors?.join(", ") || "Please configure all required options.",
+              variant: "destructive",
+            });
+            return;
           }
-        );
-        const validateData = await validateResponse.json();
-        if (!validateData.data.valid) {
-          toast({
-            title: "Invalid Customization",
-            description: validateData.data.errors.join(", "),
-            variant: "destructive",
-          });
-          return;
+        } catch (err) {
+          console.error("Validation error:", err);
         }
-      } catch (err) {
-        console.error("Validation error:", err);
       }
     }
 
     setAddingToCart(true);
     try {
+      const activeUnits = unitConfigurations.slice(0, quantity);
       const cartItem = {
         productId: product._id,
         quantity: quantity,
         customization:
-          product.isCustomizable && customizationMode === 'customized' && Object.keys(customizationSelections).length > 0
+          product.isCustomizable && customizationMode === 'customized'
             ? {
-                selections: customizationSelections,
+                selections: activeUnits[0]?.selections || {},
+                unitConfigurations: activeUnits,
                 previewImageUrl:
                   customizationConfig?.previewLayers[0]?.imageUrl || getProductImage(product, 0),
                 priceModifier: customizationPrice?.priceModifier || 0,
@@ -711,7 +854,8 @@ export default function ProductDetail() {
                   className={`px-4 py-2 rounded ${customizationMode === 'standard' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
                   onClick={() => {
                     setCustomizationMode('standard');
-                    setCustomizationSelections({});
+                    setUnitConfigurations([{ unitIndex: 1, label: "Bracelet 1", selections: {}, priceModifier: 0, breakdown: [] }]);
+                    setActiveUnitIndex(0);
                     setCustomizationPrice(null);
                   }}
                 >
@@ -734,15 +878,92 @@ export default function ProductDetail() {
                       Bespoke Personalization
                     </h2>
                     <p className="text-xs text-muted-foreground">
-                      Customize options to craft your signature jewellery piece.
+                      {quantity > 1
+                        ? `Customize each of your ${quantity} bracelets individually with distinct charm selections.`
+                        : "Customize options to craft your signature jewellery piece."}
                     </p>
                   </div>
+
+                  {/* Multi-quantity Unit Tabs */}
+                  {quantity > 1 && (
+                    <div className="space-y-3 pt-1">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground pb-1">
+                        <span>Configuring <strong>{quantity} Bracelets</strong></span>
+                        <span className="text-[11px]">Select each tab to customize independently</span>
+                      </div>
+                      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
+                        {unitConfigurations.slice(0, quantity).map((unit, idx) => {
+                          const hasSelections = Object.keys(unit.selections || {}).length > 0;
+                          const isActive = activeUnitIndex === idx;
+                          return (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => setActiveUnitIndex(idx)}
+                              className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all shrink-0 flex items-center gap-1.5 border ${
+                                isActive
+                                  ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                                  : "bg-muted/50 text-foreground border-border hover:bg-muted"
+                              }`}
+                            >
+                              <span>Bracelet {idx + 1}</span>
+                              {hasSelections && (
+                                <Check className={`w-3.5 h-3.5 ${isActive ? "text-primary-foreground" : "text-emerald-500"}`} />
+                              )}
+                              {unit.priceModifier ? (
+                                <span className="text-[10px] ml-0.5 opacity-90">
+                                  (+₹{unit.priceModifier})
+                                </span>
+                              ) : null}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Explicit Copy Action for Units > 0 */}
+                      {activeUnitIndex > 0 && (
+                        <div className="flex items-center justify-between bg-muted/40 border border-border/60 px-3 py-2 rounded-lg text-xs">
+                          <span className="text-muted-foreground">
+                            Configuring <strong>Bracelet {activeUnitIndex + 1}</strong>
+                          </span>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs gap-1.5 border-dashed hover:border-primary"
+                            onClick={() => handleCopyFromFirstUnit(activeUnitIndex)}
+                          >
+                            <Copy className="h-3 w-3" />
+                            Copy from Bracelet 1
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <CustomizationControls
                     fields={customizationConfig.fields}
                     selections={customizationSelections}
                     onChange={handleCustomizationChange}
                     disabled={!product.isInStock}
                   />
+
+                  {/* Instagram Custom Inquiry Note */}
+                  <div className="pt-3 border-t border-border/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-1.5">
+                      <Instagram className="w-3.5 h-3.5 text-primary shrink-0" />
+                      <span>Need bespoke raw materials or special charm combinations?</span>
+                    </div>
+                    <a
+                      href="https://www.instagram.com/renus_collections05/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline font-medium inline-flex items-center gap-1"
+                    >
+                      <span>DM us @renus_collections05</span>
+                      <span className="text-[10px]">↗</span>
+                    </a>
+                  </div>
                 </CardContent>
               </Card>
             )}
@@ -762,7 +983,7 @@ export default function ProductDetail() {
                 <div className="flex items-center gap-1.5 border border-border rounded-lg p-1 bg-background">
                   <span className="text-xs text-muted-foreground px-2 font-medium">Qty</span>
                   <Button
-                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                    onClick={() => handleQuantityChange(quantity - 1)}
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 text-foreground hover:bg-muted"
@@ -773,7 +994,7 @@ export default function ProductDetail() {
                   </Button>
                   <span className="w-8 text-center text-sm font-semibold">{quantity}</span>
                   <Button
-                    onClick={() => setQuantity(quantity + 1)}
+                    onClick={() => handleQuantityChange(quantity + 1)}
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 text-foreground hover:bg-muted"

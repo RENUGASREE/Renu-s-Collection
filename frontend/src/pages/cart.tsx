@@ -10,7 +10,8 @@ import {
   Sparkles, 
   RefreshCw, 
   Truck,
-  CheckCircle2
+  CheckCircle2,
+  X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -49,6 +50,13 @@ interface CartItem {
   };
   customization?: {
     selections?: Record<string, any>;
+    unitConfigurations?: Array<{
+      unitIndex: number;
+      label: string;
+      selections: Record<string, any>;
+      priceModifier?: number;
+      breakdown?: { field: string; option: string; modifier?: number }[];
+    }>;
     priceModifier?: number;
     breakdown?: { field: string; option: string; modifier?: number }[];
   };
@@ -129,6 +137,39 @@ export default function Cart() {
       }
     } catch (error) {
       console.error('Error removing item:', error);
+    }
+  };
+
+  const removeUnit = async (itemId: string, unitIndex: number) => {
+    const item = cartItems.find((i) => i.id === itemId);
+    if (!item || !item.customization?.unitConfigurations) return;
+
+    const remainingUnits = item.customization.unitConfigurations.filter((_, idx) => idx !== unitIndex);
+    if (remainingUnits.length === 0) {
+      await removeItem(itemId);
+      return;
+    }
+
+    const reindexedUnits = remainingUnits.map((u, i) => ({
+      ...u,
+      unitIndex: i + 1,
+      label: `Bracelet ${i + 1}`,
+    }));
+
+    const newQuantity = reindexedUnits.length;
+    try {
+      const response = await apiRequest('PATCH', `/api/v1/cart/${itemId}`, {
+        quantity: newQuantity,
+        customization: {
+          ...item.customization,
+          unitConfigurations: reindexedUnits,
+        },
+      });
+      if (response.ok) {
+        await fetchCartItems();
+      }
+    } catch (error) {
+      console.error('Error removing bracelet unit:', error);
     }
   };
 
@@ -355,7 +396,51 @@ export default function Cart() {
                                 <Sparkles className="w-3 h-3 text-[#B99A72]" />
                                 <span>Customization Details</span>
                               </div>
-                              {item.customization.breakdown && item.customization.breakdown.length > 0 ? (
+                              {item.customization.unitConfigurations && item.customization.unitConfigurations.length > 0 ? (
+                                <div className="space-y-2 pt-0.5">
+                                  {item.customization.unitConfigurations.map((unit, uIdx) => (
+                                    <div key={uIdx} className="border-l-2 border-[#B99A72] pl-2 py-0.5">
+                                      <div className="flex items-center justify-between font-semibold text-[11px] text-[#B99A72]">
+                                        <span>{unit.label || `Bracelet ${uIdx + 1}`}</span>
+                                        <div className="flex items-center gap-2">
+                                          {unit.priceModifier ? (
+                                            <span className="text-[#95565A] dark:text-rose-400 font-normal">
+                                              +₹{unit.priceModifier.toLocaleString('en-IN')}
+                                            </span>
+                                          ) : null}
+                                          {item.customization.unitConfigurations.length > 1 && (
+                                            <button
+                                              type="button"
+                                              onClick={() => removeUnit(item.id, uIdx)}
+                                              title={`Remove ${unit.label || `Bracelet ${uIdx + 1}`}`}
+                                              className="text-muted-foreground hover:text-destructive p-0.5 transition-colors rounded"
+                                            >
+                                              <X className="w-3 h-3" />
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+                                      <div className="text-[11px] text-[#342824] dark:text-foreground">
+                                        {unit.breakdown && unit.breakdown.length > 0 ? (
+                                          unit.breakdown.map((b, bIdx) => (
+                                            <span key={bIdx} className="inline-block mr-2 text-[11px]">
+                                              {b.field}: <strong>{b.option}</strong>{b.modifier ? ` (+₹${b.modifier})` : ''}
+                                            </span>
+                                          ))
+                                        ) : unit.selections && Object.keys(unit.selections).length > 0 ? (
+                                          Object.entries(unit.selections).map(([k, v]) => (
+                                            <span key={k} className="inline-block mr-2 text-[11px]">
+                                              <span className="capitalize">{k.replace(/_/g, ' ')}</span>: <strong>{Array.isArray(v) ? v.join(', ') : String(v)}</strong>
+                                            </span>
+                                          ))
+                                        ) : (
+                                          <span className="italic text-muted-foreground text-[10px]">Standard options</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : item.customization.breakdown && item.customization.breakdown.length > 0 ? (
                                 item.customization.breakdown.map((b, bIdx) => (
                                   <div key={bIdx} className="flex justify-between items-center text-[#342824] dark:text-foreground">
                                     <span>

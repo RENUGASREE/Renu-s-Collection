@@ -39,13 +39,23 @@ export const createVariantSchema = z.object({
 
 export const updateVariantSchema = createVariantSchema.partial();
 
+export const transparentMediaUrlSchema = mediaUrlSchema.refine(
+  (url) => {
+    const cleanUrl = url.split("?")[0].toLowerCase();
+    return !cleanUrl.endsWith(".jpg") && !cleanUrl.endsWith(".jpeg");
+  },
+  {
+    message: "Transparent material image must be in a transparent format (PNG or WebP), not JPEG.",
+  }
+);
+
 export const createMaterialSchema = z.object({
   name: z.string().min(1).max(150).trim(),
   code: z.string().min(2).max(64).trim().toUpperCase(),
   description: z.string().max(2000).optional(),
   materialType: z.string().min(1).max(64).trim().toLowerCase(),
   imageUrl: mediaUrlSchema,
-  renderAssetUrl: mediaUrlSchema.optional(),
+  renderAssetUrl: transparentMediaUrlSchema,
   additionalImages: z.array(mediaUrlSchema).optional().default([]),
   allowedJewelleryTypes: z.array(z.string().min(1)).min(1),
   supportedConstructionTypes: z.array(z.string().min(1)).optional().default([]),

@@ -36,7 +36,14 @@ interface OrderItem {
   quantity: number;
   subtotal: number;
   customization?: {
-    selections: Record<string, string | string[]>;
+    selections?: Record<string, string | string[]>;
+    unitConfigurations?: Array<{
+      unitIndex: number;
+      label: string;
+      selections: Record<string, string | string[]>;
+      priceModifier?: number;
+      breakdown?: { field: string; option: string; modifier?: number }[];
+    }>;
     previewImageUrl?: string;
     engraving?: string;
     breakdown?: { field: string; option: string; modifier?: number }[];
@@ -332,11 +339,58 @@ export default function AdminOrders() {
                     {/* Item list snapshot */}
                     <div className="space-y-1.5 text-xs text-[#756861] dark:text-muted-foreground mb-4">
                       {order.items.map((i, idx) => (
-                        <div key={idx} className="flex justify-between">
-                          <span>
-                            {i.name} <strong className="text-[#342824] dark:text-foreground">× {i.quantity}</strong>
-                          </span>
-                          <span>₹{(i.subtotal || i.unitPrice * i.quantity).toLocaleString('en-IN')}</span>
+                        <div key={idx} className="space-y-1">
+                          <div className="flex justify-between">
+                            <span>
+                              {i.name} <strong className="text-[#342824] dark:text-foreground">× {i.quantity}</strong>
+                            </span>
+                            <span>₹{(i.subtotal || i.unitPrice * i.quantity).toLocaleString('en-IN')}</span>
+                          </div>
+                          {i.customization && (
+                            <div className="ml-2 pl-2 border-l-2 border-[#B99A72]/70 text-[11px] space-y-1 bg-[#FBF7F3]/40 dark:bg-muted/20 p-1.5 rounded">
+                              {i.customization.unitConfigurations && i.customization.unitConfigurations.length > 0 ? (
+                                i.customization.unitConfigurations.map((u, uIdx) => (
+                                  <div key={uIdx} className="text-[#756861] dark:text-muted-foreground">
+                                    <strong className="text-primary font-medium">{u.label || `Bracelet ${uIdx + 1}`}:</strong>{' '}
+                                    {u.breakdown && u.breakdown.length > 0 ? (
+                                      u.breakdown.map((b: any, bIdx: number) => (
+                                        <span key={bIdx} className="mr-1.5">
+                                          {b.field}: <em>{b.option}</em>
+                                        </span>
+                                      ))
+                                    ) : u.selections ? (
+                                      Object.entries(u.selections).map(([k, v]) => (
+                                        <span key={k} className="mr-1.5">
+                                          {k}: <em>{Array.isArray(v) ? v.join(', ') : String(v)}</em>
+                                        </span>
+                                      ))
+                                    ) : null}
+                                  </div>
+                                ))
+                              ) : i.customization.breakdown && i.customization.breakdown.length > 0 ? (
+                                <div className="text-[#756861] dark:text-muted-foreground">
+                                  {i.customization.breakdown.map((b: any, bIdx: number) => (
+                                    <span key={bIdx} className="mr-1.5">
+                                      {b.field}: <em>{b.option}</em>
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : i.customization.selections ? (
+                                <div className="text-[#756861] dark:text-muted-foreground">
+                                  {Object.entries(i.customization.selections).map(([k, v]) => (
+                                    <span key={k} className="mr-1.5">
+                                      {k}: <em>{Array.isArray(v) ? v.join(', ') : String(v)}</em>
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : null}
+                              {i.customization.engraving && (
+                                <div className="text-[#B99A72]">
+                                  Engraving: "{i.customization.engraving}"
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>

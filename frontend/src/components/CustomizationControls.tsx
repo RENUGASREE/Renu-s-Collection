@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Check } from 'lucide-react';
+import { Check, Plus, Minus } from 'lucide-react';
 import { getAssetUrl } from '@/lib/queryClient';
 
 interface CustomizationOption {
@@ -70,8 +70,13 @@ export const CustomizationControls: React.FC<CustomizationControlsProps> = ({
     field: CustomizationField,
     option: CustomizationOption,
     isSelected: boolean,
-    onSelect: () => void
+    onSelect: () => void,
+    count = isSelected ? 1 : 0,
+    onIncrement?: () => void,
+    onDecrement?: () => void
   ) => {
+    const isMultiQuantity = isSelected && onIncrement && onDecrement;
+
     if (option.imageUrl) {
       return (
         <div
@@ -102,11 +107,42 @@ export const CustomizationControls: React.FC<CustomizationControlsProps> = ({
                 (e.target as HTMLImageElement).src = '/logo.png';
               }}
             />
-            {isSelected && (
+            {isMultiQuantity ? (
+              <div
+                className="absolute top-1.5 right-1.5 flex items-center bg-[#B66F72] text-white rounded-lg shadow-md px-1 py-0.5 gap-1 text-xs z-10"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  type="button"
+                  className="p-0.5 hover:bg-black/20 rounded-sm transition-colors"
+                  aria-label={`Decrease ${option.label} count`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDecrement();
+                  }}
+                  title="Remove one"
+                >
+                  <Minus className="w-3 h-3" />
+                </button>
+                <span className="font-bold text-[11px] min-w-[14px] text-center">{count}</span>
+                <button
+                  type="button"
+                  className="p-0.5 hover:bg-black/20 rounded-sm transition-colors"
+                  aria-label={`Increase ${option.label} count`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onIncrement();
+                  }}
+                  title="Add another"
+                >
+                  <Plus className="w-3 h-3" />
+                </button>
+              </div>
+            ) : isSelected ? (
               <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-[#B66F72] text-white flex items-center justify-center shadow-sm">
                 <Check className="w-3 h-3 stroke-[3]" />
               </div>
-            )}
+            ) : null}
           </div>
 
           {/* Option Details */}
@@ -116,7 +152,16 @@ export const CustomizationControls: React.FC<CustomizationControlsProps> = ({
             </p>
             {option.priceModifier !== undefined && option.priceModifier !== 0 && (
               <span className="text-[11px] sm:text-xs font-semibold text-[#B66F72] dark:text-primary mt-1">
-                {option.priceModifier > 0 ? '+' : ''}₹{option.priceModifier.toLocaleString('en-IN')}
+                {count > 1 ? (
+                  <>
+                    +₹{((option.priceModifier || 0) * count).toLocaleString('en-IN')}{' '}
+                    <span className="text-[10px] text-muted-foreground font-normal">
+                      (₹{option.priceModifier} × {count})
+                    </span>
+                  </>
+                ) : (
+                  `${option.priceModifier > 0 ? '+' : ''}₹${option.priceModifier.toLocaleString('en-IN')}`
+                )}
               </span>
             )}
           </div>
@@ -136,11 +181,40 @@ export const CustomizationControls: React.FC<CustomizationControlsProps> = ({
         onClick={() => !disabled && onSelect()}
       >
         <CardContent className="p-3 text-center flex flex-col items-center justify-center relative">
-          {isSelected && (
+          {isMultiQuantity ? (
+            <div
+              className="absolute top-1.5 right-1.5 flex items-center bg-[#B66F72] text-white rounded-lg shadow-md px-1 py-0.5 gap-1 text-xs z-10"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                className="p-0.5 hover:bg-black/20 rounded-sm transition-colors"
+                aria-label={`Decrease ${option.label} count`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDecrement();
+                }}
+              >
+                <Minus className="w-3 h-3" />
+              </button>
+              <span className="font-bold text-[11px] min-w-[14px] text-center">{count}</span>
+              <button
+                type="button"
+                className="p-0.5 hover:bg-black/20 rounded-sm transition-colors"
+                aria-label={`Increase ${option.label} count`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onIncrement();
+                }}
+              >
+                <Plus className="w-3 h-3" />
+              </button>
+            </div>
+          ) : isSelected ? (
             <div className="absolute top-2 right-2 w-4 h-4 rounded-full bg-[#B66F72] text-white flex items-center justify-center shadow-xs">
               <Check className="w-2.5 h-2.5 stroke-[3]" />
             </div>
-          )}
+          ) : null}
           <p className="font-medium text-xs sm:text-sm text-[#342824] dark:text-foreground break-words max-w-full">
             {option.label}
           </p>
@@ -149,7 +223,9 @@ export const CustomizationControls: React.FC<CustomizationControlsProps> = ({
               variant="secondary"
               className="mt-1 text-[10px] sm:text-xs font-semibold text-[#B66F72] dark:text-primary bg-[#F1E6DF]/70 dark:bg-muted border border-[#E6D8D0]/60 dark:border-border"
             >
-              {option.priceModifier > 0 ? '+' : ''}₹{option.priceModifier.toLocaleString('en-IN')}
+              {count > 1
+                ? `+₹${((option.priceModifier || 0) * count).toLocaleString('en-IN')} (×${count})`
+                : `${option.priceModifier > 0 ? '+' : ''}₹${option.priceModifier.toLocaleString('en-IN')}`}
             </Badge>
           )}
         </CardContent>
@@ -197,7 +273,8 @@ export const CustomizationControls: React.FC<CustomizationControlsProps> = ({
   };
 
   const renderMultiselectField = (field: CustomizationField) => {
-    const values = (selections[field.key] as string[]) || [];
+    const rawVal = selections[field.key];
+    const values = Array.isArray(rawVal) ? (rawVal as string[]) : rawVal ? [String(rawVal)] : [];
     const displayName = normalizeFieldLabel(field.key, field.label);
     const hasAnyImages = field.options?.some((o) => !!o.imageUrl);
 
@@ -214,7 +291,7 @@ export const CustomizationControls: React.FC<CustomizationControlsProps> = ({
           </div>
           {values.length > 0 && (
             <span className="text-xs text-[#B99A72] font-medium">
-              {values.length} selected
+              {values.length} {values.length === 1 ? 'charm' : 'charms'} selected on this bracelet
             </span>
           )}
         </div>
@@ -227,13 +304,37 @@ export const CustomizationControls: React.FC<CustomizationControlsProps> = ({
           }`}
         >
           {field.options?.map((option) => {
-            const isSelected = values.includes(option.value) || values.includes(option.label);
-            return renderOptionCard(field, option, isSelected, () => {
-              const newValues = isSelected
-                ? values.filter((v) => v !== option.value && v !== option.label)
-                : [...values, option.value];
-              onChange(field.key, newValues);
-            });
+            const count = values.filter((v) => v === option.value || v === option.label).length;
+            const isSelected = count > 0;
+
+            const handleToggle = () => {
+              if (!isSelected) {
+                onChange(field.key, [...values, option.value]);
+              }
+            };
+
+            const handleIncrement = () => {
+              onChange(field.key, [...values, option.value]);
+            };
+
+            const handleDecrement = () => {
+              const idx = values.findIndex((v) => v === option.value || v === option.label);
+              if (idx >= 0) {
+                const next = [...values];
+                next.splice(idx, 1);
+                onChange(field.key, next);
+              }
+            };
+
+            return renderOptionCard(
+              field,
+              option,
+              isSelected,
+              handleToggle,
+              count,
+              handleIncrement,
+              handleDecrement
+            );
           })}
         </div>
       </div>

@@ -47,9 +47,9 @@ router.patch("/:itemId", async (req: Request, res: Response, next: NextFunction)
     }
 
     const { itemId } = req.params;
-    const { quantity } = req.body;
+    const { quantity, customization } = req.body;
     
-    const result = await cartService.updateCartItemQuantity(userId, itemId, quantity);
+    const result = await cartService.updateCartItemQuantity(userId, itemId, quantity, customization);
     return res.json({ success: true, data: result });
   } catch (error) {
     next(error);

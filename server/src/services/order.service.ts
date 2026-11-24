@@ -487,7 +487,42 @@ export async function createOrderFromCart(
 
     let priceModifier = 0;
     let breakdown: any[] = [];
-    if (item.customization?.selections && Object.keys(item.customization.selections).length > 0) {
+    let unitConfigurations = item.customization?.unitConfigurations;
+
+    if (Array.isArray(unitConfigurations) && unitConfigurations.length > 0) {
+      if (unitConfigurations.length !== item.quantity) {
+        throw new AppError(
+          `Customization configuration count (${unitConfigurations.length}) does not match item quantity (${item.quantity}) for "${item.name}".`,
+          400
+        );
+      }
+      let totalUnitModifier = 0;
+      const updatedUnitConfigs = [];
+      for (let uIdx = 0; uIdx < unitConfigurations.length; uIdx++) {
+        const unit = unitConfigurations[uIdx];
+        const unitSelections = unit.selections || {};
+        try {
+          const pricing = await customizationService.calculatePrice(
+            item.productId.toString(),
+            unitSelections as Record<string, string | string[]>
+          );
+          totalUnitModifier += pricing.priceModifier;
+          updatedUnitConfigs.push({
+            unitIndex: unit.unitIndex || uIdx + 1,
+            label: unit.label || `Bracelet ${uIdx + 1}`,
+            selections: unitSelections,
+            priceModifier: pricing.priceModifier,
+            breakdown: pricing.breakdown,
+          });
+        } catch {
+          totalUnitModifier += unit.priceModifier || 0;
+          updatedUnitConfigs.push(unit);
+        }
+      }
+      unitConfigurations = updatedUnitConfigs;
+      priceModifier = totalUnitModifier / item.quantity;
+      breakdown = unitConfigurations.flatMap((u: any) => u.breakdown || []);
+    } else if (item.customization?.selections && Object.keys(item.customization.selections).length > 0) {
       try {
         const pricing = await customizationService.calculatePrice(
           item.productId.toString(),
@@ -505,7 +540,7 @@ export async function createOrderFromCart(
     }
 
     const unitPrice = item.unitPrice + priceModifier;
-    const lineSubtotal = unitPrice * item.quantity;
+    const lineSubtotal = Math.round(unitPrice * item.quantity);
     subtotal += lineSubtotal;
 
     orderItems.push({
@@ -520,8 +555,10 @@ export async function createOrderFromCart(
       customization: item.customization
         ? {
             selections: item.customization.selections,
+            unitConfigurations: unitConfigurations || item.customization.unitConfigurations,
             previewImageUrl: item.customization.previewImageUrl,
             engraving: item.customization.engraving,
+            priceModifier: item.customization.priceModifier ?? priceModifier,
             breakdown,
           }
         : undefined,

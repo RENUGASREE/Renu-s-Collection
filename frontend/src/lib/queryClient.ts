@@ -158,7 +158,8 @@ export async function refreshAccessToken(): Promise<boolean> {
 
 export async function uploadImageFiles(
   files: File[],
-  onProgress?: (percent: number) => void
+  onProgress?: (percent: number) => void,
+  requireTransparency?: boolean
 ): Promise<any[]> {
   if (!files || files.length === 0) {
     throw new Error("No files selected for upload.");
@@ -168,6 +169,9 @@ export async function uploadImageFiles(
   for (const file of files) {
     if (!validTypes.includes(file.type)) {
       throw new Error(`Invalid format for ${file.name}. Please select a JPEG, PNG, or WebP image.`);
+    }
+    if (requireTransparency && (file.type === "image/jpeg" || file.type === "image/jpg")) {
+      throw new Error(`Invalid format for ${file.name}. Transparent material cutouts must be PNG or WebP format with an alpha channel. JPEG does not support transparency.`);
     }
     if (file.size > 10 * 1024 * 1024) {
       throw new Error(`File ${file.name} is too large. Image size must be under 10MB.`);
@@ -182,7 +186,10 @@ export async function uploadImageFiles(
   const doUpload = (authToken: string | null): Promise<any> => {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
-      xhr.open("POST", `${API_BASE_URL}/api/v1/products/images/upload`);
+      const endpoint = requireTransparency
+        ? `${API_BASE_URL}/api/v1/products/images/upload?requireTransparency=true`
+        : `${API_BASE_URL}/api/v1/products/images/upload`;
+      xhr.open("POST", endpoint);
       xhr.withCredentials = true;
 
       if (authToken) {
@@ -260,9 +267,10 @@ export async function uploadImageFiles(
 
 export async function uploadImageFile(
   file: File,
-  onProgress?: (percent: number) => void
+  onProgress?: (percent: number) => void,
+  requireTransparency?: boolean
 ): Promise<string> {
-  const items = await uploadImageFiles([file], onProgress);
+  const items = await uploadImageFiles([file], onProgress, requireTransparency);
   const uploaded = items[0];
   if (!uploaded?.url && !uploaded?.secureUrl) {
     throw new Error("No image URL returned from upload server.");

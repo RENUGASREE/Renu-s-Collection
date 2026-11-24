@@ -24,6 +24,7 @@ interface ImageUploadFieldProps {
   placeholder?: string;
   className?: string;
   compact?: boolean;
+  requireTransparency?: boolean;
 }
 
 export default function ImageUploadField({
@@ -31,11 +32,19 @@ export default function ImageUploadField({
   value,
   onChange,
   required = false,
-  helpText = "Supports JPEG, PNG, or WebP up to 10MB",
+  helpText,
   placeholder = "e.g. /assets/... or https://...",
   className = "",
   compact = false,
+  requireTransparency = false,
 }: ImageUploadFieldProps) {
+  const isTransparentField = requireTransparency || Boolean(label?.toLowerCase().includes("transparent"));
+  const effectiveHelpText =
+    helpText ||
+    (isTransparentField
+      ? "Supports transparent PNG or WebP with alpha channel up to 10MB"
+      : "Supports JPEG, PNG, or WebP up to 10MB");
+
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -45,13 +54,24 @@ export default function ImageUploadField({
 
   const handleFileProcess = async (file: File) => {
     setUploadError(null);
+
+    // Client-side format pre-validation for transparent assets
+    if (isTransparentField && (file.type === "image/jpeg" || file.type === "image/jpg")) {
+      setUploadError("Transparent cutouts must be in PNG or WebP format with an alpha channel. JPEG images do not support transparency.");
+      return;
+    }
+
     setIsUploading(true);
     setUploadProgress(10);
 
     try {
-      const uploadedUrl = await uploadImageFile(file, (percent) => {
-        setUploadProgress(Math.max(10, percent));
-      });
+      const uploadedUrl = await uploadImageFile(
+        file,
+        (percent) => {
+          setUploadProgress(Math.max(10, percent));
+        },
+        isTransparentField
+      );
       onChange(uploadedUrl);
       setShowUrlInput(false);
     } catch (err: any) {
@@ -314,7 +334,7 @@ export default function ImageUploadField({
             <p className="text-xs sm:text-sm font-medium text-[#342824] dark:text-foreground">
               Click to choose image or drag & drop here
             </p>
-            <p className="text-[11px] text-muted-foreground">{helpText}</p>
+            <p className="text-[11px] text-muted-foreground">{effectiveHelpText}</p>
           </div>
         </div>
       )}

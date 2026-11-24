@@ -62,9 +62,21 @@ export interface VerifiedComponent {
   availableStock: number;
 }
 
+function isLikelyCharmSelection(key: string, value: string): boolean {
+  const k = key.toLowerCase().trim();
+  if (k.includes("charm")) return true;
+  const v = value.trim().toUpperCase();
+  if (v.startsWith("CH-") || v.startsWith("CH_") || v.startsWith("BEAD-") || v.startsWith("MAT-")) {
+    return true;
+  }
+  return false;
+}
+
 /**
- * Aggregates all required material variant SKUs across all custom designs in the cart.
- * Accounts for repeated beads/charms inside each piece multiplied by the item quantity.
+ * Aggregates all required material variant SKUs across all custom designs and
+ * customizable products with charm configurations in the cart.
+ * Accounts for repeated beads/charms inside each piece and across multi-unit configurations
+ * multiplied by the item quantity.
  */
 export function aggregateCustomDesignComponents(
   cartItems: Array<any>
@@ -72,61 +84,112 @@ export function aggregateCustomDesignComponents(
   const aggregated: Record<string, AggregatedComponent> = {};
 
   for (const item of cartItems) {
-    if (item.itemType === "product") continue;
+    // 1. Tally from Studio custom designs
     if (item.itemType === "custom_design" || item.studioDesign) {
       const sd = item.studioDesign;
-      if (!sd) continue;
+      if (sd) {
+        const itemQty = Math.max(1, Number(item.quantity) || 1);
+        const itemName = item.name || "Custom Jewelry Piece";
 
-      const itemQty = Math.max(1, Number(item.quantity) || 1);
-      const itemName = item.name || "Custom Jewelry Piece";
-
-      // 1. Tally from beadSequence
-      if (Array.isArray(sd.beadSequence)) {
-        for (const bead of sd.beadSequence) {
-          const sku = bead.variantSku?.trim()?.toUpperCase();
-          if (sku) {
-            if (!aggregated[sku]) {
-              aggregated[sku] = { quantity: 0, itemNames: [] };
+        // Tally from beadSequence
+        if (Array.isArray(sd.beadSequence)) {
+          for (const bead of sd.beadSequence) {
+            const sku = bead.variantSku?.trim()?.toUpperCase();
+            if (sku) {
+              if (!aggregated[sku]) {
+                aggregated[sku] = { quantity: 0, itemNames: [] };
+              }
+              aggregated[sku].quantity += 1 * itemQty;
+              if (!aggregated[sku].itemNames.includes(itemName)) {
+                aggregated[sku].itemNames.push(itemName);
+              }
             }
-            aggregated[sku].quantity += 1 * itemQty;
-            if (!aggregated[sku].itemNames.includes(itemName)) {
-              aggregated[sku].itemNames.push(itemName);
+          }
+        }
+
+        // Tally from charms
+        if (Array.isArray(sd.charms)) {
+          for (const charm of sd.charms) {
+            const sku = charm.variantSku?.trim()?.toUpperCase();
+            if (sku) {
+              if (!aggregated[sku]) {
+                aggregated[sku] = { quantity: 0, itemNames: [] };
+              }
+              aggregated[sku].quantity += 1 * itemQty;
+              if (!aggregated[sku].itemNames.includes(itemName)) {
+                aggregated[sku].itemNames.push(itemName);
+              }
+            }
+          }
+        }
+
+        // Fallback: components array if present and sequence was empty
+        if (
+          (!sd.beadSequence || sd.beadSequence.length === 0) &&
+          Array.isArray(sd.components)
+        ) {
+          for (const comp of sd.components) {
+            const sku = comp.variantSku?.trim()?.toUpperCase();
+            const compQty = Math.max(1, Number(comp.quantity) || 1);
+            if (sku) {
+              if (!aggregated[sku]) {
+                aggregated[sku] = { quantity: 0, itemNames: [] };
+              }
+              aggregated[sku].quantity += compQty * itemQty;
+              if (!aggregated[sku].itemNames.includes(itemName)) {
+                aggregated[sku].itemNames.push(itemName);
+              }
             }
           }
         }
       }
+    }
 
-      // 2. Tally from charms
-      if (Array.isArray(sd.charms)) {
-        for (const charm of sd.charms) {
-          const sku = charm.variantSku?.trim()?.toUpperCase();
-          if (sku) {
-            if (!aggregated[sku]) {
-              aggregated[sku] = { quantity: 0, itemNames: [] };
-            }
-            aggregated[sku].quantity += 1 * itemQty;
-            if (!aggregated[sku].itemNames.includes(itemName)) {
-              aggregated[sku].itemNames.push(itemName);
+    // 2. Tally charm variants from product customization (supporting multi-quantity unit configurations)
+    if (item.customization) {
+      const cust = item.customization;
+      const itemName = item.name || "Customized Bracelet";
+
+      if (Array.isArray(cust.unitConfigurations) && cust.unitConfigurations.length > 0) {
+        // Multi-quantity unit configurations (each unit configuration is 1 individual piece)
+        for (const unit of cust.unitConfigurations) {
+          const unitLabel = unit.label || `Bracelet ${unit.unitIndex || 1}`;
+          const unitItemName = `${itemName} (${unitLabel})`;
+          const selections = unit.selections || {};
+
+          for (const [key, val] of Object.entries(selections)) {
+            const vals = Array.isArray(val) ? val : [val];
+            for (const v of vals) {
+              if (typeof v === "string" && v.trim() && isLikelyCharmSelection(key, v)) {
+                const sku = v.trim().toUpperCase();
+                if (!aggregated[sku]) {
+                  aggregated[sku] = { quantity: 0, itemNames: [] };
+                }
+                aggregated[sku].quantity += 1;
+                if (!aggregated[sku].itemNames.includes(unitItemName)) {
+                  aggregated[sku].itemNames.push(unitItemName);
+                }
+              }
             }
           }
         }
-      }
+      } else if (cust.selections && typeof cust.selections === "object") {
+        // Single unit or fallback: multiplied by item.quantity
+        const itemQty = Math.max(1, Number(item.quantity) || 1);
+        const selections = cust.selections;
 
-      // 3. Fallback: components array if present and sequence was empty
-      if (
-        (!sd.beadSequence || sd.beadSequence.length === 0) &&
-        Array.isArray(sd.components)
-      ) {
-        for (const comp of sd.components) {
-          const sku = comp.variantSku?.trim()?.toUpperCase();
-          const compQty = Math.max(1, Number(comp.quantity) || 1);
-          if (sku) {
-            if (!aggregated[sku]) {
-              aggregated[sku] = { quantity: 0, itemNames: [] };
-            }
-            aggregated[sku].quantity += compQty * itemQty;
-            if (!aggregated[sku].itemNames.includes(itemName)) {
-              aggregated[sku].itemNames.push(itemName);
+        for (const [key, val] of Object.entries(selections)) {
+          const vals = Array.isArray(val) ? val : [val];
+          for (const v of vals) {
+            if (typeof v === "string" && v.trim() && isLikelyCharmSelection(key, v)) {
+              const sku = v.trim().toUpperCase();
+              if (!aggregated[sku]) {
+                aggregated[sku] = { quantity: 0, itemNames: [] };
+              }
+              aggregated[sku].quantity += 1 * itemQty;
+              if (!aggregated[sku].itemNames.includes(itemName)) {
+                aggregated[sku].itemNames.push(itemName);
+              }
             }
           }
         }
