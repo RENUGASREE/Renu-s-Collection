@@ -69,7 +69,7 @@ export function createPostgresPool(customConfig?: Partial<PostgresConfig>): IDbP
   });
 
   // Handle unexpected errors on idle clients
-  pool.on("error", (err) => {
+  pool.on("error", (err: Error) => {
     console.error("Unexpected error on idle PostgreSQL client:", err.message);
   });
 
