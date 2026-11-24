@@ -1,5 +1,7 @@
 import { Router, Request, Response, NextFunction } from "express";
-import { Category, Product } from "../models/index.js";
+import { PostgresCategoryRepository } from "../repositories/postgres-category.repository.js";
+import { PostgresProductRepository } from "../repositories/postgres-product.repository.js";
+import { PostgresUserRepository } from "../repositories/postgres-user.repository.js";
 import * as authService from "../services/auth.service.js";
 import { setRefreshCookie } from "../controllers/auth.controller.js";
 import { AppError } from "../middleware/errorHandler.js";
@@ -9,22 +11,36 @@ import { z } from "zod";
 
 const router = Router();
 
+let categoryRepo = new PostgresCategoryRepository();
+let productRepo = new PostgresProductRepository();
+let userRepo = new PostgresUserRepository();
+
+export function setLegacyRouteRepositories(repos: {
+  categoryRepo?: PostgresCategoryRepository;
+  productRepo?: PostgresProductRepository;
+  userRepo?: PostgresUserRepository;
+}) {
+  if (repos.categoryRepo) categoryRepo = repos.categoryRepo;
+  if (repos.productRepo) productRepo = repos.productRepo;
+  if (repos.userRepo) userRepo = repos.userRepo;
+}
+
 function primaryImage(product: { media?: { url: string; isPrimary?: boolean }[]; name: string }) {
   const primary = product.media?.find((m) => m.isPrimary) ?? product.media?.[0];
   return primary?.url ?? "";
 }
 
-async function toLegacyProduct(product: Record<string, unknown>, productType: "bracelet" | "chain") {
+async function toLegacyProduct(product: any, productType: "bracelet" | "chain") {
   const category = product.categoryId
-    ? await Category.findById(product.categoryId as string).lean()
+    ? await categoryRepo.findById(product.categoryId).catch(() => null)
     : null;
 
   return {
-    id: (product._id as { toString(): string }).toString(),
+    id: String(product.id || product._id),
     name: product.name,
     description: product.description,
     price: product.price,
-    imageUrl: primaryImage(product as { media?: { url: string; isPrimary?: boolean }[]; name: string }),
+    imageUrl: product.imageUrl || primaryImage(product),
     created_at: product.createdAt,
     updated_at: product.updatedAt,
     category: productType === "bracelet" ? "Bracelet" : "Chain",
@@ -41,21 +57,27 @@ async function toLegacyProduct(product: Record<string, unknown>, productType: "b
 }
 
 async function listLegacyProducts(productTypes: ("bracelet" | "earring" | "bangle")[], req: Request) {
-  const categories = await Category.find({ productType: { $in: productTypes }, isActive: true }).lean();
-  const categoryIds = categories.map((c) => c._id);
+  const allCategories = await categoryRepo.findAll({ active: true });
+  const matchingCategories = allCategories.filter((c) =>
+    productTypes.includes(c.productType as any)
+  );
+  const categoryIds = matchingCategories.map((c) => c.id);
 
-  const filter: Record<string, unknown> = {
-    isActive: true,
-    categoryId: { $in: categoryIds },
-  };
+  const allProducts = await productRepo.findAll(
+    { isActive: true },
+    { limit: 100 }
+  );
+
+  let products = allProducts.filter((p: any) =>
+    categoryIds.includes(p.categoryId)
+  );
 
   if (req.query.is_signature_piece === "true") {
-    filter.isSignaturePiece = true;
+    products = products.filter((p: any) => p.isSignaturePiece === true);
   }
 
-  const products = await Product.find(filter).sort({ createdAt: -1 }).lean();
   const legacyType = productTypes.includes("bracelet") ? "bracelet" : "chain";
-  return Promise.all(products.map((p) => toLegacyProduct(p, legacyType)));
+  return Promise.all(products.map((p: any) => toLegacyProduct(p, legacyType)));
 }
 
 router.get("/bracelets", async (req: Request, res: Response, next: NextFunction) => {
@@ -69,7 +91,7 @@ router.get("/bracelets", async (req: Request, res: Response, next: NextFunction)
 
 router.get("/bracelets/:id", async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const product = await Product.findById(req.params.id).lean();
+    const product = await productRepo.findById(req.params.id);
     if (!product) throw new AppError("Not found", 404);
     res.json(await toLegacyProduct(product, "bracelet"));
   } catch (error) {
@@ -88,7 +110,7 @@ router.get("/chains", async (req: Request, res: Response, next: NextFunction) =>
 
 router.get("/chains/:id", async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const product = await Product.findById(req.params.id).lean();
+    const product = await productRepo.findById(req.params.id);
     if (!product) throw new AppError("Not found", 404);
     res.json(await toLegacyProduct(product, "chain"));
   } catch (error) {
@@ -98,13 +120,13 @@ router.get("/chains/:id", async (req: Request, res: Response, next: NextFunction
 
 router.get("/categories", async (_req: Request, res: Response, next: NextFunction) => {
   try {
-    const categories = await Category.find({ isActive: true }).sort({ sortOrder: 1 }).lean();
+    const categories = await categoryRepo.findAll({ active: true });
     res.json(
       categories.map((c) => ({
-        id: c._id.toString(),
+        id: c.id,
         name: c.name,
         slug: c.slug,
-        parent: c.parentId?.toString() ?? null,
+        parent: c.parentId ?? null,
         group: c.productType === "bracelet" ? "bracelet" : "chain",
         is_active: c.isActive,
         position: c.sortOrder,
@@ -124,8 +146,7 @@ router.post("/login", validateBody(legacyLoginSchema), async (req: Request, res:
   try {
     let email = req.body.email as string | undefined;
     if (!email && req.body.username) {
-      const { User } = await import("../models/User.js");
-      const user = await User.findOne({ username: req.body.username });
+      const user = await userRepo.findByUsername(req.body.username);
       if (!user) throw new AppError("Invalid email or password", 401);
       email = user.email;
     }

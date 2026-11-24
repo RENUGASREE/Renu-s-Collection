@@ -138,7 +138,7 @@ async function main() {
       isActive: true,
     });
 
-    const testUserId = testAdminUser._id as Types.ObjectId;
+    const testUserId = (testAdminUser._id as Types.ObjectId).toString();
     const testSkuA = `TEST-SKU-A-${Date.now()}`;
     const testSkuB = `TEST-SKU-B-${Date.now()}`;
 
@@ -180,7 +180,7 @@ async function main() {
     try {
       // Test 1: Successful reservation and stock decrement
       await runTest("1. Successful reservation and atomic stock decrement", async () => {
-        const orderId = new Types.ObjectId();
+        const orderId = new Types.ObjectId().toString();
         const cartItems = [
           {
             itemType: "custom_design",
@@ -244,8 +244,8 @@ async function main() {
       await runTest("3. Concurrent attempts for last available units (atomic race)", async () => {
         // Stock of SKU B is currently 4.
         // We simulate two concurrent checkouts, each wanting 3 units of SKU B (3 + 3 = 6 > 4).
-        const orderId1 = new Types.ObjectId();
-        const orderId2 = new Types.ObjectId();
+        const orderId1 = new Types.ObjectId().toString();
+        const orderId2 = new Types.ObjectId().toString();
 
         const cartItems = [
           {
@@ -291,7 +291,7 @@ async function main() {
       await runTest("4. Partial reservation failure and rollback", async () => {
         // SKU A has 8 in stock. SKU B has 1 in stock.
         // Design wants 2 of SKU A (available) and 5 of SKU B (unavailable).
-        const orderId = new Types.ObjectId();
+        const orderId = new Types.ObjectId().toString();
         const cartItems = [
           {
             itemType: "custom_design",
@@ -334,7 +334,7 @@ async function main() {
 
       // Test 5: Successful Razorpay payment commits reservation
       await runTest("5. Successful Razorpay payment commits reservation", async () => {
-        const orderId = new Types.ObjectId();
+        const orderId = new Types.ObjectId().toString();
         await reserveStudioStockForOrder({
           orderId,
           orderNumber: "PAY-ORD-01",
@@ -363,7 +363,7 @@ async function main() {
       await runTest("6. Failed or expired payment releases reservation", async () => {
         // Stock of SKU A was 8 - 1 = 7.
         // Reserve 2 of SKU A (stock drops to 5).
-        const orderId = new Types.ObjectId();
+        const orderId = new Types.ObjectId().toString();
         await reserveStudioStockForOrder({
           orderId,
           orderNumber: "FAIL-ORD-01",
@@ -394,7 +394,7 @@ async function main() {
       // Test 7: Late payment after reservation expiry (re-reserve and out-of-stock reconciliation)
       await runTest("7. Late payment after reservation expiry: re-reserves if available, flags reconciliation if out of stock", async () => {
         // Case A: Stock still available -> late payment re-reserves successfully
-        const orderIdA = new Types.ObjectId();
+        const orderIdA = new Types.ObjectId().toString();
         await reserveStudioStockForOrder({
           orderId: orderIdA,
           orderNumber: "LATE-ORD-01",
@@ -418,7 +418,7 @@ async function main() {
         assert(lateCommit.status === "committed", "Status should transition to committed");
 
         // Case B: Stock exhausted in the meantime -> late payment flags reconciliation
-        const orderIdB = new Types.ObjectId();
+        const orderIdB = new Types.ObjectId().toString();
         await reserveStudioStockForOrder({
           orderId: orderIdB,
           orderNumber: "LATE-ORD-02",
@@ -453,7 +453,7 @@ async function main() {
 
       // Test 8: COD placement immediate commitment and cancellation restock
       await runTest("8. COD immediate commitment and cancellation restock", async () => {
-        const orderId = new Types.ObjectId();
+        const orderId = new Types.ObjectId().toString();
         // Place COD order reserving 2 of SKU A
         const reservation = await reserveStudioStockForOrder({
           orderId,
@@ -481,7 +481,7 @@ async function main() {
 
       // Test 9: Duplicate events idempotency
       await runTest("9. Duplicate payment callbacks and restock calls are idempotent", async () => {
-        const orderId = new Types.ObjectId();
+        const orderId = new Types.ObjectId().toString();
         await reserveStudioStockForOrder({
           orderId,
           orderNumber: "IDEM-ORD-01",
@@ -511,7 +511,7 @@ async function main() {
 
       // Test 10: Expiry cleanup function
       await runTest("10. cleanupExpiredStudioReservations releases only unpaid expired orders", async () => {
-        const orderId = new Types.ObjectId();
+        const orderId = new Types.ObjectId().toString();
         // Create an expired reservation in the past
         await StudioReservation.create({
           orderId,
@@ -538,7 +538,7 @@ async function main() {
 
       // Test 11: Admin reconciliation actions
       await runTest("11. Admin reconciliation: force_commit and refund_and_release", async () => {
-        const orderIdReconcile = new Types.ObjectId();
+        const orderIdReconcile = new Types.ObjectId().toString();
         const address = {
           fullName: "Admin Test",
           line1: "123 St",
@@ -691,7 +691,7 @@ async function main() {
           { "variants.sku": testSkuA },
           { $set: { "variants.$.stock": 10 } }
         );
-        const orderId = new Types.ObjectId();
+        const orderId = new Types.ObjectId().toString();
         await reserveStudioStockForOrder({
           orderId,
           orderNumber: "FAIL-INJECT-REL-01",
@@ -751,7 +751,7 @@ async function main() {
           { "variants.sku": testSkuA },
           { $set: { "variants.$.stock": 10 } }
         );
-        const orderId = new Types.ObjectId();
+        const orderId = new Types.ObjectId().toString();
         // Create committed reservation (as in confirmed COD order)
         await reserveStudioStockForOrder({
           orderId,

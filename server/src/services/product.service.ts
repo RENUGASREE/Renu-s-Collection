@@ -1,91 +1,128 @@
-import { FilterQuery, Types, FlattenMaps } from "mongoose";
-import { Product, IProduct } from "../models/Product.js";
-import { Category } from "../models/Category.js";
+/**
+ * ============================================================================
+ * Product Service — PostgreSQL Implementation (Phase 3C-3)
+ * ============================================================================
+ *
+ * Migrated from MongoDB/Mongoose to Supabase PostgreSQL using `PostgresProductRepository`
+ * and `PostgresCategoryRepository`.
+ *
+ * Guarantees:
+ * - 100% PostgreSQL-backed product CRUD and stock management.
+ * - Zero Mongoose / MongoDB dependencies in this service.
+ * - Exact API contract compatibility (items, meta, error codes, and field formats).
+ * - Full backward compatibility: entities provide both `id` and `_id`, `effectivePrice`, and `isInStock`.
+ * - Atomic stock adjustments and `inventory_logs` insertion inside the same PostgreSQL transaction.
+ * - Support for repository and database pool dependency injection for unit testing.
+ */
+
 import { AppError } from "../middleware/errorHandler.js";
-import { paginate, toSlug, generateSku } from "../utils/helpers.js";
-import { adjustStock as inventoryAdjustStock } from "./inventory.service.js";
+import { toSlug, generateSku, isValidEntityId } from "../utils/helpers.js";
+import {
+  PostgresProductRepository,
+  postgresProductRepository,
+  ProductRecord,
+  ProductFilterOptions,
+  UpdateProductData,
+  computeEffectivePrice,
+} from "../repositories/postgres-product.repository.js";
+import {
+  PostgresCategoryRepository,
+  postgresCategoryRepository,
+} from "../repositories/postgres-category.repository.js";
+import { PostgresDatabase, withTransaction } from "../db/postgres.js";
+import { IDbPool } from "../types/database.types.js";
 import type { z } from "zod";
-import type { createProductSchema, updateProductSchema, productQuerySchema } from "../validators/catalog.validators.js";
-import type { PaginationMeta } from "../types/index.js";
-import type { InventoryAction } from "../types/index.js";
+import type {
+  createProductSchema,
+  updateProductSchema,
+  productQuerySchema,
+} from "../validators/catalog.validators.js";
+import type { PaginationMeta, InventoryAction } from "../types/index.js";
 
-type CreateProductInput = z.infer<typeof createProductSchema>;
-type UpdateProductInput = z.infer<typeof updateProductSchema>;
-type ProductQuery = z.infer<typeof productQuerySchema>;
-type ProductLean = FlattenMaps<IProduct> & { _id: Types.ObjectId; isInStock: boolean; effectivePrice: number };
+export type CreateProductInput = z.infer<typeof createProductSchema>;
+export type UpdateProductInput = z.infer<typeof updateProductSchema>;
+export type ProductQuery = z.infer<typeof productQuerySchema>;
 
-export function computeEffectivePrice(price: number, salePrice?: number | null): number {
-  if (salePrice != null && salePrice > 0 && salePrice !== price) {
-    return Math.min(price, salePrice);
-  }
-  return price;
+/** Domain entity alias preserved for backward-compatibility with existing consumers. */
+export type ProductLean = ProductRecord;
+
+export { computeEffectivePrice };
+
+// Default dependencies (can be overridden for unit testing)
+let activeProductRepository: PostgresProductRepository = postgresProductRepository;
+let activeCategoryRepository: PostgresCategoryRepository = postgresCategoryRepository;
+let activeDatabasePool: IDbPool | null = null;
+
+function getPool(): IDbPool {
+  return activeDatabasePool ?? PostgresDatabase.getPool();
 }
 
-function buildProductFilter(query: ProductQuery): FilterQuery<IProduct> {
-  const filter: FilterQuery<IProduct> = {};
+/** Allows overriding the product repository instance for isolated unit tests. */
+export function setProductRepository(repo: PostgresProductRepository): void {
+  activeProductRepository = repo;
+}
+
+/** Allows overriding the category repository instance for isolated unit tests. */
+export function setCategoryRepository(repo: PostgresCategoryRepository): void {
+  activeCategoryRepository = repo;
+}
+
+/** Allows overriding the database pool for isolated unit tests. */
+export function setProductDatabasePool(pool: IDbPool | null): void {
+  activeDatabasePool = pool;
+}
+
+/**
+ * Lists products matching filter, pagination, and sorting criteria.
+ */
+export async function listProducts(
+  query: ProductQuery,
+  repo: PostgresProductRepository = activeProductRepository
+): Promise<{ items: ProductLean[]; meta: PaginationMeta }> {
+  const repoFilters: ProductFilterOptions = {};
 
   // Only filter by isActive if not explicitly set to "all"
   if (query.isActive !== "all") {
-    filter.isActive = query.isActive === "true" ? true : query.isActive === "false" ? false : true;
+    repoFilters.isActive = query.isActive === "true" ? true : query.isActive === "false" ? false : true;
+  } else {
+    repoFilters.isActive = "all";
   }
 
-  if (query.categoryId) filter.categoryId = new Types.ObjectId(query.categoryId);
-  if (query.subcategoryId) filter.subcategoryId = new Types.ObjectId(query.subcategoryId);
-  if (query.minPrice !== undefined || query.maxPrice !== undefined) {
-    filter.price = {};
-    if (query.minPrice !== undefined) filter.price.$gte = query.minPrice;
-    if (query.maxPrice !== undefined) filter.price.$lte = query.maxPrice;
-  }
-  if (query.material) filter.materials = query.material;
-  if (query.color) filter.colors = query.color;
-  if (query.minRating !== undefined) filter.averageRating = { $gte: query.minRating };
-  if (query.inStock === "true") filter.stock = { $gt: 0 };
-  if (query.inStock === "false") filter.stock = 0;
-  if (query.isSignaturePiece === "true") filter.isSignaturePiece = true;
-  if (query.isSignaturePiece === "false") filter.isSignaturePiece = false;
-
-  if (query.q) {
-    filter.$text = { $search: query.q };
+  if (query.categoryId) {
+    if (!isValidEntityId(query.categoryId)) {
+      throw new AppError("Invalid category id", 400);
+    }
+    repoFilters.categoryId = query.categoryId;
   }
 
-  return filter;
-}
-
-function buildSort(query: ProductQuery): Record<string, 1 | -1> {
-  switch (query.sort) {
-    case "price_asc":
-      return { price: 1 };
-    case "price_desc":
-      return { price: -1 };
-    case "rating":
-      return { averageRating: -1 };
-    case "name":
-      return { name: 1 };
-    case "newest":
-    default:
-      return { createdAt: -1 };
+  if (query.subcategoryId) {
+    if (!isValidEntityId(query.subcategoryId)) {
+      throw new AppError("Invalid subcategory id", 400);
+    }
+    repoFilters.subcategoryId = query.subcategoryId;
   }
-}
 
-export async function listProducts(query: ProductQuery): Promise<{ items: ProductLean[]; meta: PaginationMeta }> {
-  const { page, limit, skip } = paginate(query.page, query.limit);
-  const filter = buildProductFilter(query);
-  const sort = buildSort(query);
+  if (query.minPrice !== undefined) repoFilters.minPrice = query.minPrice;
+  if (query.maxPrice !== undefined) repoFilters.maxPrice = query.maxPrice;
+  if (query.material) repoFilters.material = query.material;
+  if (query.color) repoFilters.color = query.color;
+  if (query.minRating !== undefined) repoFilters.minRating = query.minRating;
+  if (query.inStock === "true") repoFilters.inStock = true;
+  if (query.inStock === "false") repoFilters.inStock = false;
+  if (query.isSignaturePiece === "true") repoFilters.isSignaturePiece = true;
+  if (query.isSignaturePiece === "false") repoFilters.isSignaturePiece = false;
+  if (query.q) repoFilters.q = query.q;
+
+  const page = Math.max(1, query.page || 1);
+  const limit = Math.max(1, Math.min(100, query.limit || 20));
 
   const [items, total] = await Promise.all([
-    Product.find(filter).sort(sort).skip(skip).limit(limit).lean(),
-    Product.countDocuments(filter),
+    repo.findAll(repoFilters, { page, limit }, query.sort),
+    repo.count(repoFilters),
   ]);
 
-  // Add virtual fields to lean documents
-  const itemsWithVirtuals = items.map(item => ({
-    ...item,
-    isInStock: (item.stock as number) > 0,
-    effectivePrice: computeEffectivePrice(item.price, item.salePrice),
-  }));
-
   return {
-    items: itemsWithVirtuals,
+    items,
     meta: {
       page,
       limit,
@@ -95,52 +132,99 @@ export async function listProducts(query: ProductQuery): Promise<{ items: Produc
   };
 }
 
+/**
+ * Searches products by search term `q` and optional catalog filters.
+ */
 export async function searchProducts(
   q: string,
-  query: Omit<ProductQuery, "q">
+  query: Omit<ProductQuery, "q">,
+  repo: PostgresProductRepository = activeProductRepository
 ): Promise<{ items: ProductLean[]; meta: PaginationMeta }> {
-  return listProducts({ ...query, q });
+  return listProducts({ ...query, q }, repo);
 }
 
-export async function getProductById(id: string): Promise<ProductLean> {
-  if (!Types.ObjectId.isValid(id)) throw new AppError("Invalid product id", 400);
-  const product = await Product.findById(id).lean();
+/**
+ * Retrieves a single product by its unique ID. Throws 400 on invalid format, 404 if not found.
+ */
+export async function getProductById(
+  id: string,
+  repo: PostgresProductRepository = activeProductRepository
+): Promise<ProductLean> {
+  if (!isValidEntityId(id)) throw new AppError("Invalid product id", 400);
+  const product = await repo.findById(id);
   if (!product) throw new AppError("Product not found", 404);
-  // Add virtual fields to lean document
-  return {
-    ...product,
-    isInStock: (product.stock as number) > 0,
-    effectivePrice: computeEffectivePrice(product.price, product.salePrice),
-  };
+  return product;
 }
 
-export async function getProductBySlug(slug: string): Promise<ProductLean> {
-  const product = await Product.findOne({ slug: slug.toLowerCase(), isActive: true }).lean();
+/**
+ * Retrieves a single active product by its unique slug. Throws 404 if not found.
+ */
+export async function getProductBySlug(
+  slug: string,
+  repo: PostgresProductRepository = activeProductRepository
+): Promise<ProductLean> {
+  if (!slug || typeof slug !== "string" || slug.trim() === "") {
+    throw new AppError("Product not found", 404);
+  }
+  const product = await repo.findBySlug(slug, { activeOnly: true });
   if (!product) throw new AppError("Product not found", 404);
-  // Add virtual fields to lean document
-  return {
-    ...product,
-    isInStock: (product.stock as number) > 0,
-    effectivePrice: computeEffectivePrice(product.price, product.salePrice),
-  };
+  return product;
 }
 
-export async function createProduct(input: CreateProductInput): Promise<ProductLean> {
-  const category = await Category.findById(input.categoryId);
-  if (!category) throw new AppError("Category not found", 400);
+/**
+ * Retrieves a single product by its SKU. Throws 404 if not found.
+ */
+export async function getProductBySku(
+  sku: string,
+  repo: PostgresProductRepository = activeProductRepository
+): Promise<ProductLean> {
+  if (!sku || typeof sku !== "string" || sku.trim() === "") {
+    throw new AppError("Product not found", 404);
+  }
+  const product = await repo.findBySku(sku);
+  if (!product) throw new AppError("Product not found", 404);
+  return product;
+}
+
+/**
+ * Creates a new product.
+ *
+ * - Validates category and subcategory existence (400).
+ * - Generates slug and SKU if omitted.
+ * - Validates slug and SKU uniqueness (409).
+ * - Resolves media array from `media` or fallback `imageUrl`.
+ * - Inserts into PostgreSQL and synchronizes media atomically.
+ */
+export async function createProduct(
+  input: CreateProductInput,
+  repo: PostgresProductRepository = activeProductRepository,
+  catRepo: PostgresCategoryRepository = activeCategoryRepository
+): Promise<ProductLean> {
+  if (!isValidEntityId(input.categoryId)) {
+    throw new AppError("Category not found", 400);
+  }
+  const category = await catRepo.findById(input.categoryId);
+  if (!category) {
+    throw new AppError("Category not found", 400);
+  }
 
   if (input.subcategoryId) {
-    const sub = await Category.findById(input.subcategoryId);
-    if (!sub) throw new AppError("Subcategory not found", 400);
+    if (!isValidEntityId(input.subcategoryId)) {
+      throw new AppError("Subcategory not found", 400);
+    }
+    const sub = await catRepo.findById(input.subcategoryId);
+    if (!sub) {
+      throw new AppError("Subcategory not found", 400);
+    }
   }
 
   const slug = input.slug ? toSlug(input.slug) : toSlug(input.name);
   const sku = input.sku?.toUpperCase() ?? generateSku(category.productType.slice(0, 3).toUpperCase());
 
-  const existingSlug = await Product.findOne({ slug });
+  const existingSlug = await repo.existsBySlug(slug);
   if (existingSlug) throw new AppError("Product slug already exists", 409);
 
-  const existingSku = await Product.findOne({ sku });
+  const existingSku = await repo.existsBySku(sku);
   if (existingSku) throw new AppError("SKU already exists", 409);
 
   // Determine media array: prioritize explicit media array, fallback to imageUrl
@@ -150,72 +234,128 @@ export async function createProduct(input: CreateProductInput): Promise<ProductL
       ? [{ url: input.imageUrl, type: "image" as const, isPrimary: true, sortOrder: 0 }]
       : [];
 
-  const product = await Product.create({
-    ...input,
-    slug,
-    sku,
-    media,
-    categoryId: new Types.ObjectId(input.categoryId),
-    subcategoryId: input.subcategoryId ? new Types.ObjectId(input.subcategoryId) : null,
-  });
+  const { imageUrl: _unused, ...restInput } = input;
 
-  const productObj = product.toObject() as any;
-  return {
-    ...productObj,
-    isInStock: (productObj.stock as number) > 0,
-    effectivePrice: computeEffectivePrice(productObj.price, productObj.salePrice),
-  };
+  try {
+    const product = await repo.create({
+      ...restInput,
+      slug,
+      sku,
+      media,
+      subcategoryId: input.subcategoryId || null,
+    });
+    return product;
+  } catch (err: any) {
+    if (err?.code === "23505") {
+      if (err?.message?.includes("sku") || err?.detail?.includes("sku")) {
+        throw new AppError("SKU already exists", 409);
+      }
+      throw new AppError("Product slug already exists", 409);
+    }
+    throw err;
+  }
 }
 
-export async function updateProduct(id: string, input: UpdateProductInput): Promise<ProductLean> {
-  if (!Types.ObjectId.isValid(id)) throw new AppError("Invalid product id", 400);
+/**
+ * Updates an existing product by ID.
+ *
+ * - Validates product ID (400) and category/subcategory if updated (400).
+ * - Enforces slug and SKU uniqueness on update (409).
+ * - Handles media synchronization atomically.
+ * - Returns updated product or throws 404 if not found.
+ */
+export async function updateProduct(
+  id: string,
+  input: UpdateProductInput,
+  repo: PostgresProductRepository = activeProductRepository,
+  catRepo: PostgresCategoryRepository = activeCategoryRepository
+): Promise<ProductLean> {
+  if (!isValidEntityId(id)) throw new AppError("Invalid product id", 400);
 
-  const update: Record<string, unknown> = { ...input };
-  if (input.slug) update.slug = toSlug(input.slug);
-  if (input.sku) update.sku = input.sku.toUpperCase();
-  if (input.categoryId) update.categoryId = new Types.ObjectId(input.categoryId);
+  if (input.categoryId) {
+    if (!isValidEntityId(input.categoryId)) throw new AppError("Category not found", 400);
+    const cat = await catRepo.findById(input.categoryId);
+    if (!cat) throw new AppError("Category not found", 400);
+  }
+
+  if (input.subcategoryId) {
+    if (!isValidEntityId(input.subcategoryId)) throw new AppError("Subcategory not found", 400);
+    const sub = await catRepo.findById(input.subcategoryId);
+    if (!sub) throw new AppError("Subcategory not found", 400);
+  }
+
+  const { imageUrl, ...restInput } = input;
+  const updateData: UpdateProductData = { ...restInput };
+
+  if (input.slug) {
+    updateData.slug = toSlug(input.slug);
+    const slugExists = await repo.existsBySlug(updateData.slug, id);
+    if (slugExists) throw new AppError("Product slug already exists", 409);
+  }
+
+  if (input.sku) {
+    updateData.sku = input.sku.toUpperCase();
+    const skuExists = await repo.existsBySku(updateData.sku, id);
+    if (skuExists) throw new AppError("SKU already exists", 409);
+  }
+
   if (input.subcategoryId !== undefined) {
-    update.subcategoryId = input.subcategoryId ? new Types.ObjectId(input.subcategoryId) : null;
+    updateData.subcategoryId = input.subcategoryId ? input.subcategoryId : null;
   }
 
   // Handle media updates: prioritize media array if provided; otherwise fallback to single imageUrl if specified
   if (input.media !== undefined) {
-    update.media = input.media;
-  } else if (input.imageUrl) {
-    update.media = [{ url: input.imageUrl, type: "image" as const, isPrimary: true, sortOrder: 0 }];
+    updateData.media = input.media;
+  } else if (imageUrl) {
+    updateData.media = [{ url: imageUrl, type: "image" as const, isPrimary: true, sortOrder: 0 }];
   }
 
-  const product = await Product.findByIdAndUpdate(id, update, {
-    new: true,
-    runValidators: true,
-  }).lean();
-
-  if (!product) throw new AppError("Product not found", 404);
-  const productObj = product as any;
-  return {
-    ...productObj,
-    isInStock: (productObj.stock as number) > 0,
-    effectivePrice: computeEffectivePrice(productObj.price, productObj.salePrice),
-  };
+  try {
+    const product = await repo.updateById(id, updateData);
+    if (!product) throw new AppError("Product not found", 404);
+    return product;
+  } catch (err: any) {
+    if (err?.code === "23505") {
+      if (err?.message?.includes("sku") || err?.detail?.includes("sku")) {
+        throw new AppError("SKU already exists", 409);
+      }
+      throw new AppError("Product slug already exists", 409);
+    }
+    throw err;
+  }
 }
 
-export async function deleteProduct(id: string): Promise<void> {
-  if (!Types.ObjectId.isValid(id)) throw new AppError("Invalid product id", 400);
-  const result = await Product.findByIdAndDelete(id);
+/**
+ * Deletes a product by ID. Throws 400 on invalid ID, 404 if not found.
+ */
+export async function deleteProduct(
+  id: string,
+  repo: PostgresProductRepository = activeProductRepository
+): Promise<void> {
+  if (!isValidEntityId(id)) throw new AppError("Invalid product id", 400);
+  const result = await repo.deleteById(id);
   if (!result) throw new AppError("Product not found", 404);
 }
 
-export async function listLowStockProducts(threshold?: number): Promise<ProductLean[]> {
-  const products = await Product.find({ isActive: true }).lean();
-  return products
-    .filter((p) => p.stock <= (threshold ?? p.lowStockThreshold))
-    .map((p) => ({
-      ...p,
-      isInStock: (p.stock as number) > 0,
-      effectivePrice: computeEffectivePrice(p.price, p.salePrice),
-    }));
+/**
+ * Retrieves products with stock at or below their low stock threshold.
+ */
+export async function listLowStockProducts(
+  threshold?: number,
+  repo: PostgresProductRepository = activeProductRepository
+): Promise<ProductLean[]> {
+  return repo.findLowStock(threshold);
 }
 
+/**
+ * Atomically adjusts stock for a product and inserts an audit log into `inventory_logs`
+ * within the same PostgreSQL transaction.
+ *
+ * - Negative changes are conditional, preventing negative stock.
+ * - Throws 400 on invalid product ID or quantity.
+ * - Throws 400 on insufficient stock.
+ * - Throws 404 if product does not exist.
+ */
 export async function adjustStock(
   productId: string,
   params: {
@@ -223,10 +363,129 @@ export async function adjustStock(
     action: InventoryAction;
     reason?: string;
     performedBy?: string;
-  }
+    orderId?: string;
+  },
+  repo: PostgresProductRepository = activeProductRepository,
+  pool: IDbPool = getPool()
 ): Promise<{ productId: string; previousStock: number; newStock: number }> {
-  return inventoryAdjustStock({
-    productId,
-    ...params,
+  if (!isValidEntityId(productId)) {
+    throw new AppError("Invalid product id", 400);
+  }
+
+  if (!Number.isFinite(params.quantityChange) || !Number.isInteger(params.quantityChange)) {
+    throw new AppError("Invalid quantity change", 400);
+  }
+
+  return withTransaction(pool, async (client) => {
+    let updatedProduct: ProductRecord;
+    let previousStock: number;
+    let newStock: number;
+
+    if (params.quantityChange < 0) {
+      const requiredQty = Math.abs(params.quantityChange);
+
+      // Atomic conditional decrement in PostgreSQL
+      const updateResult = await client.query<{
+        id: string;
+        sku: string;
+        stock: number;
+      }>(
+        `UPDATE products
+         SET stock = stock - $1, updated_at = NOW()
+         WHERE id = $2 AND stock >= $1
+         RETURNING id, sku, stock;`,
+        [requiredQty, productId]
+      );
+
+      if (updateResult.rowCount === 0 || !updateResult.rows[0]) {
+        const checkResult = await client.query<{ id: string; stock: number; sku: string }>(
+          `SELECT id, stock, sku FROM products WHERE id = $1;`,
+          [productId]
+        );
+
+        if (checkResult.rowCount === 0 || !checkResult.rows[0]) {
+          throw new AppError("Product not found", 404);
+        }
+
+        throw new AppError("Insufficient stock", 400);
+      }
+
+      const row = updateResult.rows[0];
+      newStock = Number(row.stock);
+      previousStock = newStock - params.quantityChange;
+      updatedProduct = { sku: row.sku, id: row.id } as ProductRecord;
+    } else if (params.quantityChange > 0) {
+      // Atomic increment in PostgreSQL
+      const updateResult = await client.query<{
+        id: string;
+        sku: string;
+        stock: number;
+      }>(
+        `UPDATE products
+         SET stock = stock + $1, updated_at = NOW()
+         WHERE id = $2
+         RETURNING id, sku, stock;`,
+        [params.quantityChange, productId]
+      );
+
+      if (updateResult.rowCount === 0 || !updateResult.rows[0]) {
+        throw new AppError("Product not found", 404);
+      }
+
+      const row = updateResult.rows[0];
+      newStock = Number(row.stock);
+      previousStock = newStock - params.quantityChange;
+      updatedProduct = { sku: row.sku, id: row.id } as ProductRecord;
+    } else {
+      // quantityChange === 0
+      const existing = await repo.findById(productId, client);
+      if (!existing) {
+        throw new AppError("Product not found", 404);
+      }
+      updatedProduct = existing;
+      previousStock = updatedProduct.stock;
+      newStock = updatedProduct.stock;
+    }
+
+    // Verify foreign keys for inventory_logs if provided
+    let validOrderId: string | null = null;
+    if (params.orderId && isValidEntityId(params.orderId)) {
+      const orderCheck = await client.query("SELECT id FROM orders WHERE id = $1 LIMIT 1;", [params.orderId]);
+      if (orderCheck.rowCount && orderCheck.rowCount > 0) {
+        validOrderId = params.orderId;
+      }
+    }
+
+    let validUserId: string | null = null;
+    if (params.performedBy && isValidEntityId(params.performedBy)) {
+      const userCheck = await client.query("SELECT id FROM users WHERE id = $1 LIMIT 1;", [params.performedBy]);
+      if (userCheck.rowCount && userCheck.rowCount > 0) {
+        validUserId = params.performedBy;
+      }
+    }
+
+    // Insert inventory_log in the same transaction
+    await client.query(
+      `INSERT INTO inventory_logs (
+         product_id, sku, action, quantity_change, previous_stock, new_stock, reason, order_id, performed_by
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);`,
+      [
+        productId,
+        updatedProduct.sku,
+        params.action,
+        params.quantityChange,
+        previousStock,
+        newStock,
+        params.reason ?? null,
+        validOrderId,
+        validUserId,
+      ]
+    );
+
+    return {
+      productId,
+      previousStock,
+      newStock,
+    };
   });
 }

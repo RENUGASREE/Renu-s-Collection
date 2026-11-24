@@ -1,17 +1,16 @@
 import { Router, Request, Response, NextFunction } from "express";
-import { Types } from "mongoose";
 import { requireAuth } from "../middleware/auth.js";
 import * as cartService from "../services/cart.service.js";
 import * as orderService from "../services/order.service.js";
 import * as paymentService from "../services/payment.service.js";
 import * as reviewService from "../services/review.service.js";
 import * as customizationService from "../services/customization.service.js";
-import { WishlistItem } from "../models/Wishlist.js";
-import { Product } from "../models/Product.js";
-import { User } from "../models/User.js";
+import * as wishlistService from "../services/wishlist.service.js";
+import { PostgresUserRepository } from "../repositories/postgres-user.repository.js";
 import { AppError } from "../middleware/errorHandler.js";
 
 const router = Router();
+const userRepo = new PostgresUserRepository();
 
 function authUserId(req: { user?: { id: string } }) {
   if (!req.user?.id) throw new AppError("Authentication required", 401);
@@ -64,7 +63,7 @@ router.delete("/cart-items/:id", requireAuth, async (req, res, next) => {
 router.get("/orders", requireAuth, async (req, res, next) => {
   try {
     const orders = await orderService.listUserOrders(authUserId(req));
-    res.json(orders.map((o) => orderService.toLegacyOrder(o as Record<string, unknown>)));
+    res.json(orders.map((o) => orderService.toLegacyOrder(o)));
   } catch (e) {
     next(e);
   }
@@ -109,14 +108,14 @@ router.get("/users/:id", requireAuth, async (req, res, next) => {
     if (req.user!.id !== req.params.id && req.user!.role !== "admin") {
       throw new AppError("Forbidden", 403);
     }
-    const user = await User.findById(req.params.id).lean();
+    const user = await userRepo.findById(req.params.id);
     if (!user) throw new AppError("User not found", 404);
     res.json({
-      id: user._id.toString(),
+      id: user.id || user._id,
       username: user.username,
       email: user.email,
-      phone_number: user.phone,
-      address: user.addresses?.[0]?.line1 ?? "",
+      phone_number: user.phone || "",
+      address: "",
       date_joined: user.createdAt,
     });
   } catch (e) {
@@ -127,17 +126,14 @@ router.get("/users/:id", requireAuth, async (req, res, next) => {
 // --- Wishlist ---
 router.get("/wishlist", requireAuth, async (req, res, next) => {
   try {
-    const items = await WishlistItem.find({ userId: req.user!.id })
-      .populate('productId')
-      .lean();
+    const items = await wishlistService.getWishlistItems(req.user!.id);
     res.json(
-      items.map((i: any) => {
-        const product = i.productId as any;
-        const productType = String(product?.sku || '').startsWith("BRC") ? "bracelet" : "chain";
+      items.map((i) => {
+        const productType = String(i.product?.sku || '').startsWith("BRC") ? "bracelet" : "chain";
         return {
-          id: i._id.toString(),
+          id: i.id,
           product_type: productType,
-          product_id: i.productId.toString(),
+          product_id: i.productId,
           created_at: i.createdAt,
         };
       })
@@ -150,21 +146,12 @@ router.get("/wishlist", requireAuth, async (req, res, next) => {
 router.post("/wishlist", requireAuth, async (req, res, next) => {
   try {
     const productId = String(req.body.product_id);
-    if (!Types.ObjectId.isValid(productId)) throw new AppError("Invalid product", 400);
-    const product = await Product.findById(productId);
-    if (!product) throw new AppError("Product not found", 404);
-
-    const productType = String(product.sku || '').startsWith("BRC") ? "bracelet" : "chain";
-    const item = await WishlistItem.findOneAndUpdate(
-      { userId: req.user!.id, productId },
-      { userId: req.user!.id, productId },
-      { upsert: true, new: true }
-    ).populate('productId');
-    
+    const item = await wishlistService.addToWishlist(req.user!.id, productId);
+    const productType = String(item.product?.sku || '').startsWith("BRC") ? "bracelet" : "chain";
     res.status(201).json({
-      id: item._id.toString(),
+      id: item.id,
       product_type: productType,
-      product_id: item.productId.toString(),
+      product_id: item.productId,
     });
   } catch (e) {
     next(e);
@@ -173,7 +160,7 @@ router.post("/wishlist", requireAuth, async (req, res, next) => {
 
 router.delete("/wishlist/:id", requireAuth, async (req, res, next) => {
   try {
-    await WishlistItem.findOneAndDelete({ _id: req.params.id, userId: req.user!.id });
+    await wishlistService.removeFromWishlist(req.user!.id, { itemId: req.params.id });
     res.status(204).send();
   } catch (e) {
     next(e);
@@ -189,7 +176,7 @@ router.get("/reviews", async (req: Request, res: Response, next: NextFunction) =
       return;
     }
     const reviews = await reviewService.listProductReviews(String(product_id));
-    res.json(reviews.map((r) => reviewService.toLegacyReview(r as Record<string, unknown>)));
+    res.json(reviews.map((r) => reviewService.toLegacyReview(r as any)));
   } catch (e) {
     next(e);
   }
@@ -198,7 +185,7 @@ router.get("/reviews", async (req: Request, res: Response, next: NextFunction) =
 router.post("/reviews", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const review = await reviewService.createReview(authUserId(req), req.body);
-    res.status(201).json(reviewService.toLegacyReview(review.toObject() as unknown as Record<string, unknown>));
+    res.status(201).json(reviewService.toLegacyReview(review as any));
   } catch (e) {
     next(e);
   }

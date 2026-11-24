@@ -1,7 +1,5 @@
 import * as reviewService from "../services/review.service.js";
-import { Review } from "../models/Review.js";
 import { AppError } from "../middleware/errorHandler.js";
-import { Types } from "mongoose";
 
 export async function getProductReviews(
   productId: string | undefined,
@@ -11,14 +9,12 @@ export async function getProductReviews(
   if (!productId) {
     throw new AppError("Product ID is required", 400);
   }
-  const reviews = await reviewService.listProductReviews(productId);
-  const startIndex = (page - 1) * limit;
-  const paginatedReviews = reviews.slice(startIndex, startIndex + limit);
+  const result = await reviewService.getProductReviewsPaginated(productId, page, limit);
   return {
-    reviews: paginatedReviews.map((review) => reviewService.toLegacyReview(review as any)),
-    total: reviews.length,
-    page,
-    limit,
+    reviews: result.reviews.map((review) => reviewService.toLegacyReview(review as any)),
+    total: result.total,
+    page: result.page,
+    limit: result.limit,
   };
 }
 
@@ -28,124 +24,28 @@ export async function createReview(userId: string, body: any) {
 }
 
 export async function markReviewHelpful(reviewId: string) {
-  const review = await Review.findById(reviewId);
-  if (!review) throw new AppError("Review not found", 404);
-
-  review.helpfulCount = (review.helpfulCount || 0) + 1;
-  await review.save();
-
+  const review = await reviewService.markReviewHelpful(reviewId);
   return reviewService.toLegacyReview(review as any);
 }
 
 export async function deleteReview(reviewId: string, userId: string, userRole?: string) {
-  const review = await Review.findById(reviewId);
-  if (!review) throw new AppError("Review not found", 404);
-
-  const isOwner = review.userId.toString() === userId;
-  const isAdmin = userRole === "admin";
-
-  if (!isOwner && !isAdmin) {
-    throw new AppError("You do not have permission to delete this review", 403);
-  }
-
-  const productId = review.productId.toString();
-  await Review.findByIdAndDelete(reviewId);
-
-  // Recalculate product rating safely
-  try {
-    if (Types.ObjectId.isValid(productId)) {
-      const stats = await Review.aggregate([
-        { $match: { productId: new Types.ObjectId(productId), isApproved: true } },
-        {
-          $group: {
-            _id: null,
-            averageRating: { $avg: "$rating" },
-            reviewCount: { $sum: 1 },
-          },
-        },
-      ]);
-
-      const averageRating = stats[0]?.averageRating ? Number(stats[0].averageRating.toFixed(1)) : 0;
-      const reviewCount = stats[0]?.reviewCount ?? 0;
-
-      const { Product } = await import("../models/Product.js");
-      await Product.findByIdAndUpdate(productId, {
-        averageRating,
-        reviewCount,
-      });
-    }
-  } catch (ratingError) {
-    console.error("Failed to recalculate rating after review deletion:", ratingError);
-  }
+  await reviewService.deleteReview(reviewId, userId, userRole);
 }
 
 export async function approveReview(reviewId: string) {
-  const review = await Review.findById(reviewId);
-  if (!review) throw new AppError("Review not found", 404);
-
-  review.isApproved = true;
-  await review.save();
-
-  // Recalculate product rating
-  const productId = review.productId.toString();
-  const stats = await Review.aggregate([
-    { $match: { productId: new Types.ObjectId(productId), isApproved: true } },
-    {
-      $group: {
-        _id: null,
-        averageRating: { $avg: "$rating" },
-        reviewCount: { $sum: 1 },
-      },
-    },
-  ]);
-
-  const { Product } = await import("../models/Product.js");
-  await Product.findByIdAndUpdate(productId, {
-    averageRating: stats[0]?.averageRating ?? 0,
-    reviewCount: stats[0]?.reviewCount ?? 0,
-  });
-
+  const review = await reviewService.approveReview(reviewId);
   return reviewService.toLegacyReview(review as any);
 }
 
 export async function rejectReview(reviewId: string) {
-  const review = await Review.findById(reviewId);
-  if (!review) throw new AppError("Review not found", 404);
-
-  review.isApproved = false;
-  await review.save();
-
-  // Recalculate product rating
-  const productId = review.productId.toString();
-  const stats = await Review.aggregate([
-    { $match: { productId: new Types.ObjectId(productId), isApproved: true } },
-    {
-      $group: {
-        _id: null,
-        averageRating: { $avg: "$rating" },
-        reviewCount: { $sum: 1 },
-      },
-    },
-  ]);
-
-  const { Product } = await import("../models/Product.js");
-  await Product.findByIdAndUpdate(productId, {
-    averageRating: stats[0]?.averageRating ?? 0,
-    reviewCount: stats[0]?.reviewCount ?? 0,
-  });
-
+  const review = await reviewService.rejectReview(reviewId);
   return reviewService.toLegacyReview(review as any);
 }
 
 export async function getAllReviews() {
-  const reviews = await Review.find()
-    .populate("userId", "username email")
-    .populate("productId", "name")
-    .sort({ createdAt: -1 })
-    .lean();
-  
+  const reviews = await reviewService.getAllReviews();
   return reviews.map((review, index) => ({
     ...reviewService.toLegacyReview(review as any),
-    _key: `review-${review._id}-${index}`,
+    _key: `review-${review.id}-${index}`,
   }));
 }

@@ -10,15 +10,49 @@ if (env.MONGODB_URI?.startsWith("mongodb+srv://")) {
 }
 
 export async function connectDatabase(): Promise<void> {
-  mongoose.set("strictQuery", true);
+  if (!env.ENABLE_MONGODB_FALLBACK) {
+    console.log("MongoDB fallback is disabled (running in PostgreSQL-first mode)");
+    return;
+  }
 
-  await mongoose.connect(env.MONGODB_URI, {
-    autoIndex: env.isDevelopment,
-  });
+  // Prevent accidental activation in production unless explicitly confirmed
+  if (env.isProduction) {
+    const deliberateConfirmation = process.env.ALLOW_PRODUCTION_MONGODB_ROLLBACK === "true";
+    if (!deliberateConfirmation) {
+      console.error(
+        "CRITICAL SAFEGUARD: ENABLE_MONGODB_FALLBACK is true in production, but ALLOW_PRODUCTION_MONGODB_ROLLBACK is not 'true'. Refusing to connect MongoDB rollback in production."
+      );
+      return;
+    }
 
-  console.log(`MongoDB connected (${env.isProduction ? "production" : "development"})`);
+    console.warn("================================================================================");
+    console.warn("⚠️  DELIBERATE ROLLBACK WARNING: MongoDB fallback is ACTIVE in PRODUCTION mode.");
+    console.warn("⚠️  ALLOW_PRODUCTION_MONGODB_ROLLBACK=true confirmed. Primary queries remain PG.");
+    console.warn("================================================================================");
+  } else {
+    console.warn("================================================================================");
+    console.warn("⚠️  NOTICE: MongoDB fallback switch is ACTIVE in non-production mode.");
+    console.warn("================================================================================");
+  }
+
+  if (!env.MONGODB_URI) {
+    console.log("MONGODB_URI not configured; skipping standby MongoDB connection");
+    return;
+  }
+
+  try {
+    mongoose.set("strictQuery", true);
+    await mongoose.connect(env.MONGODB_URI, {
+      autoIndex: env.isDevelopment,
+    });
+    console.log(`MongoDB standby connected (${env.isProduction ? "production" : "development"})`);
+  } catch (error: any) {
+    console.warn("MongoDB standby connection failed (non-fatal, PostgreSQL active):", error.message);
+  }
 }
 
 export async function disconnectDatabase(): Promise<void> {
-  await mongoose.disconnect();
+  if (mongoose.connection.readyState !== 0) {
+    await mongoose.disconnect();
+  }
 }

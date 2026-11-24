@@ -1,13 +1,14 @@
 import { Router, Request, Response, NextFunction } from "express";
 import crypto from "crypto";
 import { env } from "../config/env.js";
-import { Order } from "../models/Order.js";
+import { PostgresOrderRepository } from "../repositories/postgres-order.repository.js";
 import { deductStockForOrder } from "../services/inventory.service.js";
 import { commitStudioReservation, releaseStudioReservation } from "../services/studio-inventory.service.js";
 import { clearCart } from "../services/cart.service.js";
-import { Coupon } from "../models/Coupon.js";
+import { redeemCoupon } from "../services/coupon.service.js";
 
 const router = Router();
+const orderRepo = new PostgresOrderRepository();
 
 // Razorpay webhook endpoint
 router.post("/razorpay", async (req: Request, res: Response, next: NextFunction) => {
@@ -78,25 +79,11 @@ async function handlePaymentCaptured(payment: any) {
   const razorpayPaymentId = payment.id;
 
   // Atomic transition: only ONE concurrent caller (webhook or browser verification) wins
-  const order = await Order.findOneAndUpdate(
-    { razorpayOrderId, paymentStatus: { $ne: "paid" } },
-    {
-      $set: {
-        paymentStatus: "paid",
-        status: "processing",
-        razorpayPaymentId,
-        razorpaySignature: payment.razorpay_signature,
-      },
-      $push: {
-        statusHistory: {
-          status: "processing",
-          note: "Payment confirmed via Razorpay webhook",
-          changedAt: new Date(),
-        },
-      },
-    },
-    { new: true }
-  );
+  const order = await orderRepo.atomicTransitionToPaidByRazorpayOrderId(razorpayOrderId, {
+    razorpayPaymentId,
+    razorpaySignature: payment.razorpay_signature,
+    note: "Payment confirmed via Razorpay webhook",
+  });
 
   if (!order) {
     console.log(`Order with Razorpay order ID ${razorpayOrderId} already paid or not found, skipping webhook processing`);
@@ -111,20 +98,28 @@ async function handlePaymentCaptured(payment: any) {
     await deductStockForOrder(
       productItems,
       order.id,
-      order.userId.toString()
+      order.userId || ""
     );
   }
 
   // Commit studio reservation for custom jewelry components
-  await commitStudioReservation(order._id);
+  await commitStudioReservation(order.id);
 
   // Update coupon usage if applicable
   if (order.couponCode) {
-    await Coupon.updateOne({ code: order.couponCode }, { $inc: { usedCount: 1 } });
+    const wonCoupon = await orderRepo.claimCouponProcessed(order.id);
+    if (wonCoupon) {
+      await redeemCoupon(order.couponCode);
+    }
   }
 
   // Clear cart
-  await clearCart(order.userId.toString());
+  if (order.userId) {
+    const wonCart = await orderRepo.claimCartCleared(order.id);
+    if (wonCart) {
+      await clearCart(order.userId);
+    }
+  }
 
   console.log(`Payment captured for order ${order.orderNumber}`);
 }
@@ -134,25 +129,27 @@ async function handlePaymentFailed(payment: any) {
   const errorCode = payment.error_code;
   const errorDescription = payment.error_description;
 
-  const order = await Order.findOne({ razorpayOrderId: razorpayOrderId });
+  const order = await orderRepo.findByRazorpayOrderId(razorpayOrderId);
   
   if (!order) {
     console.error(`Order not found for Razorpay order ID: ${razorpayOrderId}`);
     return;
   }
 
-  order.paymentStatus = "failed";
-  order.notes = `${order.notes ?? ""}\nPayment failed: ${errorDescription} (${errorCode})`.trim();
-  order.statusHistory.push({
+  const notes = `${order.notes ?? ""}\nPayment failed: ${errorDescription} (${errorCode})`.trim();
+  await orderRepo.updateById(order.id, {
+    paymentStatus: "failed",
+    notes,
+  });
+
+  await orderRepo.appendStatusHistory(order.id, {
     status: "pending",
     note: `Payment failed: ${errorDescription}`,
     changedAt: new Date(),
   });
 
-  await order.save();
-
   // Release any reserved studio components back to catalogue
-  await releaseStudioReservation(order._id, `Webhook payment failure: ${errorDescription}`);
+  await releaseStudioReservation(order.id, `Webhook payment failure: ${errorDescription}`);
 
   console.log(`Payment failed for order ${order.orderNumber}: ${errorDescription}`);
 }
@@ -162,22 +159,24 @@ async function handleRefundProcessed(refund: any) {
   const refundId = refund.id;
   const amount = refund.amount / 100;
 
-  const order = await Order.findOne({ razorpayPaymentId: razorpayPaymentId });
+  const order = await orderRepo.findByRazorpayPaymentId(razorpayPaymentId);
   
   if (!order) {
     console.error(`Order not found for Razorpay payment ID: ${razorpayPaymentId}`);
     return;
   }
 
-  order.paymentStatus = "refunded";
-  order.status = "refunded";
-  order.statusHistory.push({
+  await orderRepo.updateById(order.id, {
+    paymentStatus: "refunded",
+    status: "refunded",
+  });
+
+  await orderRepo.appendStatusHistory(order.id, {
     status: "refunded",
     note: `Refund processed: ₹${amount} (Refund ID: ${refundId})`,
     changedAt: new Date(),
   });
 
-  await order.save();
   console.log(`Refund processed for order ${order.orderNumber}: ₹${amount}`);
 }
 

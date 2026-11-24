@@ -1,11 +1,63 @@
-import { Category, ICustomizationField } from "../models/Category.js";
-import { CustomizationConfig } from "../models/CustomizationConfig.js";
-import { Product } from "../models/Product.js";
-import { StudioMaterial } from "../models/StudioMaterial.js";
+/**
+ * ============================================================================
+ * Customization Service (Phase 3H)
+ * ============================================================================
+ *
+ * Implements product customization resolution, option filtering, live variant
+ * stock synchronization, price calculation, validation, preview generation,
+ * and cart integration for customizable items in Supabase PostgreSQL.
+ *
+ * Adheres strictly to:
+ * - PostgreSQL repositories (`PostgresProductRepository`, `PostgresCategoryRepository`, `PostgresStudioRepository`).
+ * - Zero direct Mongoose database queries.
+ * - Dynamic option filtering: displays only active and in-stock variants.
+ * - Compatibility with legacy contracts and templates.
+ */
+
+import { PostgresProductRepository } from "../repositories/postgres-product.repository.js";
+import { PostgresCategoryRepository } from "../repositories/postgres-category.repository.js";
+import { PostgresStudioRepository } from "../repositories/postgres-studio.repository.js";
 import { AppError } from "../middleware/errorHandler.js";
+import { IDbClient } from "../types/database.types.js";
 
 const PLACEHOLDER =
   "https://placehold.co/600x600/FF0066/FFFFFF?text=Reyan+Luxe+Preview";
+
+let defaultProductRepo = new PostgresProductRepository();
+let defaultCategoryRepo = new PostgresCategoryRepository();
+let defaultStudioRepo = new PostgresStudioRepository();
+
+export function setCustomizationProductRepository(repo: PostgresProductRepository): void {
+  defaultProductRepo = repo;
+}
+
+export function setCustomizationCategoryRepository(repo: PostgresCategoryRepository): void {
+  defaultCategoryRepo = repo;
+}
+
+export function setCustomizationStudioRepository(repo: PostgresStudioRepository): void {
+  defaultStudioRepo = repo;
+}
+
+export interface ICustomizationOption {
+  value: string;
+  label: string;
+  priceModifier?: number;
+  imageUrl?: string;
+  variantSku?: string;
+  materialId?: string;
+  inStock?: boolean;
+  stock?: number;
+}
+
+export interface ICustomizationField {
+  key: string;
+  label: string;
+  type: string;
+  required: boolean;
+  options?: ICustomizationOption[];
+  sortOrder?: number;
+}
 
 export const customizationService = {
   getProductCustomization,
@@ -13,6 +65,7 @@ export const customizationService = {
   validateCustomization,
   generatePreview,
   resolveProductCustomization,
+  getCustomizationOptions,
 };
 
 function isCharmField(f: { key?: string; label?: string }): boolean {
@@ -83,22 +136,29 @@ export interface ResolvedCustomizationConfig {
   config: any;
 }
 
-export async function resolveProductCustomization(productId: string): Promise<ResolvedCustomizationConfig> {
-  const product = await Product.findById(productId).lean();
+export async function resolveProductCustomization(
+  productId: string,
+  client?: IDbClient
+): Promise<ResolvedCustomizationConfig> {
+  const productRepo = defaultProductRepo;
+  const categoryRepo = defaultCategoryRepo;
+  const studioRepo = defaultStudioRepo;
+
+  const product = await productRepo.findById(productId, client);
   if (!product) {
     throw new AppError("Product not found", 404);
   }
 
   const category = product.categoryId
-    ? await Category.findById(product.categoryId).lean()
+    ? await categoryRepo.findById(product.categoryId, client)
     : null;
 
   // 1. Retrieve category-specific CustomizationConfig first
   const categoryConfig = product.categoryId
-    ? await CustomizationConfig.findOne({
+    ? await studioRepo.findCustomizationConfig({
         categoryId: product.categoryId,
         isActive: true,
-      }).lean()
+      }, client)
     : null;
 
   const categoryFields: ICustomizationField[] =
@@ -106,9 +166,7 @@ export async function resolveProductCustomization(productId: string): Promise<Re
       ? categoryConfig.fields
       : category?.customizationFields) || [];
 
-  // 2. Authoritative category-specific resolution:
-  // When category-specific fields exist, use them authoritatively without merging
-  // unrelated fields from generic product-type configurators.
+  // 2. Authoritative category-specific resolution
   if (categoryFields.length > 0) {
     return {
       product,
@@ -119,20 +177,16 @@ export async function resolveProductCustomization(productId: string): Promise<Re
     };
   }
 
-  // 3. Fallback: Retrieve base product-type configuration only when no category-specific configuration exists
+  // 3. Fallback: Base product-type configuration
   let baseConfig = null;
   if (category?.productType) {
-    const baseQuery: any = {
-      productType: category.productType,
-      isActive: true,
-    };
-    if (product.categoryId) {
-      baseQuery.categoryId = { $ne: product.categoryId };
-    }
-    // Deterministic selection: template (without categoryId) or oldest base configurator
-    baseConfig = await CustomizationConfig.findOne(baseQuery)
-      .sort({ createdAt: 1 })
-      .lean();
+    baseConfig = await studioRepo.findCustomizationConfig(
+      {
+        productType: category.productType,
+        isActive: true,
+      },
+      client
+    );
   }
 
   return {
@@ -144,15 +198,16 @@ export async function resolveProductCustomization(productId: string): Promise<Re
   };
 }
 
-export async function getProductCustomization(productId: string) {
-  const { product, fields, previewLayers } = await resolveProductCustomization(productId);
+export async function getProductCustomization(productId: string, client?: IDbClient) {
+  const { product, fields, previewLayers } = await resolveProductCustomization(productId, client);
+  const studioRepo = defaultStudioRepo;
 
   // If product is not customizable, return empty customization config immediately
   if (!product.isCustomizable) {
     return {
-      productId: product._id,
+      productId: product.id,
       productName: product.name,
-      basePrice: product.salePrice ?? product.price,
+      basePrice: product.salePrice ?? product.price ?? product.basePrice,
       fields: [],
       previewLayers: [],
       isCustomizable: false,
@@ -169,25 +224,24 @@ export async function getProductCustomization(productId: string) {
     }
   }
 
-  // Fetch authoritative live stock and validity from StudioMaterial
+  // Fetch live stock and validity from StudioMaterial
   const variantMap = new Map<string, { inStock: boolean; stock: number; imageUrl?: string; materialName: string }>();
   if (linkedSkus.size > 0) {
-    const materials = await StudioMaterial.find({
-      "variants.sku": { $in: Array.from(linkedSkus) },
-      isActive: true,
-      visibilityScopes: "bracelet_customization",
-    }).lean();
+    const materials = await studioRepo.findMaterialsBySkus(Array.from(linkedSkus), client);
 
     for (const mat of materials) {
-      for (const v of mat.variants || []) {
-        const skuUpper = v.sku.toUpperCase();
-        if (linkedSkus.has(skuUpper) && v.isActive) {
-          variantMap.set(skuUpper, {
-            inStock: typeof v.stock === "number" && v.stock > 0,
-            stock: typeof v.stock === "number" ? v.stock : 0,
-            imageUrl: mat.imageUrl,
-            materialName: mat.name,
-          });
+      // Must be active and have bracelet_customization scope
+      if (mat.isActive && (mat.visibilityScopes.includes("bracelet_customization") || mat.visibilityScopes.includes("studio"))) {
+        for (const v of mat.variants || []) {
+          const skuUpper = v.sku.toUpperCase();
+          if (linkedSkus.has(skuUpper) && v.isActive) {
+            variantMap.set(skuUpper, {
+              inStock: typeof v.stock === "number" && v.stock > 0,
+              stock: typeof v.stock === "number" ? v.stock : 0,
+              imageUrl: mat.imageUrl,
+              materialName: mat.name,
+            });
+          }
         }
       }
     }
@@ -200,7 +254,6 @@ export async function getProductCustomization(productId: string) {
     const filteredOptions = field.options
       .map((opt: any) => {
         if (!opt.variantSku) {
-          // Unlinked / manual option: preserved as-is with inStock: true
           return {
             ...opt,
             inStock: true,
@@ -210,7 +263,6 @@ export async function getProductCustomization(productId: string) {
         const sku = String(opt.variantSku).toUpperCase().trim();
         const vInfo = variantMap.get(sku);
 
-        // If not found in active bracelet_customization materials or stock is 0, mark out of stock
         if (!vInfo || !vInfo.inStock) {
           return {
             ...opt,
@@ -228,7 +280,6 @@ export async function getProductCustomization(productId: string) {
           materialId: opt.materialId,
         };
       })
-      // Customer-facing requirements: "Show only active, in-stock variants"
       .filter((opt: any) => opt.inStock);
 
     return {
@@ -238,19 +289,27 @@ export async function getProductCustomization(productId: string) {
   });
 
   return {
-    productId: product._id,
+    productId: product.id,
     productName: product.name,
-    basePrice: product.salePrice ?? product.price,
+    basePrice: product.salePrice ?? product.price ?? product.basePrice,
     fields: enrichedFields.sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0)),
     previewLayers,
     isCustomizable: product.isCustomizable,
   };
 }
 
-export async function calculatePrice(productId: string, selections: Record<string, string | string[]>) {
-  const { product, fields } = await resolveProductCustomization(productId);
+export async function calculatePrice(
+  productId: string,
+  selections: Record<string, string | string[]>,
+  client?: IDbClient
+) {
+  const { product, fields } = await resolveProductCustomization(productId, client);
 
-  const basePrice = product.salePrice && product.salePrice < product.price ? product.salePrice : product.price;
+  const basePrice =
+    product.salePrice && product.salePrice < (product.price ?? product.basePrice)
+      ? product.salePrice
+      : (product.price ?? product.basePrice);
+
   let priceModifier = 0;
   const breakdown: { field: string; option: string; modifier: number }[] = [];
 
@@ -306,8 +365,13 @@ export async function calculatePrice(productId: string, selections: Record<strin
   };
 }
 
-export async function validateCustomization(productId: string, selections: Record<string, string | string[]>) {
-  const { product, fields } = await resolveProductCustomization(productId);
+export async function validateCustomization(
+  productId: string,
+  selections: Record<string, string | string[]>,
+  client?: IDbClient
+) {
+  const { product, fields } = await resolveProductCustomization(productId, client);
+  const studioRepo = defaultStudioRepo;
 
   if (!product.isCustomizable) {
     throw new AppError("This product is not customizable", 400);
@@ -316,7 +380,6 @@ export async function validateCustomization(productId: string, selections: Recor
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  // Check required fields
   for (const field of fields) {
     const rawVal = selections[field.key];
     const hasValue =
@@ -330,7 +393,6 @@ export async function validateCustomization(productId: string, selections: Recor
     }
 
     if (hasValue) {
-      // Validate option values ONLY for option-based fields (select, multiselect, color)
       if (["select", "multiselect", "color"].includes(field.type)) {
         if (field.options && field.options.length > 0) {
           const values = Array.isArray(rawVal) ? rawVal : [rawVal];
@@ -348,14 +410,14 @@ export async function validateCustomization(productId: string, selections: Recor
               errors.push(`Invalid option for ${field.label}: ${v}`);
             } else if ((option as any).variantSku) {
               const sku = String((option as any).variantSku).toUpperCase().trim();
-              const mat = await StudioMaterial.findOne({
-                "variants.sku": sku,
-                isActive: true,
-                visibilityScopes: "bracelet_customization",
-              }).lean();
-
-              const variant = mat?.variants?.find((va) => va.sku.toUpperCase() === sku);
-              if (!mat || !variant || !variant.isActive || typeof variant.stock !== "number" || variant.stock < 1) {
+              const found = await studioRepo.findVariantBySku(sku, client);
+              if (
+                !found ||
+                !found.material.isActive ||
+                !found.variant.isActive ||
+                typeof found.variant.stock !== "number" ||
+                found.variant.stock < 1
+              ) {
                 errors.push(`${option.label || v} is currently out of stock`);
               }
             }
@@ -363,7 +425,6 @@ export async function validateCustomization(productId: string, selections: Recor
         }
       }
 
-      // Validate text input length
       if (field.type === "text") {
         const value = String(rawVal);
         if (value.length > 100) {
@@ -371,7 +432,6 @@ export async function validateCustomization(productId: string, selections: Recor
         }
       }
 
-      // Validate number input range
       if (field.type === "number") {
         const value = Number(rawVal);
         if (isNaN(value) || value < 0) {
@@ -381,7 +441,6 @@ export async function validateCustomization(productId: string, selections: Recor
     }
   }
 
-  // Check for extra fields not in configuration
   for (const key of Object.keys(selections)) {
     const field = fields.find((f: ICustomizationField) => f.key === key);
     if (!field) {
@@ -396,9 +455,14 @@ export async function validateCustomization(productId: string, selections: Recor
   };
 }
 
-export async function getCustomizationOptions(productType: string) {
-  const category = await Category.findOne({ productType, isActive: true }).sort({ sortOrder: 1 }).lean();
-  const config = await CustomizationConfig.findOne({ productType, isActive: true }).lean();
+export async function getCustomizationOptions(productType: string, client?: IDbClient) {
+  const categoryRepo = defaultCategoryRepo;
+  const studioRepo = defaultStudioRepo;
+
+  const categories = await categoryRepo.findAll({ productType, active: true }, client);
+  const category = categories.length > 0 ? categories[0] : null;
+
+  const config = await studioRepo.findCustomizationConfig({ productType, isActive: true }, client);
 
   const fields = config?.fields?.length ? config.fields : category?.customizationFields ?? [];
 
@@ -441,10 +505,14 @@ export async function getCustomizationOptions(productType: string) {
   return { materials, chainTypes, braceletSizes, charms, fields, config };
 }
 
-export async function generatePreview(productId: string, selections: Record<string, string | string[]>) {
-  const { product, fields, previewLayers } = await resolveProductCustomization(productId);
+export async function generatePreview(
+  productId: string,
+  selections: Record<string, string | string[]>,
+  client?: IDbClient
+) {
+  const { product, fields, previewLayers } = await resolveProductCustomization(productId, client);
 
-  const basePrice = product.salePrice ?? product.price;
+  const basePrice = product.salePrice ?? product.price ?? product.basePrice;
   let modifier = 0;
 
   for (const field of fields) {
@@ -472,18 +540,21 @@ export async function generatePreview(productId: string, selections: Record<stri
   };
 }
 
-export async function generatePreviewLegacy(input: {
-  product_type: string;
-  customization_data: Record<string, unknown>;
-  base_product_id?: number;
-}) {
+export async function generatePreviewLegacy(
+  input: {
+    product_type: string;
+    customization_data: Record<string, unknown>;
+    base_product_id?: string | number;
+  },
+  client?: IDbClient
+) {
   let basePrice = 500;
   if (input.base_product_id) {
-    const product = await Product.findById(input.base_product_id);
+    const product = await defaultProductRepo.findById(String(input.base_product_id), client);
     if (product) basePrice = product.salePrice ?? product.price;
   }
 
-  const { fields } = await getCustomizationOptions(input.product_type);
+  const { fields } = await getCustomizationOptions(input.product_type, client);
   let modifier = 0;
   for (const field of fields) {
     const val = input.customization_data[field.key];
@@ -514,16 +585,20 @@ export async function saveCustomizedProduct(
   userId: string,
   input: {
     product_type: string;
-    base_product_id?: number;
+    base_product_id?: string | number;
     customization_data: Record<string, unknown>;
     total_price: number;
-  }
+  },
+  client?: IDbClient
 ) {
-  const preview = await generatePreviewLegacy({
-    product_type: input.product_type,
-    customization_data: input.customization_data,
-    base_product_id: input.base_product_id,
-  });
+  const preview = await generatePreviewLegacy(
+    {
+      product_type: input.product_type,
+      customization_data: input.customization_data,
+      base_product_id: input.base_product_id,
+    },
+    client
+  );
 
   return {
     id: Date.now(),
@@ -541,11 +616,12 @@ export async function addCustomizedToCart(
   userId: string,
   customized: {
     product_type: string;
-    base_product_id?: number;
+    base_product_id?: string | number;
     customization_data: Record<string, unknown>;
     total_price: number;
     preview_image_url?: string;
-  }
+  },
+  client?: IDbClient
 ) {
   const { addCartItem } = await import("./cart.service.js");
   const productId = customized.base_product_id
@@ -554,21 +630,27 @@ export async function addCustomizedToCart(
 
   if (!productId) throw new AppError("Base product required", 400);
 
-  const product = await Product.findById(productId);
+  const product = await defaultProductRepo.findById(productId, client);
   if (!product) throw new AppError("Product not found", 404);
 
-  await addCartItem(userId, {
-    productId,
-    name: `Custom ${product.name}`,
-    price: customized.total_price,
-    quantity: 1,
-    image_url: customized.preview_image_url,
-    customization: {
-      selections: customized.customization_data as Record<string, string | string[] | number>,
-      previewImageUrl: customized.preview_image_url,
-      priceModifier: customized.total_price - (product.salePrice ?? product.price),
+  const effectiveBase = product.salePrice ?? product.price;
+
+  await addCartItem(
+    userId,
+    {
+      productId,
+      name: `Custom ${product.name}`,
+      price: customized.total_price,
+      quantity: 1,
+      image_url: customized.preview_image_url,
+      customization: {
+        selections: customized.customization_data as Record<string, string | string[] | number>,
+        previewImageUrl: customized.preview_image_url,
+        priceModifier: customized.total_price - effectiveBase,
+      },
     },
-  });
+    client
+  );
 
   return { message: "Customized product added to cart successfully" };
 }

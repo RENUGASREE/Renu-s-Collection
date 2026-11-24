@@ -1,13 +1,45 @@
-import { JewelleryType } from "../models/JewelleryType.js";
-import { StudioMaterial, IStudioMaterial, IMaterialVariant } from "../models/StudioMaterial.js";
-import { DesignRule } from "../models/DesignRule.js";
-import { MakingCharge } from "../models/MakingCharge.js";
-import { SavedDesign } from "../models/SavedDesign.js";
-import { DesignTemplate } from "../models/DesignTemplate.js";
+/**
+ * ============================================================================
+ * Studio Service (Phase 3H)
+ * ============================================================================
+ *
+ * Implements core Studio business logic for bespoke jewellery creation:
+ * - Studio readiness assessments and dynamic gap analysis.
+ * - Secure public catalogue projections.
+ * - Authoritative pricing quotes and component breakdowns.
+ * - User saved design management (CRUD) with customer ownership checks.
+ * - Design templates catalogue and validation.
+ * - Studio custom design cart integration.
+ *
+ * Adheres strictly to:
+ * - PostgreSQL repository layer (`PostgresStudioRepository`).
+ * - Zero direct Mongoose database queries.
+ * - Dual ID compatibility (MongoDB ObjectId and UUID).
+ * - Preservation of all existing material and variant attributes and stock.
+ * - Dependency injection for test isolation without database writes.
+ */
+
+import { PostgresStudioRepository } from "../repositories/postgres-studio.repository.js";
 import { addStudioDesignToCart } from "./cart.service.js";
 import { AppError } from "../middleware/errorHandler.js";
 import { env } from "../config/env.js";
-import { Types } from "mongoose";
+import { assertValidEntityId } from "../utils/helpers.js";
+import {
+  IDbClient,
+  IStudioMaterialRecord,
+  ISavedDesignRecord,
+  IDesignTemplateRecord,
+} from "../types/database.types.js";
+
+let defaultStudioRepo = new PostgresStudioRepository();
+
+export function setStudioRepository(repo: PostgresStudioRepository): void {
+  defaultStudioRepo = repo;
+}
+
+export function getStudioRepository(): PostgresStudioRepository {
+  return defaultStudioRepo;
+}
 
 // ============================================================================
 // 1. SAFE IDEMPOTENT INITIALIZATION
@@ -32,13 +64,14 @@ export const KNOWN_SAMPLE_TEMPLATE_SLUGS = [
   "grounding-earth",
 ];
 
-export async function initStudioDefaults(): Promise<void> {
+export async function initStudioDefaults(client?: IDbClient): Promise<void> {
+  const repo = defaultStudioRepo;
   try {
-    // A. Base Bracelet Category template (only inserted if database has no bracelet record)
-    await JewelleryType.findOneAndUpdate(
-      { slug: "bracelet" },
-      {
-        $setOnInsert: {
+    // A. Base Bracelet Category template
+    const existingBracelet = await repo.findJewelleryTypeBySlug("bracelet", client);
+    if (!existingBracelet) {
+      await repo.createJewelleryType(
+        {
           slug: "bracelet",
           displayName: "Bracelets",
           description: "Design bespoke handcrafted elastic bead and custom gemstone bracelets.",
@@ -47,37 +80,28 @@ export async function initStudioDefaults(): Promise<void> {
           isEnabled: true,
           isPublished: false,
           isArchived: false,
-          designerStatus: "coming_soon" as const,
+          designerStatus: "coming_soon",
           supportedConstructionTypes: ["elastic_bead"],
         },
-      },
-      { upsert: true, new: true }
-    );
+        client
+      );
+    }
 
-    // B. Ensure legacy predefined types, if already in DB with no publication status, default to UNPUBLISHED
-    await JewelleryType.updateMany(
-      {
-        slug: { $in: ["bracelet", "earrings", "bangles", "chain_necklace"] },
-        isPublished: { $exists: false },
-      },
-      { $set: { isPublished: false, isArchived: false, designerStatus: "coming_soon" } }
-    );
-
-    // C. Default Elastic Bead Bracelet Design Rule
-    await DesignRule.findOneAndUpdate(
-      { jewelleryType: "bracelet", constructionType: "elastic_bead" },
-      {
-        $setOnInsert: {
+    // B. Default Elastic Bead Bracelet Design Rule
+    const existingRule = await repo.findDesignRule("bracelet", "elastic_bead", client);
+    if (!existingRule) {
+      await repo.upsertDesignRule(
+        {
           jewelleryType: "bracelet",
           constructionType: "elastic_bead",
-          minWristMm: 130, // 13 cm
-          maxWristMm: 220, // 22 cm
+          minWristMm: 130,
+          maxWristMm: 220,
           minComponents: 12,
           maxComponents: 45,
           permittedBeadSizesMm: [4, 6, 8, 10, 12],
           allowedMaterialTypes: ["bead", "stone", "spacer", "charm"],
           maxCharms: 5,
-          fitAllowanceMm: 10, // 10mm comfortable elastic ease
+          fitAllowanceMm: 10,
           requiresReviewThresholds: {
             minComponentsForReview: 14,
             maxComponentsForReview: 38,
@@ -86,18 +110,18 @@ export async function initStudioDefaults(): Promise<void> {
           isActive: true,
           version: 1,
         },
-      },
-      { upsert: true, new: true }
-    );
+        client
+      );
+    }
 
-    // D. Default Making Charge for Elastic Bead Bracelet
-    await MakingCharge.findOneAndUpdate(
-      { jewelleryType: "bracelet", constructionType: "elastic_bead" },
-      {
-        $setOnInsert: {
+    // C. Default Making Charge for Elastic Bead Bracelet
+    const existingCharge = await repo.findMakingCharge("bracelet", "elastic_bead", client);
+    if (!existingCharge) {
+      await repo.upsertMakingCharge(
+        {
           jewelleryType: "bracelet",
           constructionType: "elastic_bead",
-          baseFee: 150, // INR 150 base artisanal stringing & finishing fee
+          baseFee: 150,
           serviceCharges: [
             {
               name: "Premium Velvet Gift Box",
@@ -108,9 +132,9 @@ export async function initStudioDefaults(): Promise<void> {
           ],
           isActive: true,
         },
-      },
-      { upsert: true, new: true }
-    );
+        client
+      );
+    }
   } catch (err) {
     console.error("Studio initialization error (non-fatal):", err);
   }
@@ -146,24 +170,27 @@ export interface JewelleryTypeReadiness {
   };
 }
 
-export async function getStudioReadinessReport(isAdmin: boolean = false): Promise<JewelleryTypeReadiness[]> {
-  const filter: any = isAdmin
-    ? { isArchived: { $ne: true } }
-    : { isPublished: true, isEnabled: { $ne: false }, isArchived: { $ne: true } };
+export async function getStudioReadinessReport(
+  isAdmin: boolean = false,
+  client?: IDbClient
+): Promise<JewelleryTypeReadiness[]> {
+  const repo = defaultStudioRepo;
+  const filter = isAdmin
+    ? { isArchived: false }
+    : { isPublished: true, isEnabled: true, isArchived: false };
 
-  const types = await JewelleryType.find(filter).sort({ displayOrder: 1, createdAt: 1 }).lean();
+  const types = await repo.listJewelleryTypes(filter, client);
   const report: JewelleryTypeReadiness[] = [];
 
   for (const t of types) {
-    const materials = await StudioMaterial.find({
-      isActive: true,
-      allowedJewelleryTypes: t.slug,
-      $or: [
-        { visibilityScopes: "studio" },
-        { visibilityScopes: { $exists: false } },
-        { visibilityScopes: { $size: 0 } },
-      ],
-    }).lean();
+    const { materials } = await repo.findMaterials(
+      {
+        isActive: true,
+        jewelleryType: t.slug,
+        visibilityScope: "studio",
+      },
+      client
+    );
 
     const eligibleCount = materials.length;
     const inStockVariantCount = materials.reduce(
@@ -175,12 +202,12 @@ export async function getStudioReadinessReport(isAdmin: boolean = false): Promis
 
     const [rule, makingCharge, templateCount] = await Promise.all([
       primaryConstruction
-        ? DesignRule.findOne({ jewelleryType: t.slug, constructionType: primaryConstruction, isActive: true }).lean()
+        ? repo.findDesignRule(t.slug, primaryConstruction, client)
         : null,
       primaryConstruction
-        ? MakingCharge.findOne({ jewelleryType: t.slug, constructionType: primaryConstruction, isActive: true }).lean()
+        ? repo.findMakingCharge(t.slug, primaryConstruction, client)
         : null,
-      DesignTemplate.countDocuments({ jewelleryType: t.slug, isPublished: true }),
+      repo.countTemplates(t.slug, true, client),
     ]);
 
     const hasMaterials = eligibleCount > 0;
@@ -200,7 +227,6 @@ export async function getStudioReadinessReport(isAdmin: boolean = false): Promis
       t.isEnabled !== false &&
       !t.isArchived;
 
-    // Dynamic gap analysis details based on live catalogue state
     let materialsStatus: "stocked" | "out_of_stock" | "lacking_catalogue_components" = "stocked";
     let materialsDetail = "";
 
@@ -237,8 +263,8 @@ export async function getStudioReadinessReport(isAdmin: boolean = false): Promis
     report.push({
       slug: t.slug,
       displayName: t.displayName,
-      description: t.description,
-      imageUrl: t.imageUrl,
+      description: t.description || undefined,
+      imageUrl: t.imageUrl || undefined,
       displayOrder: t.displayOrder,
       isEnabled: t.isEnabled,
       isPublished: t.isPublished,
@@ -265,7 +291,7 @@ export async function getStudioReadinessReport(isAdmin: boolean = false): Promis
 }
 
 // ============================================================================
-// 2. PUBLIC DATA PROJECTION (Security: strip purchase cost, hide inactive)
+// 2. PUBLIC DATA PROJECTION
 // ============================================================================
 
 export interface PublicMaterialVariant {
@@ -273,7 +299,7 @@ export interface PublicMaterialVariant {
   color?: string;
   finish?: string;
   sizeLabel: string;
-  dimensionsMm: IMaterialVariant["dimensionsMm"];
+  dimensionsMm: any;
   sellingUnit: string;
   sellingRate: number;
   inStock: boolean;
@@ -282,6 +308,7 @@ export interface PublicMaterialVariant {
 
 export interface PublicStudioMaterial {
   id: string;
+  _id?: string;
   name: string;
   code: string;
   description?: string;
@@ -295,39 +322,40 @@ export interface PublicStudioMaterial {
   variants: PublicMaterialVariant[];
 }
 
-export function toPublicMaterial(mat: IStudioMaterial): PublicStudioMaterial {
+export function toPublicMaterial(mat: IStudioMaterialRecord): PublicStudioMaterial {
   const activeVariants = (mat.variants || [])
     .filter((v) => v.isActive)
     .map((v) => ({
       sku: v.sku,
-      color: v.color,
-      finish: v.finish,
+      color: v.color || undefined,
+      finish: v.finish || undefined,
       sizeLabel: v.sizeLabel,
       dimensionsMm: v.dimensionsMm,
       sellingUnit: v.sellingUnit,
       sellingRate: v.sellingRate,
-      inStock: typeof v.stock === "number" ? v.stock > 0 : false,
-      stock: typeof v.stock === "number" ? v.stock : 0,
+      inStock: v.stock > 0,
+      stock: v.stock,
     }));
 
   return {
-    id: mat._id.toString(),
+    id: mat.id,
+    _id: mat.id,
     name: mat.name,
     code: mat.code,
-    description: mat.description,
+    description: mat.description || undefined,
     materialType: mat.materialType,
     imageUrl: mat.imageUrl,
-    renderAssetUrl: mat.renderAssetUrl,
+    renderAssetUrl: mat.renderAssetUrl || undefined,
     additionalImages: mat.additionalImages || [],
     allowedJewelleryTypes: mat.allowedJewelleryTypes || [],
-    visibilityScopes: mat.visibilityScopes && mat.visibilityScopes.length > 0 ? mat.visibilityScopes : ["studio"],
+    visibilityScopes: mat.visibilityScopes || ["studio"],
     sortOrder: mat.sortOrder,
     variants: activeVariants,
   };
 }
 
 // ============================================================================
-// 3. AUTHORITATIVE PRICE CALCULATION FOUNDATION
+// 3. AUTHORITATIVE PRICE CALCULATION & QUOTE ENGINE
 // ============================================================================
 
 export interface ComponentSelectionInput {
@@ -342,14 +370,14 @@ export interface PriceBreakdownItem {
   materialType: string;
   variantSku: string;
   sizeLabel: string;
-  color?: string;
-  finish?: string;
+  color?: string | null;
+  finish?: string | null;
   sellingUnit: string;
   unitRate: number;
   quantity: number;
   subtotal: number;
   imageUrl: string;
-  renderAssetUrl?: string;
+  renderAssetUrl?: string | null;
 }
 
 export interface DesignPriceQuote {
@@ -368,26 +396,25 @@ export interface DesignPriceQuote {
   calculatedAt: string;
   isProvisionalQuote: boolean;
   isPurchasable: boolean;
-  status: "provisional_estimate";
+  status: string;
   disclaimer: string;
 }
 
-export async function calculateDesignPrice(params: {
-  jewelleryType: string;
-  constructionType: string;
-  components: ComponentSelectionInput[];
-  selectedServiceCharges?: string[];
-}): Promise<DesignPriceQuote> {
+export async function calculateDesignPrice(
+  params: {
+    jewelleryType: string;
+    constructionType: string;
+    components: ComponentSelectionInput[];
+    selectedServiceCharges?: string[];
+  },
+  client?: IDbClient
+): Promise<DesignPriceQuote> {
   const { jewelleryType, constructionType, components, selectedServiceCharges = [] } = params;
+  const repo = defaultStudioRepo;
 
-  // 1. Authoritative category & status verification
-  const jType = await JewelleryType.findOne({
-    slug: jewelleryType,
-    isPublished: true,
-    isEnabled: { $ne: false },
-    isArchived: { $ne: true },
-  });
-  if (!jType) {
+  // 1. Category & status verification
+  const jType = await repo.findJewelleryTypeBySlug(jewelleryType, client);
+  if (!jType || !jType.isPublished || jType.isEnabled === false || jType.isArchived) {
     throw new AppError(`Jewellery category "${jewelleryType}" is not published or active for custom orders`, 404);
   }
 
@@ -405,18 +432,10 @@ export async function calculateDesignPrice(params: {
     );
   }
 
-  // 2. Enforce active construction DesignRule and MakingCharge (readiness requirements)
+  // 2. Enforce active construction DesignRule and MakingCharge
   const [rule, makingChargeConfig] = await Promise.all([
-    DesignRule.findOne({
-      jewelleryType,
-      constructionType,
-      isActive: true,
-    }),
-    MakingCharge.findOne({
-      jewelleryType,
-      constructionType,
-      isActive: true,
-    }),
+    repo.findDesignRule(jewelleryType, constructionType, client),
+    repo.findMakingCharge(jewelleryType, constructionType, client),
   ]);
 
   if (!rule) {
@@ -438,7 +457,6 @@ export async function calculateDesignPrice(params: {
     throw new AppError("At least one component is required to calculate pricing", 400);
   }
 
-  // Aggregate quantities by SKU to prevent duplicate lookups
   const aggregatedMap = new Map<string, number>();
   for (const c of components) {
     if (!c.variantSku || typeof c.variantSku !== "string") {
@@ -448,28 +466,23 @@ export async function calculateDesignPrice(params: {
     if (!Number.isInteger(qty) || qty <= 0) {
       throw new AppError(`Invalid quantity for SKU "${c.variantSku}": must be a positive integer`, 400);
     }
-    aggregatedMap.set(c.variantSku, (aggregatedMap.get(c.variantSku) || 0) + qty);
+    aggregatedMap.set(c.variantSku.trim().toUpperCase(), (aggregatedMap.get(c.variantSku.trim().toUpperCase()) || 0) + qty);
   }
 
   // 4. Retrieve authoritative variant and material data
   const skus = Array.from(aggregatedMap.keys());
-  const materials = await StudioMaterial.find({
-    "variants.sku": { $in: skus },
-    isActive: true,
-  });
+  const materials = await repo.findMaterialsBySkus(skus, client);
 
   const breakdownItems: PriceBreakdownItem[] = [];
   let componentSubtotal = 0;
   let totalComponentQuantity = 0;
 
   for (const [sku, quantity] of aggregatedMap.entries()) {
-    // Find matching material and variant
     const mat = materials.find((m) => m.variants.some((v) => v.sku === sku));
-    if (!mat) {
+    if (!mat || !mat.isActive) {
       throw new AppError(`Material component with SKU "${sku}" was not found or is currently inactive`, 404);
     }
 
-    // Verify category/type eligibility
     if (!mat.allowedJewelleryTypes.includes(jewelleryType)) {
       throw new AppError(
         `Component "${mat.name}" (${sku}) is not eligible for use in ${jType.displayName}`,
@@ -477,7 +490,6 @@ export async function calculateDesignPrice(params: {
       );
     }
 
-    // Verify feature visibility scope for Studio (with backward-compatible fallback)
     const scopes = mat.visibilityScopes && mat.visibilityScopes.length > 0 ? mat.visibilityScopes : ["studio"];
     if (!scopes.includes("studio")) {
       throw new AppError(
@@ -486,7 +498,6 @@ export async function calculateDesignPrice(params: {
       );
     }
 
-    // Verify component materialType against DesignRule allowed types
     if (rule.allowedMaterialTypes && rule.allowedMaterialTypes.length > 0) {
       if (!rule.allowedMaterialTypes.includes(mat.materialType)) {
         throw new AppError(
@@ -505,7 +516,6 @@ export async function calculateDesignPrice(params: {
       throw new AppError(`Component variant "${variant.sizeLabel || sku}" of "${mat.name}" is currently out of stock`, 400);
     }
 
-    // Safe monetary calculation in Rupees (2 decimal places)
     const unitRate = Number(variant.sellingRate);
     if (isNaN(unitRate) || unitRate < 0) {
       throw new AppError(`Authoritative selling rate for SKU "${sku}" is invalid`, 500);
@@ -516,7 +526,7 @@ export async function calculateDesignPrice(params: {
     totalComponentQuantity += quantity;
 
     breakdownItems.push({
-      materialId: mat._id.toString(),
+      materialId: mat.id,
       materialName: mat.name,
       materialCode: mat.code,
       materialType: mat.materialType,
@@ -533,7 +543,7 @@ export async function calculateDesignPrice(params: {
     });
   }
 
-  // 5. Validate total component count against the design rule
+  // 5. Validate total component count against design rule
   if (
     (typeof rule.minComponents === "number" && totalComponentQuantity < rule.minComponents) ||
     (typeof rule.maxComponents === "number" && totalComponentQuantity > rule.maxComponents)
@@ -589,27 +599,25 @@ export async function calculateDesignPrice(params: {
 }
 
 // ============================================================================
-// 5. SAVED DESIGNS (USER-AUTHENTICATED)
+// 4. SAVED DESIGNS
 // ============================================================================
 
-export async function getUserSavedDesigns(userId: string) {
-  if (!Types.ObjectId.isValid(userId)) {
-    throw new AppError("Invalid user id", 400);
-  }
-  return SavedDesign.find({ userId: new Types.ObjectId(userId) })
-    .sort({ updatedAt: -1 })
-    .lean();
+export async function getUserSavedDesigns(userId: string, client?: IDbClient): Promise<ISavedDesignRecord[]> {
+  assertValidEntityId(userId, "userId");
+  const repo = defaultStudioRepo;
+  return repo.findSavedDesignsByUserId(userId, client);
 }
 
-export async function getSavedDesignById(userId: string, id: string) {
-  if (!Types.ObjectId.isValid(userId) || !Types.ObjectId.isValid(id)) {
-    throw new AppError("Invalid id", 400);
-  }
-  const design = await SavedDesign.findOne({
-    _id: new Types.ObjectId(id),
-    userId: new Types.ObjectId(userId),
-  }).lean();
-  if (!design) {
+export async function getSavedDesignById(
+  userId: string,
+  id: string,
+  client?: IDbClient
+): Promise<ISavedDesignRecord> {
+  assertValidEntityId(userId, "userId");
+  assertValidEntityId(id, "savedDesignId");
+  const repo = defaultStudioRepo;
+  const design = await repo.findSavedDesignById(id, client);
+  if (!design || design.userId !== userId) {
     throw new AppError("Saved design not found", 404);
   }
   return design;
@@ -625,22 +633,23 @@ export async function saveUserDesign(
     beadSequence: any[];
     charms?: any[];
     estimatedTotal?: number;
-  }
-) {
-  if (!Types.ObjectId.isValid(userId)) {
-    throw new AppError("Invalid user id", 400);
-  }
+  },
+  client?: IDbClient
+): Promise<ISavedDesignRecord> {
+  assertValidEntityId(userId, "userId");
+  const repo = defaultStudioRepo;
 
-  // Pre-calculate fresh quote to store fresh estimatedTotal and timestamp
   const skuCounts: Record<string, number> = {};
-  for (const b of input.beadSequence) {
+  for (const b of input.beadSequence || []) {
     if (b.variantSku) {
-      skuCounts[b.variantSku] = (skuCounts[b.variantSku] || 0) + 1;
+      const s = String(b.variantSku).trim().toUpperCase();
+      skuCounts[s] = (skuCounts[s] || 0) + 1;
     }
   }
   for (const c of input.charms || []) {
     if (c.variantSku) {
-      skuCounts[c.variantSku] = (skuCounts[c.variantSku] || 0) + 1;
+      const s = String(c.variantSku).trim().toUpperCase();
+      skuCounts[s] = (skuCounts[s] || 0) + 1;
     }
   }
 
@@ -652,31 +661,33 @@ export async function saveUserDesign(
   let estimatedTotal = 0;
   if (components.length > 0) {
     try {
-      const quote = await calculateDesignPrice({
-        jewelleryType: input.jewelleryType || "bracelet",
-        constructionType: input.constructionType || "elastic_bead",
-        components,
-      });
+      const quote = await calculateDesignPrice(
+        {
+          jewelleryType: input.jewelleryType || "bracelet",
+          constructionType: input.constructionType || "elastic_bead",
+          components,
+        },
+        client
+      );
       estimatedTotal = quote.totalPrice;
     } catch {
-      // Do not trust client estimate if quote calculation fails
       estimatedTotal = 0;
     }
   }
 
-  const design = await SavedDesign.create({
-    userId: new Types.ObjectId(userId),
-    name: input.name,
-    jewelleryType: input.jewelleryType || "bracelet",
-    constructionType: input.constructionType || "elastic_bead",
-    wristMm: input.wristMm,
-    beadSequence: input.beadSequence,
-    charms: input.charms || [],
-    estimatedTotal,
-    lastValidatedAt: new Date(),
-  });
-
-  return design;
+  return repo.createSavedDesign(
+    {
+      userId,
+      name: input.name,
+      jewelleryType: input.jewelleryType || "bracelet",
+      constructionType: input.constructionType || "elastic_bead",
+      wristMm: input.wristMm,
+      beadSequence: input.beadSequence || [],
+      charms: input.charms || [],
+      estimatedTotal,
+    },
+    client
+  );
 }
 
 export async function updateUserDesign(
@@ -688,37 +699,34 @@ export async function updateUserDesign(
     beadSequence?: any[];
     charms?: any[];
     estimatedTotal?: number;
-  }
-) {
-  if (!Types.ObjectId.isValid(userId) || !Types.ObjectId.isValid(id)) {
-    throw new AppError("Invalid id", 400);
-  }
+  },
+  client?: IDbClient
+): Promise<ISavedDesignRecord> {
+  assertValidEntityId(userId, "userId");
+  assertValidEntityId(id, "savedDesignId");
+  const repo = defaultStudioRepo;
 
-  const design = await SavedDesign.findOne({
-    _id: new Types.ObjectId(id),
-    userId: new Types.ObjectId(userId),
-  });
-  if (!design) {
+  const existing = await repo.findSavedDesignById(id, client);
+  if (!existing || existing.userId !== userId) {
     throw new AppError("Saved design not found", 404);
   }
 
-  if (input.name !== undefined) design.name = input.name;
-  if (input.wristMm !== undefined) design.wristMm = input.wristMm;
-  if (input.beadSequence !== undefined) design.beadSequence = input.beadSequence;
-  if (input.charms !== undefined) design.charms = input.charms;
+  const activeBeads = input.beadSequence !== undefined ? input.beadSequence : existing.beadSequence;
+  const activeCharms = input.charms !== undefined ? input.charms : existing.charms;
+  const activeJewelleryType = existing.jewelleryType || "bracelet";
+  const activeConstructionType = existing.constructionType || "elastic_bead";
 
-  // Recalculate authoritative estimatedTotal server-side from current design components
-  const activeBeads = design.beadSequence || [];
-  const activeCharms = design.charms || [];
   const skuCounts: Record<string, number> = {};
-  for (const b of activeBeads) {
+  for (const b of activeBeads || []) {
     if (b.variantSku) {
-      skuCounts[b.variantSku] = (skuCounts[b.variantSku] || 0) + 1;
+      const s = String(b.variantSku).trim().toUpperCase();
+      skuCounts[s] = (skuCounts[s] || 0) + 1;
     }
   }
-  for (const c of activeCharms) {
+  for (const c of activeCharms || []) {
     if (c.variantSku) {
-      skuCounts[c.variantSku] = (skuCounts[c.variantSku] || 0) + 1;
+      const s = String(c.variantSku).trim().toUpperCase();
+      skuCounts[s] = (skuCounts[s] || 0) + 1;
     }
   }
 
@@ -727,63 +735,87 @@ export async function updateUserDesign(
     quantity,
   }));
 
+  let estimatedTotal = 0;
   if (components.length > 0) {
     try {
-      const quote = await calculateDesignPrice({
-        jewelleryType: design.jewelleryType || "bracelet",
-        constructionType: design.constructionType || "elastic_bead",
-        components,
-      });
-      design.estimatedTotal = quote.totalPrice;
+      const quote = await calculateDesignPrice(
+        {
+          jewelleryType: activeJewelleryType,
+          constructionType: activeConstructionType,
+          components,
+        },
+        client
+      );
+      estimatedTotal = quote.totalPrice;
     } catch {
-      design.estimatedTotal = 0;
+      estimatedTotal = 0;
     }
-  } else {
-    design.estimatedTotal = 0;
-  }
-  design.lastValidatedAt = new Date();
-
-  await design.save();
-  return design;
-}
-
-export async function deleteUserDesign(userId: string, id: string) {
-  if (!Types.ObjectId.isValid(userId) || !Types.ObjectId.isValid(id)) {
-    throw new AppError("Invalid id", 400);
   }
 
-  const result = await SavedDesign.findOneAndDelete({
-    _id: new Types.ObjectId(id),
-    userId: new Types.ObjectId(userId),
-  });
-  if (!result) {
+  const updated = await repo.updateSavedDesign(
+    id,
+    {
+      name: input.name,
+      wristMm: input.wristMm,
+      beadSequence: input.beadSequence,
+      charms: input.charms,
+      estimatedTotal,
+    },
+    client
+  );
+
+  if (!updated) {
     throw new AppError("Saved design not found", 404);
   }
+  return updated;
+}
+
+export async function deleteUserDesign(
+  userId: string,
+  id: string,
+  client?: IDbClient
+): Promise<{ success: boolean }> {
+  assertValidEntityId(userId, "userId");
+  assertValidEntityId(id, "savedDesignId");
+  const repo = defaultStudioRepo;
+
+  const existing = await repo.findSavedDesignById(id, client);
+  if (!existing || existing.userId !== userId) {
+    throw new AppError("Saved design not found", 404);
+  }
+
+  await repo.deleteSavedDesign(id, client);
   return { success: true };
 }
 
 // ============================================================================
-// 6. DESIGN TEMPLATES (PUBLIC & ADMIN)
+// 5. DESIGN TEMPLATES
 // ============================================================================
 
-export async function getDesignTemplates(onlyPublished = true) {
+export async function getDesignTemplates(
+  onlyPublished = true,
+  client?: IDbClient
+): Promise<IDesignTemplateRecord[]> {
+  const repo = defaultStudioRepo;
   if (onlyPublished) {
-    const publishedTypes = await JewelleryType.find({
-      isPublished: true,
-      isEnabled: { $ne: false },
-      isArchived: { $ne: true },
-    }).select("slug").lean();
-    const publishedSlugs = publishedTypes.map((t) => t.slug.toLowerCase());
-    return DesignTemplate.find({
-      isPublished: true,
-      jewelleryType: { $in: publishedSlugs },
-    }).sort({ sortOrder: 1, createdAt: -1 }).lean();
+    const publishedTypes = await repo.listJewelleryTypes(
+      { isPublished: true, isEnabled: true, isArchived: false },
+      client
+    );
+    const templates = await repo.findTemplates({ isPublished: true }, client);
+    const publishedSlugs = new Set(publishedTypes.map((t) => t.slug.toLowerCase()));
+    return templates.filter((t) => publishedSlugs.has(t.jewelleryType.toLowerCase()));
   }
-  return DesignTemplate.find({}).sort({ sortOrder: 1, createdAt: -1 }).lean();
+  return repo.findTemplates({}, client);
 }
 
-export async function getDesignTemplateBySlug(slug: string, isAdmin = false) {
-  const template = await DesignTemplate.findOne({ slug: slug.toLowerCase() }).lean();
+export async function getDesignTemplateBySlug(
+  slug: string,
+  isAdmin = false,
+  client?: IDbClient
+): Promise<IDesignTemplateRecord> {
+  const repo = defaultStudioRepo;
+  const template = await repo.findTemplateBySlug(slug, client);
   if (!template) {
     throw new AppError("Design template not found", 404);
   }
@@ -791,13 +823,8 @@ export async function getDesignTemplateBySlug(slug: string, isAdmin = false) {
     if (!template.isPublished) {
       throw new AppError("Design template not found", 404);
     }
-    const jType = await JewelleryType.findOne({
-      slug: template.jewelleryType?.toLowerCase(),
-      isPublished: true,
-      isEnabled: { $ne: false },
-      isArchived: { $ne: true },
-    });
-    if (!jType) {
+    const jType = await repo.findJewelleryTypeBySlug(template.jewelleryType, client);
+    if (!jType || !jType.isPublished || jType.isEnabled === false || jType.isArchived) {
       throw new AppError("Design template is currently unavailable", 404);
     }
   }
@@ -808,10 +835,11 @@ async function validateAndEnrichTemplateComponents(
   jewelleryType: string,
   beadSequence: any[],
   charms: any[] = [],
-  isPublished = false
+  isPublished = false,
+  client?: IDbClient
 ) {
-  // 1. Verify jewellery type exists
-  const jType = await JewelleryType.findOne({ slug: jewelleryType.toLowerCase() });
+  const repo = defaultStudioRepo;
+  const jType = await repo.findJewelleryTypeBySlug(jewelleryType, client);
   if (!jType) {
     throw new AppError(`Jewellery type "${jewelleryType}" not found`, 400);
   }
@@ -822,7 +850,6 @@ async function validateAndEnrichTemplateComponents(
     );
   }
 
-  // 2. Validate bead sequence
   if (!Array.isArray(beadSequence) || beadSequence.length === 0) {
     throw new AppError("Template bead sequence must contain at least one bead", 400);
   }
@@ -831,7 +858,6 @@ async function validateAndEnrichTemplateComponents(
   const allCharmSkus = (charms || []).map((c) => String(c.variantSku || "").toUpperCase().trim());
   const uniqueSkus = Array.from(new Set([...allBeadSkus, ...allCharmSkus].filter(Boolean)));
 
-  // In live commerce mode, reject publication if referencing temporary TEST- inventory
   if (isPublished && env.COMMERCE_MODE === "live") {
     const hasTestItems = uniqueSkus.some((sku) => sku.startsWith("TEST-"));
     if (hasTestItems) {
@@ -842,7 +868,7 @@ async function validateAndEnrichTemplateComponents(
     }
   }
 
-  const materials = await StudioMaterial.find({ "variants.sku": { $in: uniqueSkus } });
+  const materials = await repo.findMaterialsBySkus(uniqueSkus, client);
 
   const variantLookup = new Map<string, { material: any; variant: any }>();
   for (const m of materials) {
@@ -851,7 +877,6 @@ async function validateAndEnrichTemplateComponents(
     }
   }
 
-  // Check every bead
   const enrichedBeads = beadSequence.map((b) => {
     const sku = String(b.variantSku || "").toUpperCase().trim();
     const found = variantLookup.get(sku);
@@ -868,7 +893,6 @@ async function validateAndEnrichTemplateComponents(
     };
   });
 
-  // Check charms
   const enrichedCharms = (charms || []).map((c) => {
     const sku = String(c.variantSku || "").toUpperCase().trim();
     const anchor = String(c.anchorVariantSku || "").toUpperCase().trim();
@@ -893,8 +917,9 @@ async function validateAndEnrichTemplateComponents(
   return { enrichedBeads, enrichedCharms };
 }
 
-export async function createDesignTemplate(input: any) {
-  const existing = await DesignTemplate.findOne({ slug: input.slug.toLowerCase() });
+export async function createDesignTemplate(input: any, client?: IDbClient): Promise<IDesignTemplateRecord> {
+  const repo = defaultStudioRepo;
+  const existing = await repo.findTemplateBySlug(input.slug, client);
   if (existing) {
     throw new AppError(`Template with slug "${input.slug}" already exists`, 409);
   }
@@ -903,19 +928,35 @@ export async function createDesignTemplate(input: any) {
     input.jewelleryType || "bracelet",
     input.beadSequence,
     input.charms,
-    Boolean(input.isPublished)
+    Boolean(input.isPublished),
+    client
   );
 
-  return DesignTemplate.create({
-    ...input,
-    slug: input.slug.toLowerCase(),
-    beadSequence: enrichedBeads,
-    charms: enrichedCharms,
-  });
+  return repo.createTemplate(
+    {
+      slug: input.slug,
+      name: input.name,
+      description: input.description,
+      thumbnailUrl: input.thumbnailUrl,
+      jewelleryType: input.jewelleryType || "bracelet",
+      constructionType: input.constructionType || "elastic_bead",
+      wristMm: input.wristMm,
+      beadSequence: enrichedBeads,
+      charms: enrichedCharms,
+      isPublished: input.isPublished,
+      sortOrder: input.sortOrder,
+    },
+    client
+  );
 }
 
-export async function updateDesignTemplate(slug: string, input: any) {
-  const template = await DesignTemplate.findOne({ slug: slug.toLowerCase() });
+export async function updateDesignTemplate(
+  slug: string,
+  input: any,
+  client?: IDbClient
+): Promise<IDesignTemplateRecord> {
+  const repo = defaultStudioRepo;
+  const template = await repo.findTemplateBySlug(slug, client);
   if (!template) {
     throw new AppError("Design template not found", 404);
   }
@@ -929,31 +970,44 @@ export async function updateDesignTemplate(slug: string, input: any) {
     targetJewelleryType,
     targetBeads,
     targetCharms,
-    targetPublished
+    targetPublished,
+    client
   );
 
-  Object.assign(template, input, {
-    beadSequence: enrichedBeads,
-    charms: enrichedCharms,
-  });
+  const updated = await repo.updateTemplate(
+    slug,
+    {
+      name: input.name,
+      description: input.description,
+      thumbnailUrl: input.thumbnailUrl,
+      jewelleryType: input.jewelleryType,
+      constructionType: input.constructionType,
+      wristMm: input.wristMm,
+      beadSequence: enrichedBeads,
+      charms: enrichedCharms,
+      isPublished: input.isPublished,
+      sortOrder: input.sortOrder,
+    },
+    client
+  );
 
-  if (input.slug) {
-    template.slug = input.slug.toLowerCase();
+  if (!updated) {
+    throw new AppError("Design template not found", 404);
   }
-  await template.save();
-  return template;
+  return updated;
 }
 
-export async function deleteDesignTemplate(slug: string) {
-  const result = await DesignTemplate.findOneAndDelete({ slug: slug.toLowerCase() });
-  if (!result) {
+export async function deleteDesignTemplate(slug: string, client?: IDbClient): Promise<{ success: boolean }> {
+  const repo = defaultStudioRepo;
+  const success = await repo.deleteTemplate(slug, client);
+  if (!success) {
     throw new AppError("Design template not found", 404);
   }
   return { success: true };
 }
 
 // ============================================================================
-// 7. CART INTEGRATION FOR STUDIO DESIGNS
+// 6. CART INTEGRATION FOR STUDIO DESIGNS
 // ============================================================================
 
 export async function addDesignToUserCart(
@@ -969,22 +1023,24 @@ export async function addDesignToUserCart(
     beadSequence: any[];
     charms?: any[];
     selectedServiceCharges?: string[];
-  }
+  },
+  client?: IDbClient
 ) {
-  if (!Types.ObjectId.isValid(userId)) {
-    throw new AppError("Invalid user id", 401);
-  }
+  assertValidEntityId(userId, "userId");
+  const repo = defaultStudioRepo;
 
-  // 1. Authoritative server-side price calculation
+  // 1. Authoritative price calculation
   const skuCounts: Record<string, number> = {};
-  for (const b of input.beadSequence) {
+  for (const b of input.beadSequence || []) {
     if (b.variantSku) {
-      skuCounts[b.variantSku] = (skuCounts[b.variantSku] || 0) + 1;
+      const s = String(b.variantSku).trim().toUpperCase();
+      skuCounts[s] = (skuCounts[s] || 0) + 1;
     }
   }
   for (const c of input.charms || []) {
     if (c.variantSku) {
-      skuCounts[c.variantSku] = (skuCounts[c.variantSku] || 0) + 1;
+      const s = String(c.variantSku).trim().toUpperCase();
+      skuCounts[s] = (skuCounts[s] || 0) + 1;
     }
   }
 
@@ -997,19 +1053,22 @@ export async function addDesignToUserCart(
     throw new AppError("Design has no components", 400);
   }
 
-  const quote = await calculateDesignPrice({
-    jewelleryType: input.jewelleryType,
-    constructionType: input.constructionType,
-    components,
-    selectedServiceCharges: input.selectedServiceCharges || [],
-  });
+  const quote = await calculateDesignPrice(
+    {
+      jewelleryType: input.jewelleryType,
+      constructionType: input.constructionType,
+      components,
+      selectedServiceCharges: input.selectedServiceCharges || [],
+    },
+    client
+  );
 
-  // 2. Validate sizing and charm limits against the design rule
-  const rule = await DesignRule.findOne({
-    jewelleryType: input.jewelleryType.toLowerCase(),
-    constructionType: input.constructionType.toLowerCase(),
-    isActive: true,
-  });
+  // 2. Validate sizing and charm limits against design rule
+  const rule = await repo.findDesignRule(
+    input.jewelleryType.toLowerCase(),
+    input.constructionType.toLowerCase(),
+    client
+  );
   if (rule) {
     if (typeof input.wristMm === "number") {
       if (typeof rule.minWristMm === "number" && input.wristMm < rule.minWristMm) {
@@ -1034,18 +1093,14 @@ export async function addDesignToUserCart(
     }
   }
 
-  // 2. Build thumbnail image from first bead with an image, or input.imageUrl
   let displayImage = input.imageUrl;
   if (!displayImage) {
-    const beadWithImage = input.beadSequence.find((b) => b.imageUrl);
+    const beadWithImage = (input.beadSequence || []).find((b: any) => b.imageUrl);
     displayImage = beadWithImage?.imageUrl || "/assets/images/placeholder-jewellery.png";
   }
 
-  // 3. Assemble snapshot
   const studioDesignSnapshot = {
-    savedDesignId: input.savedDesignId && Types.ObjectId.isValid(input.savedDesignId)
-      ? new Types.ObjectId(input.savedDesignId)
-      : undefined,
+    savedDesignId: input.savedDesignId || undefined,
     name: input.name,
     jewelleryType: input.jewelleryType,
     constructionType: input.constructionType,
@@ -1060,7 +1115,6 @@ export async function addDesignToUserCart(
     },
   };
 
-  // 4. Add to cart using the dedicated cart helper
   const cartItems = await addStudioDesignToCart(userId, {
     name: input.name,
     unitPrice: quote.totalPrice,
@@ -1079,4 +1133,3 @@ export async function addDesignToUserCart(
     },
   };
 }
-

@@ -1,10 +1,11 @@
-import { StudioMaterial, IStudioMaterial } from "../models/StudioMaterial.js";
-import { JewelleryType } from "../models/JewelleryType.js";
-import { DesignRule } from "../models/DesignRule.js";
+import { PostgresStudioRepository } from "../repositories/postgres-studio.repository.js";
+import { IStudioMaterialRecord } from "../types/database.types.js";
 import { calculateDesignPrice } from "./studio.service.js";
 import { AppError } from "../middleware/errorHandler.js";
 import { env } from "../config/env.js";
 import crypto from "crypto";
+
+const studioRepo = new PostgresStudioRepository();
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -73,7 +74,7 @@ export interface AIDesignSuggestion {
 }
 
 interface ActiveMaterialContext {
-  material: IStudioMaterial;
+  material: IStudioMaterialRecord;
   sku: string;
   name: string;
   color?: string;
@@ -111,14 +112,9 @@ export async function generateDesignSuggestions(
   const userBudget = input.budget && input.budget > 0 ? input.budget : undefined;
 
   // 1. Verify category is published, active, and open for designer orders
-  const jType = await JewelleryType.findOne({
-    slug: selectedType,
-    isPublished: true,
-    isEnabled: { $ne: false },
-    isArchived: { $ne: true },
-  });
+  const jType = await studioRepo.findJewelleryTypeBySlug(selectedType);
 
-  if (!jType) {
+  if (!jType || !jType.isPublished || jType.isEnabled === false || jType.isArchived) {
     throw new AppError(
       `Jewellery category "${selectedType}" is not published or currently unavailable for custom orders.`,
       404
@@ -133,10 +129,10 @@ export async function generateDesignSuggestions(
   }
 
   // 2. Fetch active materials eligible for the selected jewellery type
-  const rawMaterials = await StudioMaterial.find({
+  const { materials: rawMaterials } = await studioRepo.findMaterials({
     isActive: true,
-    allowedJewelleryTypes: selectedType,
-  }).lean();
+    jewelleryType: selectedType,
+  });
 
   if (!rawMaterials || rawMaterials.length === 0) {
     throw new AppError(
@@ -146,10 +142,7 @@ export async function generateDesignSuggestions(
   }
 
   // 2. Fetch active design rule
-  const rule = await DesignRule.findOne({
-    jewelleryType: selectedType,
-    isActive: true,
-  }).lean();
+  const rule = await studioRepo.findDesignRule(selectedType);
 
   const fitAllowance = rule?.fitAllowanceMm ?? 10;
   const targetCircumference = wristMm + fitAllowance; // e.g. 170mm for 160mm wrist
@@ -169,12 +162,12 @@ export async function generateDesignSuggestions(
         material: m as any,
         sku: v.sku,
         name: m.name,
-        color: v.color,
+        color: v.color || undefined,
         materialType: m.materialType,
-        diameterMm: v.dimensionsMm?.diameterMm || 8,
+        diameterMm: v.dimensionsMm?.diameter || v.diameterMm || 8,
         sellingRate: v.sellingRate,
         imageUrl: m.imageUrl || "",
-        renderAssetUrl: m.renderAssetUrl,
+        renderAssetUrl: m.renderAssetUrl || undefined,
       };
 
       if (m.materialType === "charm") {
@@ -756,7 +749,7 @@ async function validateAndPriceSuggestions(
       if (found && found.materialType !== "charm") {
         validatedBeads.push({
           variantSku: found.sku,
-          materialId: found.material._id.toString(),
+          materialId: (found.material.id || (found.material as any)._id)?.toString(),
           displayName: found.name,
           diameterMm: found.diameterMm,
           color: found.color,
@@ -820,7 +813,7 @@ async function validateAndPriceSuggestions(
           const anchorIdx = Math.max(0, Math.min(Number(ch.anchorIndex) || 0, validatedBeads.length - 1));
           validatedCharms.push({
             variantSku: found.sku,
-            materialId: found.material._id.toString(),
+            materialId: (found.material.id || (found.material as any)._id)?.toString(),
             displayName: found.name,
             anchorIndex: anchorIdx,
             imageUrl: found.imageUrl,

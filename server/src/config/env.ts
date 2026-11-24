@@ -7,7 +7,8 @@ const envSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   PORT: z.coerce.number().default(8000),
   API_PREFIX: z.string().default("/api/v1"),
-  MONGODB_URI: z.string().min(1, "MONGODB_URI is required"),
+  MONGODB_URI: z.string().optional().default(""),
+  ENABLE_MONGODB_FALLBACK: z.preprocess((val) => val === "true" || val === true, z.boolean()).default(false),
   COMMERCE_MODE: z.enum(["test", "live", "disabled"]).default("test"),
   CORS_ORIGINS: z.string().default("http://localhost:5173"),
   JWT_ACCESS_SECRET: z.string().min(16).default("dev-access-secret-change-me"),
@@ -40,6 +41,15 @@ const envSchema = z.object({
   GEMINI_API_KEY: z.string().optional(),
   GEMINI_MODEL: z.string().default("gemini-2.5-flash"),
   STUDIO_RESERVATION_TIMEOUT_MINUTES: z.coerce.number().default(30),
+  // Supabase PostgreSQL & Storage (Phase 2 Migration - Optional during coexistence)
+  DATABASE_URL: z.string().optional(),
+  DIRECT_URL: z.string().optional(),
+  SUPABASE_URL: z.string().url().optional().or(z.literal("")),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
+  SUPABASE_STORAGE_BUCKET: z.string().default("product-images"),
+  PG_MAX_CONNECTIONS: z.coerce.number().default(10),
+  PG_IDLE_TIMEOUT: z.coerce.number().default(30000),
+  PG_CONNECT_TIMEOUT: z.coerce.number().default(20000),
 });
 
 const parsed = envSchema.safeParse(process.env);

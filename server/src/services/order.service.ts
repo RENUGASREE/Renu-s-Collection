@@ -1,11 +1,24 @@
-import { Types } from "mongoose";
+/**
+ * ============================================================================
+ * Order Service (Phase 3F: PostgreSQL Migration)
+ * ============================================================================
+ *
+ * Backed by Supabase PostgreSQL `orders` and `order_items` tables using
+ * `PostgresOrderRepository`.
+ *
+ * Guarantees:
+ * 1. Authoritative recalculation of all subtotals, discounts, tax, shipping, and total.
+ * 2. Concurrency-safe, idempotent checkout via `idempotencyKey` and `checkoutFingerprint`.
+ * 3. Atomic stock deduction for regular products and stock reservation for custom designs.
+ * 4. Automatic rollback of reservation and order record on checkout failure.
+ * 5. Full backwards compatibility with existing order routes, legacy routes, and controllers.
+ * 6. Clean dependency injection for test isolation without live database writes.
+ */
+
 import crypto from "crypto";
-import { Order } from "../models/Order.js";
-import { User } from "../models/User.js";
-import { Coupon } from "../models/Coupon.js";
-import { Product } from "../models/Product.js";
+import { Types } from "mongoose";
 import { AppError } from "../middleware/errorHandler.js";
-import { generateOrderNumber } from "../utils/helpers.js";
+import { generateOrderNumber, isValidEntityId } from "../utils/helpers.js";
 import { getCartItems, clearCart, toLegacyCartItem, getOrCreateCart } from "./cart.service.js";
 import { deductStockForOrder, adjustStock } from "./inventory.service.js";
 import {
@@ -16,23 +29,79 @@ import {
 import { customizationService } from "./customization.service.js";
 import { calculateDesignPrice } from "./studio.service.js";
 import { env } from "../config/env.js";
+import * as couponService from "./coupon.service.js";
+import {
+  IDbPool,
+  IOrderRecord,
+} from "../types/database.types.js";
+import { PostgresOrderRepository } from "../repositories/postgres-order.repository.js";
+import { PostgresProductRepository } from "../repositories/postgres-product.repository.js";
+import { PostgresUserRepository } from "../repositories/postgres-user.repository.js";
+import { PostgresDatabase } from "../db/postgres.js";
 import type { IAddress } from "../models/User.js";
-import type { ICartItem } from "../models/Cart.js";
 import type { OrderStatus } from "../types/index.js";
 
 const SHIPPING_FREE_THRESHOLD = 1000;
 const SHIPPING_FLAT = 50;
 
-/**
- * Commerce Tax Configuration
- * Explicitly tied to server-side COMMERCE_MODE:
- * In test mode (COMMERCE_MODE=test):
- *   - order.tax = 0 (Merchandise prices are final selling prices; no unexpected tax added)
- *   - total = (subtotal - discount) + shipping
- * 
- * For future commercial operation:
- *   - Production live commerce remains unactivated pending verified business and tax registration.
- */
+// ---------------------------------------------------------------------------
+// Singletons & Dependency Injection
+// ---------------------------------------------------------------------------
+
+let activeOrderRepo: PostgresOrderRepository | null = null;
+let activeProductRepo: PostgresProductRepository | null = null;
+let activeUserRepo: PostgresUserRepository | null = null;
+let activePool: IDbPool | null = null;
+
+export function setOrderRepository(repo: PostgresOrderRepository): void {
+  activeOrderRepo = repo;
+}
+
+export function setOrderDatabasePool(pool: IDbPool): void {
+  activePool = pool;
+  activeOrderRepo = new PostgresOrderRepository(pool);
+}
+
+export function setOrderProductRepository(repo: PostgresProductRepository): void {
+  activeProductRepo = repo;
+}
+
+export function setOrderUserRepository(repo: PostgresUserRepository): void {
+  activeUserRepo = repo;
+}
+
+function getOrderPool(): IDbPool {
+  if (!activePool) {
+    activePool = PostgresDatabase.getPool();
+  }
+  return activePool;
+}
+
+function getOrderRepo(): PostgresOrderRepository {
+  if (!activeOrderRepo) {
+    activeOrderRepo = new PostgresOrderRepository(getOrderPool());
+  }
+  return activeOrderRepo;
+}
+
+function getProductRepo(): PostgresProductRepository {
+  if (!activeProductRepo) {
+    activeProductRepo = new PostgresProductRepository(getOrderPool());
+  }
+  return activeProductRepo;
+}
+
+function getUserRepo(): PostgresUserRepository {
+  if (!activeUserRepo) {
+    activeUserRepo = new PostgresUserRepository(getOrderPool());
+  }
+  return activeUserRepo;
+}
+
+// ---------------------------------------------------------------------------
+// Commerce Tax Configuration
+// ---------------------------------------------------------------------------
+
 export function getCommerceTaxConfig() {
   if (env.COMMERCE_MODE === "test") {
     return {
@@ -41,7 +110,6 @@ export function getCommerceTaxConfig() {
       taxRate: 0,
     };
   }
-  // Safe closed default: non-GST registered, 0 tax rate
   return {
     mode: env.COMMERCE_MODE,
     isGstRegistered: false,
@@ -64,10 +132,10 @@ export function validateDeliveryEligibility(address: IAddress | { state?: string
   }
 }
 
-function parseLegacyAddress(raw: string | IAddress | any): IAddress {
+export function parseLegacyAddress(raw: string | IAddress | any): IAddress {
   if (typeof raw === "object" && raw !== null) {
     return {
-      fullName: raw.fullName ?? "Customer",
+      fullName: raw.fullName ?? raw.name ?? "Customer",
       line1: raw.line1 ?? raw.addressLine1 ?? raw.address ?? "",
       line2: raw.line2 ?? raw.addressLine2 ?? "",
       city: raw.city ?? "",
@@ -81,12 +149,8 @@ function parseLegacyAddress(raw: string | IAddress | any): IAddress {
 
   const str = String(raw || "").trim();
   const parts = str.split(",").map((p) => p.trim());
-  // If formatted as "fullName, line1, line2, city, state, postalCode, country" (7 parts)
-  // or "fullName, line1, city, state, postalCode, country" (6 parts)
   let state = "";
   if (parts.length >= 6) {
-    // Second-to-last or third-to-last is often state before postalCode/country
-    // E.g.: [fullName, line1, line2, city, state, postalCode, country] -> state is at index length - 3
     state = parts[parts.length - 3] || "";
   } else if (parts.length >= 4) {
     state = parts[parts.length - 2] || "";
@@ -106,44 +170,16 @@ function parseLegacyAddress(raw: string | IAddress | any): IAddress {
 }
 
 async function validateCoupon(code: string | undefined, subtotal: number) {
-  if (!code) return { discount: 0, coupon: null as null };
-  const coupon = await Coupon.findOne({ code: code.toUpperCase(), isActive: true });
-  if (!coupon) throw new AppError("Invalid coupon code", 400);
-  if (coupon.expiresAt && coupon.expiresAt < new Date()) {
-    throw new AppError("Coupon expired", 400);
-  }
-  if (coupon.usageLimit && coupon.usedCount >= coupon.usageLimit) {
-    throw new AppError("Coupon usage limit reached", 400);
-  }
-  if (subtotal < coupon.minOrderAmount) {
-    throw new AppError(`Minimum order amount ₹${coupon.minOrderAmount} required`, 400);
-  }
-
-  let discount =
-    coupon.type === "percentage"
-      ? (subtotal * coupon.value) / 100
-      : coupon.value;
-
-  if (coupon.maxDiscount) discount = Math.min(discount, coupon.maxDiscount);
-  return { discount, coupon };
+  return couponService.validateCoupon(code, subtotal);
 }
 
-/**
- * Safeguard for non-commercial test deployments:
- * When COMMERCE_MODE=test, only authorized testing accounts (administrators or
- * accounts specified in TEST_COMMERCE_ALLOWED_EMAILS) are permitted to create orders.
- * This prevents public visitors from accidentally placing test orders (COD or Razorpay)
- * before the boutique officially opens.
- */
 async function assertTestCommerceAccess(userId: string): Promise<void> {
   if (env.COMMERCE_MODE === "disabled") {
     throw new AppError("Order placement is currently disabled on this server.", 503);
   }
 
   if (env.COMMERCE_MODE === "test") {
-    // If an allowlist is configured, enforce strict membership.
-    // If not configured, default safely to admin-only test ordering.
-    const user = await User.findById(userId).select("email role");
+    const user = await getUserRepo().findById(userId);
     if (!user) throw new AppError("User not found", 401);
 
     const isExplicitlyAllowed =
@@ -189,7 +225,6 @@ function serializeCustomDesignForFingerprint(item: any, includePrice: boolean): 
   const jType = sd?.jewelleryType || "bracelet";
   const cType = sd?.constructionType || "elastic_bead";
   const wrist = sd?.wristMm || 0;
-  // Preserve ordered bead sequence; fall back to aggregate components if beadSequence is unavailable
   const beads =
     sd?.beadSequence && sd.beadSequence.length > 0
       ? sd.beadSequence
@@ -199,7 +234,7 @@ function serializeCustomDesignForFingerprint(item: any, includePrice: boolean): 
           .map((c: any) => `${c.variantSku}:${c.quantity}`)
           .sort()
           .join(",");
-  // Preserve charm-to-bead attachment relationships (anchorInstanceId)
+
   const charms = (sd?.charms || [])
     .map((c: any) => `${c.variantSku || c.materialId || ""}@${c.anchorInstanceId || ""}`)
     .sort()
@@ -269,6 +304,10 @@ function getCompositionFingerprint(items: Array<any>): string {
   return crypto.createHash("sha256").update(sortedItems).digest("hex");
 }
 
+// ---------------------------------------------------------------------------
+// Create Order from Cart
+// ---------------------------------------------------------------------------
+
 export async function createOrderFromCart(
   userId: string,
   input: {
@@ -283,18 +322,17 @@ export async function createOrderFromCart(
     expectedTotal?: number;
     idempotencyKey?: string;
   }
-) {
+): Promise<IOrderRecord> {
+  const orderRepo = getOrderRepo();
+  const productRepo = getProductRepo();
+
   // Enforce testing access safeguard before processing the order
   await assertTestCommerceAccess(userId);
 
   // 1. Fast-path Idempotency Check:
-  // If an order already exists for this authenticated user and idempotencyKey (e.g. cart already cleared by COD)
   const idempotencyKey = input.idempotencyKey?.trim() || undefined;
   if (idempotencyKey) {
-    const existingOrder = await Order.findOne({
-      userId: new Types.ObjectId(userId),
-      idempotencyKey,
-    });
+    const existingOrder = await orderRepo.findByIdempotencyKey(userId, idempotencyKey);
     if (existingOrder) {
       if (input.payment_method && existingOrder.paymentMethod !== input.payment_method) {
         throw new AppError(
@@ -312,9 +350,7 @@ export async function createOrderFromCart(
         }
       }
 
-      // Check current cart contents:
-      // If the cart has already been cleared (e.g. legitimate retry after completed COD), return existingOrder safely.
-      // If the cart is non-empty, ensure the key is not being reused for a materially different cart.
+      // Check current cart contents
       const cart = await getOrCreateCart(userId);
       const cartItems = cart.items.filter((i) => !i.savedForLater);
 
@@ -341,7 +377,19 @@ export async function createOrderFromCart(
   // Validate custom design material stock before processing pricing or orders
   await validateCustomDesignStock(cartItems);
 
-  const orderItems = [];
+  const orderItems: Array<{
+    itemType: "product" | "custom_design";
+    productId?: string | null;
+    sku: string;
+    name: string;
+    imageUrl?: string | null;
+    unitPrice: number;
+    quantity: number;
+    subtotal: number;
+    customization?: any;
+    studioDesign?: any;
+  }> = [];
+
   let subtotal = 0;
 
   for (const item of cartItems) {
@@ -371,7 +419,6 @@ export async function createOrderFromCart(
         throw new AppError(`Custom design "${item.name}" has no bead or charm components.`, 400);
       }
 
-      // Authoritative pricing calculated fresh from active materials & selling rates
       const quote = await calculateDesignPrice({
         jewelleryType: item.studioDesign.jewelleryType || "bracelet",
         constructionType: item.studioDesign.constructionType || "elastic_bead",
@@ -381,9 +428,7 @@ export async function createOrderFromCart(
       const authoritativeUnitPrice = quote.totalPrice;
       const storedUnitPrice = Number(item.unitPrice);
 
-      // If price differs from what was stored in the cart, do not silently charge the changed amount
       if (Math.abs(authoritativeUnitPrice - storedUnitPrice) > 0.01) {
-        // Synchronize cart item with latest authoritative quote
         item.unitPrice = authoritativeUnitPrice;
         item.studioDesign.breakdown = {
           componentsTotal: quote.componentSubtotal,
@@ -416,7 +461,7 @@ export async function createOrderFromCart(
       subtotal += lineSubtotal;
 
       orderItems.push({
-        itemType: "custom_design" as const,
+        itemType: "custom_design",
         sku: item.sku,
         name: item.name,
         imageUrl: item.imageUrl,
@@ -432,7 +477,7 @@ export async function createOrderFromCart(
       throw new AppError(`Product unavailable: ${item.name}`, 400);
     }
 
-    const product = await Product.findById(item.productId);
+    const product = await productRepo.findById(item.productId);
     if (!product || !product.isActive) {
       throw new AppError(`Product unavailable: ${item.name}`, 400);
     }
@@ -464,6 +509,7 @@ export async function createOrderFromCart(
     subtotal += lineSubtotal;
 
     orderItems.push({
+      itemType: "product",
       productId: item.productId,
       sku: item.sku,
       name: item.name,
@@ -491,9 +537,6 @@ export async function createOrderFromCart(
     : 0;
   const total = Math.round((taxable + tax + shipping) * 100) / 100;
 
-  // Safeguard against intervening price changes:
-  // If the customer confirmed an updated total, verify that authoritative rates haven't changed again
-  // between the confirmation dialog rendering and order placement.
   if (input.confirmPriceChanges && input.expectedTotal !== undefined) {
     if (Math.abs(total - input.expectedTotal) > 0.01) {
       throw new AppError(
@@ -508,7 +551,7 @@ export async function createOrderFromCart(
   const billingAddress = parseLegacyAddress(input.billing_address ?? input.shipping_address);
   billingAddress.phone = input.phone_number;
 
-  // Enforce Tamil Nadu delivery restriction before creating order
+  // Enforce Tamil Nadu delivery restriction
   validateDeliveryEligibility(shippingAddress);
 
   const checkoutFingerprint = generateCheckoutFingerprint(
@@ -520,54 +563,70 @@ export async function createOrderFromCart(
   );
 
   if (!idempotencyKey) {
-    // Secondary safety check for callers without an idempotencyKey:
-    // Match only identical cart/order fingerprints within 15 seconds (prevents double-tap duplicates)
-    const recentDuplicate = await Order.findOne({
-      userId: new Types.ObjectId(userId),
+    const recentDuplicate = await orderRepo.findRecentByCheckoutFingerprint(
+      userId,
       checkoutFingerprint,
-      createdAt: { $gte: new Date(Date.now() - 15000) },
-    }).sort({ createdAt: -1 });
-
+      15000
+    );
     if (recentDuplicate) {
       return recentDuplicate;
     }
   }
 
-  let order;
+  const orderNumber = generateOrderNumber();
+  const initialStatusHistory = [
+    {
+      status: "pending",
+      note: env.COMMERCE_MODE === "test" ? "Test order placed (non-commercial mode)" : "Order placed",
+      changedAt: new Date().toISOString(),
+    },
+  ];
+
+  let order: IOrderRecord;
   try {
-    order = await Order.create({
-      orderNumber: generateOrderNumber(),
-      userId: new Types.ObjectId(userId),
+    order = await orderRepo.create({
+      orderNumber,
+      userId,
       idempotencyKey,
       checkoutFingerprint,
       status: "pending",
-      paymentStatus: input.payment_method === "cod" ? "pending" : "pending",
-      items: orderItems,
+      paymentStatus: "pending",
       subtotal,
       discount,
       tax,
       shipping,
       total,
-      couponCode: coupon?.code,
+      couponCode: coupon?.code || null,
       shippingAddress,
       billingAddress,
       email: input.email,
       phone: input.phone_number,
       notes: env.COMMERCE_MODE === "test" ? `[TEST ORDER] ${input.notes || ""}`.trim() : input.notes,
-      paymentMethod: input.payment_method,
-      statusHistory: [{
-        status: "pending",
-        note: env.COMMERCE_MODE === "test" ? "Test order placed (non-commercial mode)" : "Order placed",
-        changedAt: new Date()
-      }],
+      paymentMethod: input.payment_method || "razorpay",
+      statusHistory: initialStatusHistory,
     });
+
+    // Insert order items
+    const createdItems = await orderRepo.addItems(
+      order.id,
+      orderItems.map((item) => ({
+        itemType: item.itemType,
+        productId: item.productId,
+        sku: item.sku,
+        name: item.name,
+        imageUrl: item.imageUrl,
+        unitPrice: item.unitPrice,
+        quantity: item.quantity,
+        subtotal: item.subtotal,
+        customization: item.customization,
+        studioDesign: item.studioDesign,
+      }))
+    );
+    order.items = createdItems;
   } catch (err: any) {
-    // Concurrent request race resolution: if another request already inserted with this idempotencyKey
-    if (err?.code === 11000 && idempotencyKey) {
-      const existing = await Order.findOne({
-        userId: new Types.ObjectId(userId),
-        idempotencyKey,
-      });
+    // Unique violation on (user_id, idempotency_key)
+    if ((err?.code === "23505" || err?.code === 11000) && idempotencyKey) {
+      const existing = await orderRepo.findByIdempotencyKey(userId, idempotencyKey);
       if (existing) {
         if (existing.checkoutFingerprint && existing.checkoutFingerprint !== checkoutFingerprint) {
           throw new AppError(
@@ -583,51 +642,70 @@ export async function createOrderFromCart(
 
   // Atomically reserve custom design component stock (or commit immediately for COD)
   try {
+    const rawOrderId = order.id;
+    const rawUserId = order.userId || userId;
     const studioReservation = await reserveStudioStockForOrder({
-      orderId: order._id as Types.ObjectId,
+      orderId: (Types.ObjectId.isValid(rawOrderId) ? new Types.ObjectId(rawOrderId) : rawOrderId) as any,
       orderNumber: order.orderNumber,
-      userId: order.userId as Types.ObjectId,
+      userId: (Types.ObjectId.isValid(rawUserId) ? new Types.ObjectId(rawUserId) : rawUserId) as any,
       cartItems,
       paymentMethod: input.payment_method,
     });
     if (studioReservation) {
-      order.studioReservationId = studioReservation._id as Types.ObjectId;
+      const reservationId = studioReservation.id || String((studioReservation as any)._id || "");
+      await orderRepo.updateById(order.id, {
+        studioReservationId: reservationId,
+        studioReservationStatus: studioReservation.status,
+      });
+      order.studioReservationId = reservationId;
       order.studioReservationStatus = studioReservation.status;
-      await order.save();
     }
   } catch (reservationErr) {
-    // If stock reservation fails, remove the newly inserted pending order
-    // to prevent orphaned, unpayable orders in the database.
-    await Order.deleteOne({ _id: order._id });
+    await orderRepo.deleteById(order.id);
     throw reservationErr;
   }
 
   if (input.payment_method === "cod") {
     try {
-      const regularItems = orderItems
+      const regularItems = order.items
         .filter((i) => i.productId && i.itemType !== "custom_design")
         .map((i) => ({ productId: i.productId!.toString(), quantity: i.quantity }));
+
       if (regularItems.length > 0) {
-        await deductStockForOrder(
-          regularItems,
-          order.id,
-          userId
-        );
-        order.deductedItemIds = orderItems
+        await deductStockForOrder(regularItems, order.id, userId);
+        const deductedIds = order.items
           .filter((i) => i.productId && i.itemType !== "custom_design")
-          .map((i: any) => (i._id ? i._id.toString() : i.productId!.toString()));
+          .map((i) => i.id);
+        for (const dId of deductedIds) {
+          await orderRepo.addDeductedItemId(order.id, dId);
+        }
+        order.deductedItemIds = deductedIds;
       }
+
+      await orderRepo.updateById(order.id, {
+        status: "processing",
+      });
+      await orderRepo.appendStatusHistory(order.id, {
+        status: "processing",
+        note: "COD order confirmed",
+        changedAt: new Date(),
+      });
       order.status = "processing";
-      order.statusHistory.push({ status: "processing", note: "COD order confirmed", changedAt: new Date() });
-      await order.save();
+
       if (coupon) {
-        coupon.usedCount += 1;
-        await coupon.save();
+        const wonCoupon = await orderRepo.claimCouponProcessed(order.id);
+        if (wonCoupon) {
+          await couponService.redeemCoupon(coupon.code);
+          order.couponProcessed = true;
+        }
       }
+
       await clearCart(userId);
+      await orderRepo.claimCartCleared(order.id);
+      order.cartCleared = true;
     } catch (codErr) {
       if (order.deductedItemIds && order.deductedItemIds.length > 0) {
-        const regularItems = orderItems
+        const regularItems = order.items
           .filter((i) => i.productId && i.itemType !== "custom_design")
           .map((i) => ({ productId: i.productId!.toString(), quantity: i.quantity }));
         for (const item of regularItems) {
@@ -646,9 +724,9 @@ export async function createOrderFromCart(
         }
       }
       if (order.studioReservationId) {
-        await restockStudioReservation(order._id, "COD placement failed rollback");
+        await restockStudioReservation(order.id, "COD placement failed rollback");
       }
-      await Order.deleteOne({ _id: order._id });
+      await orderRepo.deleteById(order.id);
       throw codErr;
     }
   }
@@ -656,36 +734,62 @@ export async function createOrderFromCart(
   return order;
 }
 
-export async function listUserOrders(userId: string) {
-  return Order.find({ userId: new Types.ObjectId(userId) })
-    .sort({ createdAt: -1 })
-    .lean();
+// ---------------------------------------------------------------------------
+// Read Order Operations
+// ---------------------------------------------------------------------------
+
+export async function listUserOrders(userId: string): Promise<IOrderRecord[]> {
+  return getOrderRepo().findByUserId(userId);
 }
 
-export async function getOrderById(userId: string, orderId: string) {
-  if (!Types.ObjectId.isValid(orderId)) throw new AppError("Invalid order id", 400);
-  const order = await Order.findOne({
-    _id: orderId,
-    userId: new Types.ObjectId(userId),
-  }).lean();
-  if (!order) throw new AppError("Order not found", 404);
+export async function getOrderById(userId: string, orderId: string): Promise<IOrderRecord> {
+  if (!isValidEntityId(orderId)) throw new AppError("Invalid order id", 400);
+  const order = await getOrderRepo().findById(orderId);
+  if (!order || order.userId !== userId) throw new AppError("Order not found", 404);
   return order;
 }
 
-export async function cancelOrder(userId: string, orderId: string) {
-  const order = await Order.findOne({
-    _id: orderId,
-    userId: new Types.ObjectId(userId),
-  });
-  if (!order) throw new AppError("Order not found", 404);
+export async function getOrderByNumber(orderNumber: string): Promise<IOrderRecord | null> {
+  return getOrderRepo().findByOrderNumber(orderNumber);
+}
+
+export async function listAllOrders(
+  filter?: { status?: string; paymentStatus?: string; search?: string },
+  options?: { limit?: number; offset?: number }
+): Promise<{ orders: IOrderRecord[]; total: number }> {
+  return getOrderRepo().findAll(filter, options);
+}
+
+// ---------------------------------------------------------------------------
+// Cancel Order
+// ---------------------------------------------------------------------------
+
+export async function cancelOrder(userId: string, orderId: string): Promise<IOrderRecord> {
+  const orderRepo = getOrderRepo();
+  const order = await orderRepo.findById(orderId);
+  if (!order || order.userId !== userId) throw new AppError("Order not found", 404);
   if (!["pending", "processing"].includes(order.status)) {
     throw new AppError("Order cannot be cancelled", 400);
   }
-  order.status = "cancelled";
-  order.statusHistory.push({ status: "cancelled", changedAt: new Date() });
 
-  // Idempotently restock custom design components
-  await restockStudioReservation(order._id, "Customer cancelled order");
+  // Idempotently restock custom design components if order has studio items/reservation
+  const hasStudioItems = order.studioReservationId || (order.items && order.items.some((i: any) => i.itemType === "custom_design"));
+  if (hasStudioItems) {
+    try {
+      await restockStudioReservation(order.id, "Customer cancelled order");
+    } catch (studioErr) {
+      console.error(`[cancelOrder] Failed to restock studio reservation for order ${order.id}:`, studioErr);
+    }
+  }
+
+  // Idempotently rollback coupon usage if previously processed
+  if (order.couponCode && order.couponProcessed) {
+    try {
+      await couponService.rollbackCouponUsage(order.couponCode);
+    } catch (couponErr) {
+      console.error(`[cancelOrder] Failed to rollback coupon usage for ${order.couponCode}:`, couponErr);
+    }
+  }
 
   // Restore regular product inventory if deducted
   if (order.deductedItemIds && order.deductedItemIds.length > 0) {
@@ -707,35 +811,56 @@ export async function cancelOrder(userId: string, orderId: string) {
           console.error(`[cancelOrder] Product restock error:`, restockErr);
         }
       }
-      order.deductedItemIds = [];
     }
   }
 
-  await order.save();
-  return order;
+  const updated = await orderRepo.updateById(order.id, {
+    status: "cancelled",
+    deductedItemIds: [],
+    couponProcessed: false,
+  });
+
+  await orderRepo.appendStatusHistory(order.id, {
+    status: "cancelled",
+    note: "Customer cancelled order",
+    changedAt: new Date(),
+  });
+
+  return updated || order;
 }
+
+// ---------------------------------------------------------------------------
+// Admin Update Order Status
+// ---------------------------------------------------------------------------
 
 export async function updateOrderStatus(
   orderId: string,
   status: OrderStatus,
   trackingNumber?: string,
   adminId?: string
-) {
-  const order = await Order.findById(orderId);
+): Promise<IOrderRecord> {
+  const orderRepo = getOrderRepo();
+  const order = await orderRepo.findById(orderId);
   if (!order) throw new AppError("Order not found", 404);
-  const oldStatus = order.status;
-  order.status = status;
-  if (trackingNumber) order.trackingNumber = trackingNumber;
-  order.statusHistory.push({
-    status,
-    changedAt: new Date(),
-    changedBy: adminId ? new Types.ObjectId(adminId) : undefined,
-    note: trackingNumber ? `Tracking: ${trackingNumber}` : undefined,
-  });
 
-  // If transitioning to cancelled, restock inventory
+  const oldStatus = order.status;
+
   if (status === "cancelled" && oldStatus !== "cancelled") {
-    await restockStudioReservation(order._id, "Admin cancelled order");
+    const hasStudioItems = order.studioReservationId || (order.items && order.items.some((i: any) => i.itemType === "custom_design"));
+    if (hasStudioItems) {
+      try {
+        await restockStudioReservation(order.id, "Admin cancelled order");
+      } catch (studioErr) {
+        console.error(`[updateOrderStatus] Failed to restock studio reservation for order ${order.id}:`, studioErr);
+      }
+    }
+    if (order.couponCode && order.couponProcessed) {
+      try {
+        await couponService.rollbackCouponUsage(order.couponCode);
+      } catch (couponErr) {
+        console.error(`[updateOrderStatus] Failed to rollback coupon usage for ${order.couponCode}:`, couponErr);
+      }
+    }
     if (order.deductedItemIds && order.deductedItemIds.length > 0) {
       const regularItems = order.items
         .filter((i) => i.productId && i.itemType !== "custom_design")
@@ -755,49 +880,98 @@ export async function updateOrderStatus(
             console.error(`[updateOrderStatus] Product restock error:`, restockErr);
           }
         }
-        order.deductedItemIds = [];
       }
     }
   }
 
-  await order.save();
-  return order;
+  const updateData: any = {
+    status,
+    deductedItemIds: status === "cancelled" ? [] : order.deductedItemIds,
+    couponProcessed: status === "cancelled" ? false : order.couponProcessed,
+  };
+  if (trackingNumber) updateData.trackingNumber = trackingNumber;
+
+  const updated = await orderRepo.updateById(order.id, updateData);
+
+  await orderRepo.appendStatusHistory(order.id, {
+    status,
+    note: trackingNumber ? `Tracking: ${trackingNumber}` : undefined,
+    changedAt: new Date(),
+    changedBy: adminId,
+  });
+
+  return updated || order;
 }
 
-export function toLegacyOrder(order: Record<string, unknown>) {
+// ---------------------------------------------------------------------------
+// Legacy Serialization Compatibility
+// ---------------------------------------------------------------------------
+
+export function toLegacyOrder(order: Record<string, unknown> | IOrderRecord) {
+  const ord = order as any;
+  const idStr = (ord.id || ord._id)?.toString() || "";
+  const orderNumber = ord.orderNumber || ord.order_number;
+  const status = ord.status;
+  const paymentStatus =
+    ord.paymentStatus === "paid" || ord.payment_status === "paid"
+      ? "completed"
+      : (ord.paymentStatus || ord.payment_status);
+  const total = ord.total ?? ord.total_amount;
+  const shippingAddress = ord.shippingAddress ?? ord.shipping_address;
+  const billingAddress = ord.billingAddress ?? ord.billing_address;
+  const phone = ord.phone ?? ord.phone_number;
+  const email = ord.email;
+  const notes = ord.notes;
+  const createdAt = ord.createdAt ?? ord.created_at;
+  const updatedAt = ord.updatedAt ?? ord.updated_at;
+  const paymentMethod = ord.paymentMethod ?? ord.payment_method;
+  const transactionId = ord.razorpayPaymentId ?? ord.razorpay_payment_id;
+
+  const items = Array.isArray(ord.items)
+    ? ord.items.map((item: any) => {
+        const itemId = (item.id || item._id)?.toString();
+        const isCustomDesign =
+          item.itemType === "custom_design" ||
+          item.item_type === "custom_design" ||
+          !!item.studioDesign ||
+          !!item.studio_design;
+        const studioDesign = item.studioDesign || item.studio_design;
+        const productType = isCustomDesign
+          ? (studioDesign?.jewelleryType ?? "bracelet")
+          : (String(item.sku || "").startsWith("BRC") ? "bracelet" : "chain");
+        const productId = item.productId || item.product_id;
+
+        return {
+          id: itemId,
+          itemType: isCustomDesign ? "custom_design" : "product",
+          product_type: productType,
+          product_id: productId ? productId.toString() : undefined,
+          productId: productId ? productId.toString() : undefined,
+          product_name: item.name || item.product_name,
+          price: item.unitPrice ?? item.unit_price ?? item.price,
+          quantity: item.quantity,
+          subtotal: item.subtotal,
+          studioDesign,
+        };
+      })
+    : [];
+
   return {
-    id: (order._id as { toString(): string }).toString(),
-    order_number: order.orderNumber,
-    status: order.status,
-    payment_status: order.paymentStatus === "paid" ? "completed" : order.paymentStatus,
-    total_amount: order.total,
-    shipping_address: formatAddress(order.shippingAddress),
-    billing_address: formatAddress(order.billingAddress),
-    phone_number: order.phone,
-    email: order.email,
-    notes: order.notes,
-    created_at: order.createdAt,
-    updated_at: order.updatedAt,
-    payment_method: order.paymentMethod,
-    transaction_id: order.razorpayPaymentId,
-    items: (order.items as Record<string, unknown>[])?.map((item) => {
-      const isCustomDesign = (item as any).itemType === "custom_design" || !!(item as any).studioDesign;
-      const productType = isCustomDesign
-        ? ((item as any).studioDesign?.jewelleryType ?? "bracelet")
-        : (String(item.sku || "").startsWith("BRC") ? "bracelet" : "chain");
-      return {
-        id: item._id,
-        itemType: isCustomDesign ? "custom_design" : "product",
-        product_type: productType,
-        product_id: item.productId ? (item.productId as any).toString() : undefined,
-        productId: item.productId ? (item.productId as any).toString() : undefined,
-        product_name: item.name,
-        price: item.unitPrice,
-        quantity: item.quantity,
-        subtotal: item.subtotal,
-        studioDesign: (item as any).studioDesign,
-      };
-    }),
+    id: idStr,
+    order_number: orderNumber,
+    status,
+    payment_status: paymentStatus,
+    total_amount: total,
+    shipping_address: formatAddress(shippingAddress),
+    billing_address: formatAddress(billingAddress),
+    phone_number: phone,
+    email,
+    notes,
+    created_at: createdAt,
+    updated_at: updatedAt,
+    payment_method: paymentMethod,
+    transaction_id: transactionId,
+    items,
   };
 }
 
@@ -809,5 +983,5 @@ function formatAddress(addr: unknown): string {
 
 export async function getLegacyCartForCheckout(userId: string) {
   const items = await getCartItems(userId);
-  return items.map((item, idx) => toLegacyCartItem(item as ICartItem & { _id?: Types.ObjectId }, idx));
+  return items.map((item, idx) => toLegacyCartItem(item as any, idx));
 }

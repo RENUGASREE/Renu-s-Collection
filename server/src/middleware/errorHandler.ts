@@ -58,6 +58,33 @@ export function errorHandler(
     return;
   }
 
+  // PostgreSQL error codes — the `pg` library exposes these as strings
+  const pgCode = (err as { code?: string }).code;
+  if (typeof pgCode === "string") {
+    if (pgCode === "23505") {
+      res.status(409).json({ success: false, message: "A record with this value already exists." });
+      return;
+    }
+    if (pgCode === "23503") {
+      res.status(409).json({ success: false, message: "Referenced resource does not exist." });
+      return;
+    }
+    if (pgCode === "23502") {
+      res.status(400).json({ success: false, message: "A required field is missing." });
+      return;
+    }
+    if (pgCode === "22P02") {
+      res.status(400).json({ success: false, message: "Invalid input format." });
+      return;
+    }
+    if (pgCode === "40001" || pgCode === "40P01") {
+      res
+        .status(503)
+        .json({ success: false, message: "Request could not be completed due to a conflict. Please retry." });
+      return;
+    }
+  }
+
   if ((err as { type?: string }).type === "entity.too.large") {
     res.status(413).json({
       success: false,

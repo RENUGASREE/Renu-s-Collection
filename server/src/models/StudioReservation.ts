@@ -15,9 +15,9 @@ export interface IStudioReservationItem {
 }
 
 export interface IStudioReservation extends Document {
-  orderId: Types.ObjectId;
+  orderId: Types.ObjectId | string;
   orderNumber: string;
-  userId: Types.ObjectId;
+  userId: Types.ObjectId | string;
   status: StudioReservationStatus;
   items: IStudioReservationItem[];
   reservedAt: Date;
@@ -44,8 +44,7 @@ const reservationItemSchema = new Schema<IStudioReservationItem>(
 const studioReservationSchema = new Schema<IStudioReservation>(
   {
     orderId: {
-      type: Schema.Types.ObjectId,
-      ref: "Order",
+      type: Schema.Types.Mixed,
       required: true,
       unique: true,
       index: true,

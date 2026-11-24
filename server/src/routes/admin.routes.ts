@@ -21,4 +21,12 @@ router.patch(
   adminController.updateUserRole
 );
 
+// Payment fulfillment recovery endpoints
+router.get("/orders/requires-action", adminController.listOrdersRequiringAction);
+router.post("/orders/reconcile-all", adminController.reconcileAllFulfillments);
+router.post(
+  "/orders/:orderId/retry-fulfillment",
+  adminController.retryOrderFulfillment
+);
+
 export default router;
