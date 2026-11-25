@@ -9,7 +9,6 @@ import { SEO } from "@/components/SEO";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import AdminNav from "@/components/AdminNav";
-import ProductImage from "@/components/ProductImage";
 import { 
   Package, 
   Search, 
@@ -37,8 +36,6 @@ interface Product {
   isActive: boolean;
   isSignaturePiece: boolean;
   badge: string | null;
-  imageUrl?: string;
-  media?: { url: string; isPrimary?: boolean }[];
 }
 
 interface Category {
@@ -285,24 +282,15 @@ export default function AdminProducts() {
                 className="border border-[#E6D8D0] dark:border-border bg-white dark:bg-card rounded-xl overflow-hidden shadow-xs hover:shadow-sm transition-all"
               >
                 <div className="p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="flex items-center gap-3.5 flex-1 min-w-0">
-                    <ProductImage
-                      src={product.imageUrl || (product.media && product.media[0] ? product.media[0].url : null)}
-                      alt={product.name}
-                      name={product.name}
-                      category={getCategoryName(product.categoryId)}
-                      size="sm"
-                      className="w-12 h-12 rounded-lg border border-[#E6D8D0] dark:border-border shrink-0"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Link 
-                          to={`/product/${product._id}`}
-                          target="_blank"
-                          className="font-playfair font-semibold text-base sm:text-lg text-[#342824] dark:text-foreground hover:text-[#B66F72] transition-colors"
-                        >
-                          {product.name}
-                        </Link>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Link 
+                        to={`/product/${product._id}`}
+                        target="_blank"
+                        className="font-playfair font-semibold text-base sm:text-lg text-[#342824] dark:text-foreground hover:text-[#B66F72] transition-colors"
+                      >
+                        {product.name}
+                      </Link>
                       <span className="font-mono text-xs text-[#756861] dark:text-muted-foreground bg-muted/40 px-2 py-0.5 rounded border border-border/40">
                         {product.sku}
                       </span>
@@ -349,7 +337,6 @@ export default function AdminProducts() {
                       </div>
                     </div>
                   </div>
-                </div>
 
                   {/* Actions */}
                   <div className="flex items-center gap-2 shrink-0">
