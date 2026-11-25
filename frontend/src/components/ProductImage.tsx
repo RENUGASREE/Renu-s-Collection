@@ -78,14 +78,7 @@ export const ProductImage: React.FC<ProductImageProps> = ({
         } ${imgClassName}`}
       />
       {!isLoaded && !hasError && (
-        <div className="absolute inset-0 flex items-center justify-center bg-secondary/30 animate-pulse">
-          <BrandedImagePlaceholder
-            name={displayName}
-            category={category}
-            size={size}
-            aspectRatio={aspectRatio}
-          />
-        </div>
+        <div className="absolute inset-0 bg-muted/50 dark:bg-muted/30 animate-pulse" />
       )}
     </div>
   );
