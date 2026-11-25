@@ -85,6 +85,48 @@ export default function AdminCategories() {
     c.slug.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Helper to compute full hierarchical path of any category
+  const getCategoryPath = (catId: string, allCats: Category[]): string => {
+    const parts: string[] = [];
+    let curr = allCats.find((c) => c._id === catId);
+    const visited = new Set<string>();
+    while (curr && !visited.has(curr._id)) {
+      visited.add(curr._id);
+      parts.unshift(curr.name);
+      if (!curr.parentId) break;
+      curr = allCats.find((c) => c._id === curr!.parentId);
+    }
+    return parts.join(" > ");
+  };
+
+  // Helper to compute all descendant IDs to prevent cycle creation
+  const getDescendantIds = (targetId: string, allCats: Category[]): Set<string> => {
+    const result = new Set<string>([targetId]);
+    let added = true;
+    while (added) {
+      added = false;
+      for (const cat of allCats) {
+        if (cat.parentId && result.has(cat.parentId) && !result.has(cat._id)) {
+          result.add(cat._id);
+          added = true;
+        }
+      }
+    }
+    return result;
+  };
+
+  const forbiddenParentIds = editingCategory
+    ? getDescendantIds(editingCategory._id, categories)
+    : new Set<string>();
+
+  const eligibleParentCategories = categories
+    .filter((c) => !forbiddenParentIds.has(c._id))
+    .map((c) => ({
+      ...c,
+      path: getCategoryPath(c._id, categories),
+    }))
+    .sort((a, b) => a.path.localeCompare(b.path));
+
   const handleEdit = (category: Category) => {
     setFormError(null);
     setEditingCategory(category);
@@ -311,8 +353,10 @@ export default function AdminCategories() {
                     className="w-full mt-1 px-3 py-2 border border-[#E6D8D0] dark:border-border rounded-lg text-xs bg-white dark:bg-card"
                   >
                     <option value="">None (Top Level Category)</option>
-                    {categories.filter(c => !editingCategory || c._id !== editingCategory._id).map((c) => (
-                      <option key={c._id} value={c._id}>{c.name}</option>
+                    {eligibleParentCategories.map((c) => (
+                      <option key={c._id} value={c._id}>
+                        {c.path}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -461,6 +505,12 @@ export default function AdminCategories() {
                       <p className="text-xs text-[#756861] dark:text-muted-foreground mt-1 line-clamp-1">
                         {c.description}
                       </p>
+                    )}
+                    {c.parentId && (
+                      <div className="flex items-center gap-1.5 text-[11px] text-[#B66F72] dark:text-[#E8A598] font-medium mt-1">
+                        <FolderTree className="w-3 h-3 shrink-0" />
+                        <span>Under: {getCategoryPath(c.parentId, categories)}</span>
+                      </div>
                     )}
                   </div>
                 </div>

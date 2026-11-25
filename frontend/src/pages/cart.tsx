@@ -19,6 +19,7 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import Footer from "@/components/footer";
 import { apiRequest, getAssetUrl } from "@/lib/queryClient";
+import ProductImage from "@/components/ProductImage";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -333,13 +334,12 @@ export default function Cart() {
                     <CardContent className="p-4 sm:p-5">
                       <div className="flex flex-col sm:flex-row items-start gap-4">
                         {/* Product Image */}
-                        <img
-                          src={getAssetUrl(item.image)}
+                        <ProductImage
+                          src={item.image}
                           alt={item.name}
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = getAssetUrl(null);
-                          }}
-                          className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-lg shrink-0 border border-[#E6D8D0]/60 dark:border-border/60 bg-[#FBF7F3] dark:bg-muted"
+                          name={item.name}
+                          size="sm"
+                          className="w-20 h-20 sm:w-24 sm:h-24 rounded-lg shrink-0 border border-[#E6D8D0]/60 dark:border-border/60"
                         />
 
                         {/* Product Details */}

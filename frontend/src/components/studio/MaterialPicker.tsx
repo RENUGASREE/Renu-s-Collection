@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { getAssetUrl } from "@/lib/queryClient";
+import ProductImage from "@/components/ProductImage";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -141,13 +142,13 @@ function MaterialCard({
         className="w-full flex items-center gap-3 p-3 hover:bg-[#FBF7F3]/60 dark:hover:bg-muted/30 transition-colors text-left"
         onClick={() => setExpanded((e) => !e)}
       >
-        <img
-          src={getAssetUrl(material.imageUrl)}
+        <ProductImage
+          src={material.imageUrl}
           alt={material.name}
-          className="w-10 h-10 rounded-lg object-cover border border-[#E6D8D0] shrink-0 bg-stone-50"
-          onError={(e) => {
-            (e.target as HTMLImageElement).src = "/placeholders/placeholder.png";
-          }}
+          name={material.name}
+          category={material.materialType}
+          size="sm"
+          className="w-10 h-10 rounded-lg shrink-0 border border-[#E6D8D0]"
         />
         <div className="flex-1 min-w-0">
           <div className="font-medium text-xs text-[#342824] dark:text-foreground truncate">

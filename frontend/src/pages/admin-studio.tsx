@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import ImageUploadField from "@/components/ImageUploadField";
+import ProductImage from "@/components/ProductImage";
 import { SEO } from "@/components/SEO";
 import Footer from "@/components/footer";
 import AdminNav from "@/components/AdminNav";
@@ -857,25 +858,22 @@ export default function AdminStudio() {
 
   const handleSaveMaterial = async () => {
     try {
-      if (!materialForm.name.trim() || !materialForm.code.trim() || !materialForm.imageUrl.trim()) {
-        toast({ title: "Validation Error", description: "Name, Code, and Material Image are required.", variant: "destructive" });
+      if (!materialForm.name.trim() || !materialForm.code.trim()) {
+        toast({ title: "Validation Error", description: "Name and Code are required.", variant: "destructive" });
         return;
       }
 
-      // Transparent render asset is strictly compulsory when creating new studio materials
-      const effectiveRenderAsset = (materialForm.renderAssetUrl || "").trim() || (editingMaterial ? (editingMaterial.renderAssetUrl || "") : "");
-      if (!effectiveRenderAsset) {
-        toast({
-          title: "Validation Error",
-          description: "Transparent Image is required for studio materials. Please upload a transparent cutout image before saving.",
-          variant: "destructive",
-        });
-        return;
-      }
+      const cleanImageUrl = materialForm.imageUrl?.trim() || null;
+      const cleanRenderAssetUrl = materialForm.renderAssetUrl?.trim() || null;
+      const payload = {
+        ...materialForm,
+        imageUrl: cleanImageUrl,
+        renderAssetUrl: cleanRenderAssetUrl,
+      };
 
       if (editingMaterial) {
         const res = await apiRequest("PATCH", `/api/v1/studio/admin/materials/${editingMaterial._id}`, {
-          ...materialForm,
+          ...payload,
           syncVariantSkus,
         });
         if (!res.ok) {
@@ -884,7 +882,7 @@ export default function AdminStudio() {
         }
         toast({ title: "Material Updated", description: `Updated ${materialForm.name}.` });
       } else {
-        const res = await apiRequest("POST", "/api/v1/studio/admin/materials", materialForm);
+        const res = await apiRequest("POST", "/api/v1/studio/admin/materials", payload);
         if (!res.ok) {
           const errData = await res.json().catch(() => null);
           throw new Error(errData?.message || "Creation failed");
@@ -1579,13 +1577,13 @@ export default function AdminStudio() {
                   >
                     <div className="p-5 flex flex-col md:flex-row md:items-start justify-between gap-4 border-b border-[#E6D8D0]/60 dark:border-border/60">
                       <div className="flex items-start gap-4">
-                        <img
-                          src={getAssetUrl(mat.imageUrl)}
+                        <ProductImage
+                          src={mat.imageUrl}
                           alt={mat.name}
-                          className="w-16 h-16 rounded-xl object-cover border border-[#E6D8D0] dark:border-border shrink-0 bg-stone-50"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = "/placeholders/placeholder.png";
-                          }}
+                          name={mat.name}
+                          category={mat.materialType}
+                          size="sm"
+                          className="w-16 h-16 rounded-xl border border-[#E6D8D0] dark:border-border shrink-0"
                         />
 
                         <div>
@@ -3106,27 +3104,20 @@ export default function AdminStudio() {
                 </div>
 
                 <ImageUploadField
-                  label="Material Image"
-                  required
+                  label="Material Image (Optional)"
                   value={materialForm.imageUrl}
                   onChange={(url) => setMaterialForm({ ...materialForm, imageUrl: url })}
                   placeholder="e.g. /assets/materials/rose-quartz.jpg or https://..."
-                  helpText="Upload a clear photo of this bead, stone, or charm (JPEG, PNG, WebP)"
+                  helpText="Upload a photo of this bead, stone, or charm (JPEG, PNG, WebP). Optional — if omitted, a branded name placeholder will be displayed."
                 />
 
                 <ImageUploadField
-                  label="Transparent Image (Required)"
-                  required
+                  label="Transparent Render Image (Optional)"
                   value={materialForm.renderAssetUrl}
                   onChange={(url) => setMaterialForm({ ...materialForm, renderAssetUrl: url })}
                   placeholder="e.g. /assets/materials/rose-quartz-cutout.png or https://..."
-                  helpText="Required transparent PNG cutout of this material for 2D studio canvas and bespoke rendering"
+                  helpText="Optional transparent PNG/WebP cutout of this material for 2D studio canvas and bespoke rendering"
                 />
-                {!materialForm.renderAssetUrl && !editingMaterial && (
-                  <p className="text-[11px] text-[#B66F72] -mt-2 font-medium">
-                    * Transparent PNG cutout is compulsory for all newly created studio materials.
-                  </p>
-                )}
 
                 <div className="space-y-1">
                   <Label>Description</Label>

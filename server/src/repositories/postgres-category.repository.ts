@@ -293,6 +293,59 @@ export class PostgresCategoryRepository {
   }
 
   /**
+   * Retrieves all descendant category IDs (including the target category itself)
+   * by traversing the category hierarchy downwards recursively.
+   * Cycle-safe using path tracking.
+   */
+  public async getDescendantIds(categoryId: string, client?: IDbClient): Promise<string[]> {
+    assertValidEntityId(categoryId, "category id");
+    const db = this.getClient(client);
+
+    const sql = `
+      WITH RECURSIVE descendants AS (
+        SELECT id, ARRAY[id::text] AS path
+        FROM categories
+        WHERE id = $1
+        UNION ALL
+        SELECT c.id, d.path || c.id::text
+        FROM categories c
+        JOIN descendants d ON c.parent_id = d.id
+        WHERE NOT (c.id::text = ANY(d.path))
+      )
+      SELECT id FROM descendants;
+    `;
+
+    const result = await db.query<{ id: string }>(sql, [categoryId]);
+    return result.rows.map((r) => r.id);
+  }
+
+  /**
+   * Retrieves all ancestor category IDs (starting from parent_id upwards).
+   * Cycle-safe using path tracking.
+   */
+  public async getAncestorIds(categoryId: string, client?: IDbClient): Promise<string[]> {
+    assertValidEntityId(categoryId, "category id");
+    const db = this.getClient(client);
+
+    const sql = `
+      WITH RECURSIVE ancestors AS (
+        SELECT parent_id, ARRAY[id::text] AS path
+        FROM categories
+        WHERE id = $1 AND parent_id IS NOT NULL
+        UNION ALL
+        SELECT c.parent_id, a.path || c.id::text
+        FROM categories c
+        JOIN ancestors a ON c.id = a.parent_id
+        WHERE c.parent_id IS NOT NULL AND NOT (c.id::text = ANY(a.path))
+      )
+      SELECT DISTINCT parent_id FROM ancestors WHERE parent_id IS NOT NULL;
+    `;
+
+    const result = await db.query<{ parent_id: string }>(sql, [categoryId]);
+    return result.rows.map((r) => r.parent_id);
+  }
+
+  /**
    * Inserts a new category record into PostgreSQL.
    *
    * - Validates IDs if provided (preserving explicit IDs for migrations/tests).

@@ -238,7 +238,7 @@ export async function getProductCustomization(productId: string, client?: IDbCli
             variantMap.set(skuUpper, {
               inStock: typeof v.stock === "number" && v.stock > 0,
               stock: typeof v.stock === "number" ? v.stock : 0,
-              imageUrl: mat.imageUrl,
+              imageUrl: mat.imageUrl || undefined,
               materialName: mat.name,
             });
           }

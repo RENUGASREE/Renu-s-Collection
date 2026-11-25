@@ -107,8 +107,14 @@ export async function createCategory(
   const existing = await repo.existsBySlug(slug);
   if (existing) throw new AppError("Category slug already exists", 409);
 
-  if (input.parentId && !isValidEntityId(input.parentId)) {
-    throw new AppError("Invalid parent category id", 400);
+  if (input.parentId) {
+    if (!isValidEntityId(input.parentId)) {
+      throw new AppError("Invalid parent category id", 400);
+    }
+    const parent = await repo.findById(input.parentId);
+    if (!parent) {
+      throw new AppError("Parent category not found", 404);
+    }
   }
 
   try {
@@ -147,6 +153,24 @@ export async function updateCategory(
     if (slugExists) throw new AppError("Category slug already exists", 409);
   }
   if (input.parentId !== undefined) {
+    if (input.parentId === id) {
+      throw new AppError("A category cannot be its own parent", 400);
+    }
+    if (input.parentId) {
+      if (!isValidEntityId(input.parentId)) {
+        throw new AppError("Invalid parent category id", 400);
+      }
+      const parent = await repo.findById(input.parentId);
+      if (!parent) {
+        throw new AppError("Parent category not found", 404);
+      }
+      const descendantsOfId = typeof repo.getDescendantIds === "function"
+        ? await repo.getDescendantIds(id)
+        : [id];
+      if (descendantsOfId.includes(input.parentId)) {
+        throw new AppError("Circular category relationship detected: a category cannot be a descendant of itself", 400);
+      }
+    }
     updateData.parentId = input.parentId ? input.parentId : null;
   }
 
@@ -249,4 +273,18 @@ export async function deleteCategory(
   // 3. Delete category
   const result = await repo.deleteById(id);
   if (!result) throw new AppError("Category not found", 404);
+}
+
+/**
+ * Retrieves all descendant category IDs (including the target category itself).
+ */
+export async function getCategoryDescendantIds(
+  id: string,
+  repo: PostgresCategoryRepository = activeRepository
+): Promise<string[]> {
+  if (!isValidEntityId(id)) throw new AppError("Invalid category id", 400);
+  if (typeof repo.getDescendantIds === "function") {
+    return repo.getDescendantIds(id);
+  }
+  return [id];
 }

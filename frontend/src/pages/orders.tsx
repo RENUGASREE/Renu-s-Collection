@@ -4,6 +4,7 @@ import Footer from '@/components/footer';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { apiRequest, getAssetUrl } from '@/lib/queryClient';
+import ProductImage from '@/components/ProductImage';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { SEO } from '@/components/SEO';
@@ -263,21 +264,17 @@ export default function Orders() {
                   <CardContent className="p-4 sm:p-5 space-y-4">
                     <div className="space-y-3">
                       {order.items.map((item, idx) => {
-                        const fallbackImg = '/logo.png';
-                        const displayImg = item.imageUrl ? getAssetUrl(item.imageUrl) : fallbackImg;
-
                         return (
                           <div 
                             key={`${order._id}-${idx}`}
                             className="flex items-start gap-3 sm:gap-4 py-2 border-b border-[#E6D8D0]/40 dark:border-border/40 last:border-b-0"
                           >
-                            <img
-                              src={displayImg}
+                            <ProductImage
+                              src={item.imageUrl}
                               alt={item.name}
-                              className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg object-cover border border-[#E6D8D0]/80 dark:border-border bg-muted/20 shrink-0"
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).src = fallbackImg;
-                              }}
+                              name={item.name}
+                              size="sm"
+                              className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg border border-[#E6D8D0]/80 dark:border-border shrink-0"
                             />
                             <div className="flex-1 min-w-0">
                               <p className="font-playfair font-semibold text-sm sm:text-base text-[#342824] dark:text-foreground truncate">

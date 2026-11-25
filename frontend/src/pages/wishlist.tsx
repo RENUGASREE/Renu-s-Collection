@@ -8,6 +8,7 @@ import { useNavigate } from "react-router-dom";
 import { apiRequest, getAssetUrl } from "@/lib/queryClient";
 import { SEO } from "@/components/SEO";
 import { Heart, Gem, Trash2, PackageX, Sparkles } from "lucide-react";
+import ProductImage from "@/components/ProductImage";
 
 interface WishlistItem {
   id: string;
@@ -28,32 +29,14 @@ interface ProductInfo {
 }
 
 function WishlistImage({ src, alt }: { src: string; alt: string }) {
-  const [hasError, setHasError] = useState(false);
-  const placeholderUrl = getAssetUrl("/placeholders/placeholder.png");
-  const resolvedSrc = !src || hasError ? placeholderUrl : getAssetUrl(src);
-
   return (
-    <div className="relative w-full aspect-square bg-[#FAF4F1]/60 dark:bg-[#241C1A] overflow-hidden rounded-t-xl flex items-center justify-center">
-      {(!src || hasError) && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground/60 p-4 text-center select-none">
-          <Gem className="h-8 w-8 text-primary/30 mb-1.5" />
-          <span className="text-[11px] font-medium tracking-wider uppercase">Jewellery Preview</span>
-        </div>
-      )}
-      <img
-        src={resolvedSrc}
-        alt={alt}
-        loading="lazy"
-        onError={() => {
-          if (!hasError) {
-            setHasError(true);
-          }
-        }}
-        className={`w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105 ${
-          !src || hasError ? "opacity-0" : "opacity-100"
-        }`}
-      />
-    </div>
+    <ProductImage
+      src={src}
+      alt={alt}
+      name={alt}
+      className="rounded-t-xl"
+      imgClassName="group-hover:scale-105"
+    />
   );
 }
 

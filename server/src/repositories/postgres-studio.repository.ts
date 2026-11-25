@@ -482,7 +482,7 @@ export class PostgresStudioRepository {
       code: String(row.code),
       description: row.description ? String(row.description) : null,
       materialType: String(row.material_type),
-      imageUrl: String(row.image_url),
+      imageUrl: row.image_url ? String(row.image_url) : null,
       renderAssetUrl: row.render_asset_url ? String(row.render_asset_url) : null,
       additionalImages: Array.isArray(row.additional_images) ? row.additional_images : [],
       allowedJewelleryTypes: Array.isArray(row.allowed_jewellery_types) ? row.allowed_jewellery_types : [],
@@ -805,8 +805,8 @@ export class PostgresStudioRepository {
       code,
       data.description || null,
       data.materialType.trim(),
-      data.imageUrl,
-      data.renderAssetUrl || null,
+      data.imageUrl ? data.imageUrl.trim() : null,
+      data.renderAssetUrl ? data.renderAssetUrl.trim() : null,
       data.additionalImages || [],
       data.allowedJewelleryTypes || [],
       data.supportedConstructionTypes || [],
@@ -858,11 +858,11 @@ export class PostgresStudioRepository {
     }
     if (data.imageUrl !== undefined) {
       setClauses.push(`image_url = $${pIdx++}`);
-      params.push(data.imageUrl);
+      params.push(data.imageUrl ? data.imageUrl.trim() : null);
     }
     if (data.renderAssetUrl !== undefined) {
       setClauses.push(`render_asset_url = $${pIdx++}`);
-      params.push(data.renderAssetUrl);
+      params.push(data.renderAssetUrl ? data.renderAssetUrl.trim() : null);
     }
     if (data.additionalImages !== undefined) {
       setClauses.push(`additional_images = $${pIdx++}`);

@@ -46,13 +46,18 @@ const customizationFieldValidationSchema = z.object({
   sortOrder: z.number().int().optional(),
 });
 
+const optionalMediaUrlSchema = z.preprocess(
+  (val) => (val === "" || val === null || val === undefined ? undefined : val),
+  mediaUrlSchema.optional()
+);
+
 export const createCategorySchema = z.object({
   name: z.string().min(1).max(120),
   slug: z.string().min(1).max(120).optional(),
   description: z.string().max(2000).optional(),
   parentId: z.string().optional().nullable(),
   productType: z.enum(PRODUCT_TYPES),
-  imageUrl: z.string().url().optional(),
+  imageUrl: optionalMediaUrlSchema,
   isActive: z.boolean().optional(),
   showInMenu: z.boolean().optional(),
   sortOrder: z.number().int().optional(),

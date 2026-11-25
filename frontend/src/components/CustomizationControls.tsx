@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Check, Plus, Minus } from 'lucide-react';
 import { getAssetUrl } from '@/lib/queryClient';
+import ProductImage from '@/components/ProductImage';
 
 interface CustomizationOption {
   value: string;
@@ -99,13 +100,13 @@ export const CustomizationControls: React.FC<CustomizationControlsProps> = ({
         >
           {/* Option Image Container */}
           <div className="relative aspect-square w-full overflow-hidden bg-[#FBF7F3] dark:bg-muted/40 border-b border-[#E6D8D0]/60 dark:border-border/60">
-            <img
-              src={getAssetUrl(option.imageUrl)}
+            <ProductImage
+              src={option.imageUrl}
               alt={option.label}
-              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = '/logo.png';
-              }}
+              name={option.label}
+              size="sm"
+              className="w-full h-full"
+              imgClassName="group-hover:scale-105"
             />
             {isMultiQuantity ? (
               <div

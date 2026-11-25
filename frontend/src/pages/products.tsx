@@ -31,6 +31,7 @@ import {
   X,
   Layers,
 } from "lucide-react";
+import ProductImage from "@/components/ProductImage";
 
 interface Product {
   _id: string;
@@ -44,6 +45,7 @@ interface Product {
   isSignaturePiece: boolean;
   signatureCategory: string;
   categoryId: string;
+  category?: string;
   subcategoryId: string | null;
   stock: number;
   isInStock: boolean;
@@ -60,39 +62,141 @@ interface Category {
   sortOrder: number;
 }
 
-function ProductImage({ src, alt }: { src: string; alt: string }) {
-  const [hasError, setHasError] = useState(false);
-  const placeholderUrl = getAssetUrl("/placeholders/placeholder.png");
-  const cleanSrc = (src || "").trim();
-  const resolvedSrc = !cleanSrc || hasError ? placeholderUrl : getAssetUrl(cleanSrc);
+export interface CategoryTreeNode extends Category {
+  children: CategoryTreeNode[];
+  path: string[];
+  depth: number;
+}
+
+function buildCategoryTree(
+  allCategories: Category[],
+  parentId: string | null = null,
+  currentPath: string[] = [],
+  depth = 0
+): CategoryTreeNode[] {
+  return allCategories
+    .filter((c) => {
+      const pid = c.parentId ? String(c.parentId) : null;
+      return pid === parentId;
+    })
+    .map((c) => {
+      const newPath = [...currentPath, c.name];
+      return {
+        ...c,
+        children: buildCategoryTree(allCategories, c._id, newPath, depth + 1),
+        path: newPath,
+        depth,
+      };
+    });
+}
+
+function getCategoryBreadcrumb(catId: string, allCats: Category[]): Category[] {
+  const path: Category[] = [];
+  let curr = allCats.find((c) => c._id === catId || c.slug === catId);
+  const visited = new Set<string>();
+  while (curr && !visited.has(curr._id)) {
+    visited.add(curr._id);
+    path.unshift(curr);
+    if (!curr.parentId) break;
+    curr = allCats.find((c) => c._id === curr!.parentId);
+  }
+  return path;
+}
+
+const DesktopCategoryMenuItem: React.FC<{
+  node: CategoryTreeNode;
+  onSelect: (id: string, label: string) => void;
+}> = ({ node, onSelect }) => {
+  if (node.children.length === 0) {
+    return (
+      <DropdownMenuItem
+        key={node._id}
+        onClick={() => onSelect(node._id, node.name)}
+      >
+        {node.name}
+      </DropdownMenuItem>
+    );
+  }
 
   return (
-    <div className="relative w-full aspect-square bg-[#FAF4F1]/60 dark:bg-[#241C1A] overflow-hidden rounded-t-xl flex items-center justify-center">
-      {(!cleanSrc || hasError) && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground/60 p-4 text-center select-none">
-          <Gem className="h-8 w-8 text-primary/30 mb-1.5" />
-          <span className="text-[11px] font-medium tracking-wider uppercase">Jewellery Preview</span>
+    <DropdownMenuSub key={node._id}>
+      <DropdownMenuSubTrigger>{node.name}</DropdownMenuSubTrigger>
+      <DropdownMenuSubContent>
+        <DropdownMenuItem
+          onClick={() => onSelect(node._id, `All ${node.name}`)}
+        >
+          All {node.name}
+        </DropdownMenuItem>
+        {node.children.map((child) => (
+          <DesktopCategoryMenuItem
+            key={child._id}
+            node={child}
+            onSelect={onSelect}
+          />
+        ))}
+      </DropdownMenuSubContent>
+    </DropdownMenuSub>
+  );
+};
+
+const MobileCategoryMenuItem: React.FC<{
+  node: CategoryTreeNode;
+  filterCategory: string;
+  expandedCategories: Set<string>;
+  onToggleExpand: (id: string, e: React.MouseEvent) => void;
+  onSelect: (id: string, label: string) => void;
+}> = ({ node, filterCategory, expandedCategories, onToggleExpand, onSelect }) => {
+  const isExpanded = expandedCategories.has(node._id);
+  const isSelected = filterCategory === node._id;
+  const hasSubs = node.children.length > 0;
+
+  return (
+    <div className="rounded-lg overflow-hidden">
+      <div className="flex items-center justify-between w-full hover:bg-secondary rounded-lg">
+        <button
+          onClick={() => onSelect(node._id, node.name)}
+          className={`flex-grow text-left px-3 py-2 text-sm truncate ${
+            isSelected ? "text-primary font-medium" : "text-foreground"
+          }`}
+        >
+          {node.name}
+        </button>
+        {hasSubs && (
+          <button
+            onClick={(e) => onToggleExpand(node._id, e)}
+            className="px-2.5 py-2 text-muted-foreground hover:text-foreground"
+            aria-label={`Toggle ${node.name} subcategories`}
+          >
+            <ChevronDown className={`h-4 w-4 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+          </button>
+        )}
+      </div>
+
+      {hasSubs && isExpanded && (
+        <div className="pl-3 pr-1 py-1 space-y-0.5 border-l-2 border-primary/30 ml-3 my-1">
+          <button
+            onClick={() => onSelect(node._id, `All ${node.name}`)}
+            className={`w-full text-left px-2.5 py-1.5 text-xs rounded-md transition-colors ${
+              isSelected ? "text-primary font-semibold bg-primary/10" : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+            }`}
+          >
+            All {node.name}
+          </button>
+          {node.children.map((child) => (
+            <MobileCategoryMenuItem
+              key={child._id}
+              node={child}
+              filterCategory={filterCategory}
+              expandedCategories={expandedCategories}
+              onToggleExpand={onToggleExpand}
+              onSelect={onSelect}
+            />
+          ))}
         </div>
       )}
-      <img
-        src={resolvedSrc}
-        alt={alt}
-        loading="lazy"
-        onError={() => {
-          if (!hasError) {
-            if (cleanSrc) {
-              console.warn(`[Asset Issue] Missing or broken product image for "${alt}": ${cleanSrc}`);
-            }
-            setHasError(true);
-          }
-        }}
-        className={`w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105 ${
-          !cleanSrc || hasError ? "opacity-0" : "opacity-100"
-        }`}
-      />
     </div>
   );
-}
+};
 
 export default function Products() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -231,16 +335,8 @@ export default function Products() {
     fetchCategories();
   }, []);
 
-  // Build category tree for dropdown
-  const categoryTree = categories
-    .filter((c) => c.parentId === null || c.parentId === undefined)
-    .map((parent) => ({
-      ...parent,
-      subcategories: categories.filter((c) => {
-        const parentId = c.parentId ? String(c.parentId) : null;
-        return parentId === parent._id;
-      }),
-    }));
+  // Build recursive category tree for dropdowns and navigation
+  const categoryTree = buildCategoryTree(categories, null);
 
   useEffect(() => {
     const fetchWishlist = async () => {
@@ -412,71 +508,20 @@ export default function Products() {
 
                   <div className="h-px bg-border/60 my-1" />
 
-                  {categoryTree.map((cat) => {
-                    const isExpanded = expandedCategories.has(cat._id);
-                    const isSelected = filterCategory === cat._id;
-                    const hasSubs = cat.subcategories.length > 0;
-
-                    return (
-                      <div key={cat._id} className="rounded-lg overflow-hidden">
-                        <div className="flex items-center justify-between w-full hover:bg-secondary rounded-lg">
-                          <button
-                            onClick={() => {
-                              setFilterCategory(cat._id);
-                              setFilterLabel(cat.name);
-                              setMobileCategoryOpen(false);
-                            }}
-                            className={`flex-grow text-left px-3 py-2 text-sm truncate ${
-                              isSelected ? "text-primary font-medium" : "text-foreground"
-                            }`}
-                          >
-                            {cat.name}
-                          </button>
-                          {hasSubs && (
-                            <button
-                              onClick={(e) => toggleCategoryExpand(cat._id, e)}
-                              className="px-2.5 py-2 text-muted-foreground hover:text-foreground"
-                              aria-label={`Toggle ${cat.name} subcategories`}
-                            >
-                              <ChevronDown className={`h-4 w-4 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
-                            </button>
-                          )}
-                        </div>
-
-                        {hasSubs && isExpanded && (
-                          <div className="pl-4 pr-1 py-1 space-y-0.5 border-l-2 border-primary/30 ml-3 my-1">
-                            <button
-                              onClick={() => {
-                                setFilterCategory(cat._id);
-                                setFilterLabel(`All ${cat.name}`);
-                                setMobileCategoryOpen(false);
-                              }}
-                              className={`w-full text-left px-2.5 py-1.5 text-xs rounded-md transition-colors ${
-                                filterCategory === cat._id ? "text-primary font-semibold bg-primary/10" : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-                              }`}
-                            >
-                              All {cat.name}
-                            </button>
-                            {cat.subcategories.map((sub) => (
-                              <button
-                                key={sub._id}
-                                onClick={() => {
-                                  setFilterCategory(sub._id);
-                                  setFilterLabel(sub.name);
-                                  setMobileCategoryOpen(false);
-                                }}
-                                className={`w-full text-left px-2.5 py-1.5 text-xs rounded-md transition-colors ${
-                                  filterCategory === sub._id ? "text-primary font-semibold bg-primary/10" : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-                                }`}
-                              >
-                                {sub.name}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                  {categoryTree.map((cat) => (
+                    <MobileCategoryMenuItem
+                      key={cat._id}
+                      node={cat}
+                      filterCategory={filterCategory}
+                      expandedCategories={expandedCategories}
+                      onToggleExpand={toggleCategoryExpand}
+                      onSelect={(id, label) => {
+                        setFilterCategory(id);
+                        setFilterLabel(label);
+                        setMobileCategoryOpen(false);
+                      }}
+                    />
+                  ))}
                 </div>
               )}
             </div>
@@ -511,44 +556,16 @@ export default function Products() {
                     <Sparkles className="h-3.5 w-3.5 mr-2 text-primary" />
                     Signature Pieces
                   </DropdownMenuItem>
-                  {categoryTree.map((cat) =>
-                    cat.subcategories.length > 0 ? (
-                      <DropdownMenuSub key={cat._id}>
-                        <DropdownMenuSubTrigger>{cat.name}</DropdownMenuSubTrigger>
-                        <DropdownMenuSubContent>
-                          <DropdownMenuItem
-                            onClick={() => {
-                              setFilterCategory(cat._id);
-                              setFilterLabel(`All ${cat.name}`);
-                            }}
-                          >
-                            All {cat.name}
-                          </DropdownMenuItem>
-                          {cat.subcategories.map((sub) => (
-                            <DropdownMenuItem
-                              key={sub._id}
-                              onClick={() => {
-                                setFilterCategory(sub._id);
-                                setFilterLabel(sub.name);
-                              }}
-                            >
-                              {sub.name}
-                            </DropdownMenuItem>
-                          ))}
-                        </DropdownMenuSubContent>
-                      </DropdownMenuSub>
-                    ) : (
-                      <DropdownMenuItem
-                        key={cat._id}
-                        onClick={() => {
-                          setFilterCategory(cat._id);
-                          setFilterLabel(cat.name);
-                        }}
-                      >
-                        {cat.name}
-                      </DropdownMenuItem>
-                    )
-                  )}
+                  {categoryTree.map((cat) => (
+                    <DesktopCategoryMenuItem
+                      key={cat._id}
+                      node={cat}
+                      onSelect={(id, label) => {
+                        setFilterCategory(id);
+                        setFilterLabel(label);
+                      }}
+                    />
+                  ))}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -616,6 +633,51 @@ export default function Products() {
           </div>
         </div>
 
+        {/* Hierarchical Breadcrumb Navigation */}
+        <nav aria-label="Breadcrumbs" className="flex items-center gap-1.5 text-xs text-muted-foreground mb-4 overflow-x-auto py-1">
+          <button
+            onClick={handleResetFilters}
+            className={`hover:text-primary transition-colors whitespace-nowrap ${
+              filterCategory === "all" ? "text-foreground font-semibold" : ""
+            }`}
+          >
+            Collections
+          </button>
+          {filterCategory === "signature_all" && (
+            <>
+              <ChevronRight className="h-3 w-3 text-muted-foreground/60 shrink-0" />
+              <span className="text-foreground font-semibold whitespace-nowrap">Signature Pieces</span>
+            </>
+          )}
+          {filterCategory !== "all" && filterCategory !== "signature_all" && (
+            <>
+              {getCategoryBreadcrumb(filterCategory, categories).map((crumb, idx, arr) => {
+                const isLast = idx === arr.length - 1;
+                return (
+                  <span key={crumb._id} className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                    <ChevronRight className="h-3 w-3 text-muted-foreground/60 shrink-0" />
+                    {isLast ? (
+                      <span className="text-foreground font-semibold truncate max-w-[200px]">
+                        {crumb.name}
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setFilterCategory(crumb._id);
+                          setFilterLabel(crumb.name);
+                        }}
+                        className="hover:text-primary transition-colors truncate max-w-[150px]"
+                      >
+                        {crumb.name}
+                      </button>
+                    )}
+                  </span>
+                );
+              })}
+            </>
+          )}
+        </nav>
+
         {/* Loading State: Skeleton Cards */}
         {loading && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -661,7 +723,14 @@ export default function Products() {
               >
                 {/* Product Image & Overlays */}
                 <div className="relative">
-                  <ProductImage src={getProductImage(product)} alt={product.name} />
+                  <ProductImage
+                    src={getProductImage(product)}
+                    alt={product.name}
+                    name={product.name}
+                    category={product.category}
+                    className="rounded-t-xl"
+                    imgClassName="group-hover:scale-105"
+                  />
 
                   {/* Badge */}
                   {product.badge && (

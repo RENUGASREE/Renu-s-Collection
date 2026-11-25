@@ -50,7 +50,7 @@ export interface IStudioMaterial extends Document {
   code: string;
   description?: string;
   materialType: StudioMaterialType;
-  imageUrl: string;
+  imageUrl?: string | null;
   renderAssetUrl?: string;
   additionalImages: string[];
   allowedJewelleryTypes: string[];
@@ -149,7 +149,7 @@ const studioMaterialSchema = new Schema<IStudioMaterial>(
     },
     imageUrl: {
       type: String,
-      required: true,
+      required: false,
       trim: true,
     },
     renderAssetUrl: {

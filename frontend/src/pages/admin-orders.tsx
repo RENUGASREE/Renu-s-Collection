@@ -11,6 +11,7 @@ import { SEO } from "@/components/SEO";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import AdminNav from "@/components/AdminNav";
+import ProductImage from "@/components/ProductImage";
 import { 
   Package, 
   Search, 
@@ -340,11 +341,20 @@ export default function AdminOrders() {
                     <div className="space-y-1.5 text-xs text-[#756861] dark:text-muted-foreground mb-4">
                       {order.items.map((i, idx) => (
                         <div key={idx} className="space-y-1">
-                          <div className="flex justify-between">
-                            <span>
-                              {i.name} <strong className="text-[#342824] dark:text-foreground">× {i.quantity}</strong>
-                            </span>
-                            <span>₹{(i.subtotal || i.unitPrice * i.quantity).toLocaleString('en-IN')}</span>
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <ProductImage
+                                src={i.imageUrl}
+                                alt={i.name}
+                                name={i.name}
+                                size="sm"
+                                className="w-8 h-8 rounded shrink-0 border border-border/40"
+                              />
+                              <span className="truncate">
+                                {i.name} <strong className="text-[#342824] dark:text-foreground">× {i.quantity}</strong>
+                              </span>
+                            </div>
+                            <span className="shrink-0">₹{(i.subtotal || i.unitPrice * i.quantity).toLocaleString('en-IN')}</span>
                           </div>
                           {i.customization && (
                             <div className="ml-2 pl-2 border-l-2 border-[#B99A72]/70 text-[11px] space-y-1 bg-[#FBF7F3]/40 dark:bg-muted/20 p-1.5 rounded">

@@ -13,6 +13,7 @@ import { SEO } from "@/components/SEO";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import AdminNav from "@/components/AdminNav";
+import ProductImage from "@/components/ProductImage";
 import {
   ArrowLeft,
   Package,
@@ -73,7 +74,7 @@ export default function AdminProductForm() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [subcategories, setSubcategories] = useState<Category[]>([]);
+  const [subcategories, setSubcategories] = useState<Array<Category & { path: string; depth: number }>>([]);
   const [loading, setLoading] = useState(false);
   const [newImageUrl, setNewImageUrl] = useState("");
   const [isUploading, setIsUploading] = useState(false);
@@ -174,14 +175,46 @@ export default function AdminProductForm() {
     }
   }, [productId, isEditing]);
 
-  // Load subcategories when category changes
+  // Helper to compute full path of any category
+  const getCategoryPath = (catId: string, allCats: Category[]): string => {
+    const parts: string[] = [];
+    let curr = allCats.find((c) => c._id === catId);
+    const visited = new Set<string>();
+    while (curr && !visited.has(curr._id)) {
+      visited.add(curr._id);
+      parts.unshift(curr.name);
+      if (!curr.parentId) break;
+      curr = allCats.find((c) => c._id === curr!.parentId);
+    }
+    return parts.join(" > ");
+  };
+
+  // Helper to recursively collect all descendants with depth & path
+  const getDescendantsWithHierarchy = (
+    rootId: string,
+    allCats: Category[],
+    depth = 1
+  ): Array<Category & { path: string; depth: number }> => {
+    const children = allCats.filter((c) => {
+      const pid = c.parentId ? String(c.parentId) : null;
+      return pid === rootId;
+    });
+    const result: Array<Category & { path: string; depth: number }> = [];
+    for (const child of children) {
+      result.push({
+        ...child,
+        path: getCategoryPath(child._id, allCats),
+        depth,
+      });
+      result.push(...getDescendantsWithHierarchy(child._id, allCats, depth + 1));
+    }
+    return result;
+  };
+
+  // Load all descendant subcategories when category changes
   useEffect(() => {
     if (formData.categoryId) {
-      const subs = categories.filter((c: any) => {
-        const parentId = c.parentId ? String(c.parentId) : null;
-        return parentId === formData.categoryId;
-      });
-      console.log("Subcategories for category", formData.categoryId, ":", subs);
+      const subs = getDescendantsWithHierarchy(formData.categoryId, categories);
       setSubcategories(subs);
     } else {
       setSubcategories([]);
@@ -396,8 +429,8 @@ export default function AdminProductForm() {
       const payload = {
         ...formData,
         isActive: targetIsActive,
-        imageUrl: primaryUrl || undefined,
-        media: formData.media.length > 0 ? formData.media : undefined,
+        imageUrl: primaryUrl ? primaryUrl.trim() : (isEditing ? null : undefined),
+        media: formData.media.length > 0 ? formData.media : (isEditing ? [] : []),
         salePrice: formData.salePrice && formData.salePrice > 0 ? formData.salePrice : (isEditing ? null : undefined),
         badge: formData.badge || undefined,
         subcategoryId: formData.subcategoryId || undefined,
@@ -585,8 +618,10 @@ export default function AdminProductForm() {
                   <Label htmlFor="categoryId" className={labelCls}>Category <span className="text-[#B66F72]">*</span></Label>
                   <select id="categoryId" name="categoryId" value={formData.categoryId} onChange={handleChange} required className={selectCls}>
                     <option value="">Select a category</option>
-                    {categories.filter((c) => !c.parentId).map((cat, idx) => (
-                      <option key={cat._id || `cat-${idx}`} value={cat._id}>{cat.name}</option>
+                    {categories.map((cat, idx) => (
+                      <option key={cat._id || `cat-${idx}`} value={cat._id}>
+                        {getCategoryPath(cat._id, categories)}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -594,11 +629,18 @@ export default function AdminProductForm() {
                 <div className="space-y-1.5">
                   <Label htmlFor="subcategoryId" className={labelCls}>Subcategory</Label>
                   <select id="subcategoryId" name="subcategoryId" value={formData.subcategoryId || ""} onChange={handleChange} className={selectCls}>
-                    <option value="">None</option>
+                    <option value="">None (Base Category Only)</option>
                     {subcategories.map((sub, idx) => (
-                      <option key={sub._id || `sub-${idx}`} value={sub._id}>{sub.name}</option>
+                      <option key={sub._id || `sub-${idx}`} value={sub._id}>
+                        {"\u00A0\u00A0".repeat((sub.depth || 1) - 1)}{((sub.depth || 1) > 1 ? "↳ " : "") + sub.name}
+                      </option>
                     ))}
                   </select>
+                  {formData.subcategoryId && (
+                    <p className="text-[11px] text-[#B66F72] font-medium mt-1 truncate">
+                      Path: {getCategoryPath(formData.subcategoryId, categories)}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -748,13 +790,13 @@ export default function AdminProductForm() {
                       }`}
                     >
                       <div className="relative aspect-square w-full rounded-lg overflow-hidden bg-[#F1E6DF]/30 dark:bg-muted/30 border border-[#E6D8D0] dark:border-border">
-                        <img
-                          src={getAssetUrl(item.url)}
+                        <ProductImage
+                          src={item.url}
                           alt={item.alt || `Product image ${index + 1}`}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = getAssetUrl(null);
-                          }}
+                          name={formData.name || `Product image ${index + 1}`}
+                          category={formData.signatureCategory || "Jewellery"}
+                          size="sm"
+                          className="w-full h-full"
                         />
                         {item.isPrimary && (
                           <span className="absolute top-2 left-2 bg-[#B66F72] text-white text-[10px] font-semibold px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1">
@@ -824,8 +866,11 @@ export default function AdminProductForm() {
               ) : (
                 <div className="rounded-xl border-2 border-dashed border-[#E6D8D0] dark:border-border p-8 text-center">
                   <ImageIcon className="h-8 w-8 text-[#B66F72]/20 dark:text-primary/20 mx-auto mb-2" />
-                  <p className="text-sm text-[#756861] dark:text-muted-foreground">
-                    No images added yet. Enter a URL above and click "Add Image".
+                  <p className="text-sm font-medium text-[#342824] dark:text-foreground">
+                    No images added yet (Optional)
+                  </p>
+                  <p className="text-xs text-[#756861] dark:text-muted-foreground mt-1 max-w-sm mx-auto">
+                    Main product image is optional. When omitted, an elegant branded name placeholder will be displayed automatically in the storefront.
                   </p>
                 </div>
               )}

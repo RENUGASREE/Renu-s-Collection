@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import axios from "axios";
 import { API_BASE_URL, getAssetUrl } from "@/lib/queryClient";
 import { useNavigate } from "react-router-dom";
+import ProductImage from "./ProductImage";
 
 interface BraceletCard {
   id: string | number;
@@ -255,11 +256,14 @@ export default function CollectionSection() {
                       onClick={() => navigate(`/product/${bracelet.id}`)}
                     >
                       <div className="relative overflow-hidden aspect-square w-full bg-secondary/30">
-                        <img
+                        <ProductImage
                           src={getImageUrl(bracelet)}
                           alt={bracelet.name}
-                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                          data-testid={`bracelet-image-${bracelet.id}`}
+                          name={bracelet.name}
+                          category={bracelet.signatureCategory || bracelet.category}
+                          className="w-full h-full"
+                          imgClassName="group-hover:scale-105"
+                          dataTestId={`bracelet-image-${bracelet.id}`}
                         />
                         {bracelet.badge && (
                           <div className="absolute top-4 right-4 bg-primary text-white px-3 py-1 rounded text-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300">

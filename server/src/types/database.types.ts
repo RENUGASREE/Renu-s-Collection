@@ -1112,7 +1112,7 @@ export interface IStudioMaterialRecord {
   code: string;
   description?: string | null;
   materialType: string;
-  imageUrl: string;
+  imageUrl?: string | null;
   renderAssetUrl?: string | null;
   additionalImages: string[];
   allowedJewelleryTypes: string[];
@@ -1131,7 +1131,7 @@ export interface ICreateStudioMaterialData {
   code: string;
   description?: string | null;
   materialType: string;
-  imageUrl: string;
+  imageUrl?: string | null;
   renderAssetUrl?: string | null;
   additionalImages?: string[];
   allowedJewelleryTypes?: string[];
@@ -1147,7 +1147,7 @@ export interface IUpdateStudioMaterialData {
   code?: string;
   description?: string | null;
   materialType?: string;
-  imageUrl?: string;
+  imageUrl?: string | null;
   renderAssetUrl?: string | null;
   additionalImages?: string[];
   allowedJewelleryTypes?: string[];

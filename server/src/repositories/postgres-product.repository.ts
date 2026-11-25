@@ -174,6 +174,7 @@ export interface ProductFilterOptions {
   isActive?: boolean | "all";
   categoryId?: string;
   subcategoryId?: string;
+  categoryIds?: string[];
   minPrice?: number;
   maxPrice?: number;
   material?: string;
@@ -361,14 +362,24 @@ function buildProductWhereClause(filters?: ProductFilterOptions): {
     addParam((i) => `is_active = $${i}`, activeVal);
   }
 
-  if (filters?.categoryId) {
-    assertValidEntityId(filters.categoryId, "categoryId");
-    addParam((i) => `category_id = $${i}`, filters.categoryId);
-  }
+  if (filters?.categoryIds && filters.categoryIds.length > 0) {
+    for (const cid of filters.categoryIds) {
+      assertValidEntityId(cid, "categoryIds");
+    }
+    addParam(
+      (i) => `(category_id = ANY($${i}::varchar[]) OR subcategory_id = ANY($${i}::varchar[]))`,
+      filters.categoryIds
+    );
+  } else {
+    if (filters?.categoryId) {
+      assertValidEntityId(filters.categoryId, "categoryId");
+      addParam((i) => `category_id = $${i}`, filters.categoryId);
+    }
 
-  if (filters?.subcategoryId) {
-    assertValidEntityId(filters.subcategoryId, "subcategoryId");
-    addParam((i) => `subcategory_id = $${i}`, filters.subcategoryId);
+    if (filters?.subcategoryId) {
+      assertValidEntityId(filters.subcategoryId, "subcategoryId");
+      addParam((i) => `subcategory_id = $${i}`, filters.subcategoryId);
+    }
   }
 
   if (filters?.minPrice !== undefined && Number.isFinite(filters.minPrice)) {

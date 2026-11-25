@@ -49,13 +49,23 @@ export const transparentMediaUrlSchema = mediaUrlSchema.refine(
   }
 );
 
+export const optionalMediaUrlSchema = z.preprocess(
+  (val) => (val === "" || val === null || val === undefined ? undefined : typeof val === "string" ? val.trim() : val),
+  mediaUrlSchema.optional().nullable()
+);
+
+export const optionalTransparentMediaUrlSchema = z.preprocess(
+  (val) => (val === "" || val === null || val === undefined ? undefined : typeof val === "string" ? val.trim() : val),
+  transparentMediaUrlSchema.optional().nullable()
+);
+
 export const createMaterialSchema = z.object({
   name: z.string().min(1).max(150).trim(),
   code: z.string().min(2).max(64).trim().toUpperCase(),
   description: z.string().max(2000).optional(),
   materialType: z.string().min(1).max(64).trim().toLowerCase(),
-  imageUrl: mediaUrlSchema,
-  renderAssetUrl: transparentMediaUrlSchema,
+  imageUrl: optionalMediaUrlSchema,
+  renderAssetUrl: optionalTransparentMediaUrlSchema,
   additionalImages: z.array(mediaUrlSchema).optional().default([]),
   allowedJewelleryTypes: z.array(z.string().min(1)).min(1),
   supportedConstructionTypes: z.array(z.string().min(1)).optional().default([]),

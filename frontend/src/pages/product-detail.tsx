@@ -8,6 +8,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { SEO } from "@/components/SEO";
 import { CustomizationPreview } from "@/components/CustomizationPreview";
 import { CustomizationControls } from "@/components/CustomizationControls";
+import BrandedImagePlaceholder from "@/components/BrandedImagePlaceholder";
+import ProductImage from "@/components/ProductImage";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
@@ -34,7 +36,15 @@ import {
   Palette,
   Instagram,
   Copy,
+  ChevronRight,
 } from "lucide-react";
+
+interface CategoryItem {
+  _id: string;
+  name: string;
+  slug: string;
+  parentId: string | null;
+}
 
 interface Product {
   _id: string;
@@ -47,6 +57,8 @@ interface Product {
   salePrice: number | null;
   media: { url: string; isPrimary: boolean }[];
   categoryId: string;
+  category?: string;
+  categoryName?: string;
   subcategoryId: string | null;
   stock: number;
   isInStock: boolean;
@@ -96,6 +108,7 @@ export default function ProductDetail() {
   ]);
   const [activeUnitIndex, setActiveUnitIndex] = useState(0);
   const [product, setProduct] = useState<Product | null>(null);
+  const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [addingToCart, setAddingToCart] = useState(false);
@@ -206,7 +219,33 @@ export default function ProductDetail() {
   useEffect(() => {
     fetchProduct();
     fetchWishlist();
+
+    const fetchCategories = async () => {
+      try {
+        const res = await apiRequest("GET", "/api/v1/categories");
+        const json = await res.json();
+        setCategories(json.data || []);
+      } catch (err) {
+        console.error("Failed to load categories", err);
+      }
+    };
+    fetchCategories();
   }, [fetchProduct, fetchWishlist]);
+
+  const getProductBreadcrumbs = (): CategoryItem[] => {
+    if (!product) return [];
+    const path: CategoryItem[] = [];
+    const targetId = product.subcategoryId || product.categoryId;
+    let curr = categories.find((c) => c._id === targetId);
+    const visited = new Set<string>();
+    while (curr && !visited.has(curr._id)) {
+      visited.add(curr._id);
+      path.unshift(curr);
+      if (!curr.parentId) break;
+      curr = categories.find((c) => c._id === curr!.parentId);
+    }
+    return path;
+  };
 
   const handleQuantityChange = (newQty: number) => {
     const clampedQty = Math.max(1, newQty);
@@ -681,6 +720,38 @@ export default function ProductDetail() {
       />
 
       <main className="flex-grow container mx-auto px-4 py-8 pt-20">
+        {/* Hierarchical Breadcrumbs */}
+        <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-xs text-muted-foreground mb-6 overflow-x-auto py-1">
+          <button
+            onClick={() => navigate("/")}
+            className="hover:text-primary transition-colors whitespace-nowrap"
+          >
+            Home
+          </button>
+          <ChevronRight className="h-3 w-3 text-muted-foreground/60 shrink-0" />
+          <button
+            onClick={() => navigate("/products")}
+            className="hover:text-primary transition-colors whitespace-nowrap"
+          >
+            Collections
+          </button>
+          {getProductBreadcrumbs().map((crumb) => (
+            <span key={crumb._id} className="inline-flex items-center gap-1.5 whitespace-nowrap">
+              <ChevronRight className="h-3 w-3 text-muted-foreground/60 shrink-0" />
+              <button
+                onClick={() => navigate(`/products?category=${crumb.slug || crumb._id}`)}
+                className="hover:text-primary transition-colors truncate max-w-[150px]"
+              >
+                {crumb.name}
+              </button>
+            </span>
+          ))}
+          <ChevronRight className="h-3 w-3 text-muted-foreground/60 shrink-0" />
+          <span className="text-foreground font-semibold truncate max-w-[200px]">
+            {product.name}
+          </span>
+        </nav>
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-start">
           {/* Left: Product Image Gallery / Preview */}
           <div className="space-y-4">
@@ -688,6 +759,8 @@ export default function ProductDetail() {
               <div className="aspect-square bg-[#FAF4F1]/60 dark:bg-[#241C1A] rounded-2xl border border-border/70 shadow-sm overflow-hidden flex items-center justify-center relative">
                 <CustomizationPreview
                   baseImage={getProductImage(product, 0)}
+                  productName={product.name}
+                  category={product.category}
                   layers={customizationConfig.previewLayers}
                   selections={customizationSelections}
                   className="w-full h-full"
@@ -695,24 +768,25 @@ export default function ProductDetail() {
               </div>
             ) : (
               <div className="relative aspect-square bg-[#FAF4F1]/60 dark:bg-[#241C1A] rounded-2xl border border-border/70 shadow-sm overflow-hidden flex items-center justify-center group">
-                {/* Fallback preview indicator */}
-                {isSelectedImageBroken && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground/60 p-4 text-center select-none z-0">
-                    <Gem className="h-12 w-12 text-primary/30 mb-2" />
-                    <span className="text-xs font-medium tracking-wider uppercase">Jewellery Preview</span>
-                  </div>
+                {isSelectedImageBroken ? (
+                  <BrandedImagePlaceholder
+                    name={product.name}
+                    category={product.category}
+                    size="lg"
+                    aspectRatio="aspect-square"
+                    className="w-full h-full"
+                  />
+                ) : (
+                  <img
+                    src={mainImageSrc}
+                    alt={product.name}
+                    loading="eager"
+                    onError={() => {
+                      setImageHasError((prev) => ({ ...prev, [selectedImageIndex]: true }));
+                    }}
+                    className="w-full h-full object-contain p-4 transition-transform duration-500 ease-out group-hover:scale-105"
+                  />
                 )}
-                <img
-                  src={mainImageSrc}
-                  alt={product.name}
-                  loading="eager"
-                  onError={() => {
-                    setImageHasError((prev) => ({ ...prev, [selectedImageIndex]: true }));
-                  }}
-                  className={`w-full h-full object-contain p-4 transition-transform duration-500 ease-out group-hover:scale-105 ${
-                    isSelectedImageBroken ? "opacity-0" : "opacity-100"
-                  }`}
-                />
 
                 {/* Badge Overlay */}
                 {product.badge && (
@@ -751,12 +825,16 @@ export default function ProductDetail() {
                           : "border-border/70 hover:border-primary/50 opacity-80 hover:opacity-100"
                       }`}
                     >
-                      <img
-                        src={thumbSrc}
-                        alt={`${product.name} thumbnail ${idx + 1}`}
-                        onError={() => setImageHasError((prev) => ({ ...prev, [idx]: true }))}
-                        className="w-full h-full object-contain p-1"
-                      />
+                      {isThumbBroken ? (
+                        <BrandedImagePlaceholder name={product.name} size="sm" className="w-full h-full" />
+                      ) : (
+                        <img
+                          src={thumbSrc}
+                          alt={`${product.name} thumbnail ${idx + 1}`}
+                          onError={() => setImageHasError((prev) => ({ ...prev, [idx]: true }))}
+                          className="w-full h-full object-contain p-1"
+                        />
+                      )}
                     </button>
                   );
                 })}
@@ -1157,13 +1235,13 @@ export default function ProductDetail() {
 
           {product && (
             <div className="flex items-center gap-4 rounded-lg border border-[#E6D8D0] dark:border-border bg-white dark:bg-background p-3 my-2">
-              <img
-                src={getAssetUrl(getProductImage(product, 0))}
+              <ProductImage
+                src={getProductImage(product, 0)}
                 alt={product.name}
-                className="h-16 w-16 rounded-md object-cover"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = '/logo.png';
-                }}
+                name={product.name}
+                category={product.category}
+                size="sm"
+                className="h-16 w-16 rounded-md flex-shrink-0"
               />
               <div className="flex-1 min-w-0">
                 <p className="font-playfair font-semibold text-sm text-[#342824] dark:text-foreground truncate">

@@ -88,18 +88,34 @@ export async function listProducts(
     repoFilters.isActive = "all";
   }
 
-  if (query.categoryId) {
-    if (!isValidEntityId(query.categoryId)) {
-      throw new AppError("Invalid category id", 400);
-    }
-    repoFilters.categoryId = query.categoryId;
-  }
-
   if (query.subcategoryId) {
     if (!isValidEntityId(query.subcategoryId)) {
       throw new AppError("Invalid subcategory id", 400);
     }
-    repoFilters.subcategoryId = query.subcategoryId;
+    if (typeof activeCategoryRepository.getDescendantIds === "function") {
+      try {
+        const descendantIds = await activeCategoryRepository.getDescendantIds(query.subcategoryId);
+        repoFilters.categoryIds = descendantIds.length > 0 ? descendantIds : [query.subcategoryId];
+      } catch {
+        repoFilters.subcategoryId = query.subcategoryId;
+      }
+    } else {
+      repoFilters.subcategoryId = query.subcategoryId;
+    }
+  } else if (query.categoryId) {
+    if (!isValidEntityId(query.categoryId)) {
+      throw new AppError("Invalid category id", 400);
+    }
+    if (typeof activeCategoryRepository.getDescendantIds === "function") {
+      try {
+        const descendantIds = await activeCategoryRepository.getDescendantIds(query.categoryId);
+        repoFilters.categoryIds = descendantIds.length > 0 ? descendantIds : [query.categoryId];
+      } catch {
+        repoFilters.categoryId = query.categoryId;
+      }
+    } else {
+      repoFilters.categoryId = query.categoryId;
+    }
   }
 
   if (query.minPrice !== undefined) repoFilters.minPrice = query.minPrice;

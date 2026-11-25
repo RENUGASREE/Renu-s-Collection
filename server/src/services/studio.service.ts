@@ -313,7 +313,7 @@ export interface PublicStudioMaterial {
   code: string;
   description?: string;
   materialType: string;
-  imageUrl: string;
+  imageUrl?: string | null;
   renderAssetUrl?: string;
   additionalImages: string[];
   allowedJewelleryTypes: string[];
@@ -344,7 +344,7 @@ export function toPublicMaterial(mat: IStudioMaterialRecord): PublicStudioMateri
     code: mat.code,
     description: mat.description || undefined,
     materialType: mat.materialType,
-    imageUrl: mat.imageUrl,
+    imageUrl: mat.imageUrl || undefined,
     renderAssetUrl: mat.renderAssetUrl || undefined,
     additionalImages: mat.additionalImages || [],
     allowedJewelleryTypes: mat.allowedJewelleryTypes || [],
@@ -376,7 +376,7 @@ export interface PriceBreakdownItem {
   unitRate: number;
   quantity: number;
   subtotal: number;
-  imageUrl: string;
+  imageUrl?: string | null;
   renderAssetUrl?: string | null;
 }
 
@@ -538,8 +538,8 @@ export async function calculateDesignPrice(
       unitRate,
       quantity,
       subtotal: itemSubtotal,
-      imageUrl: mat.imageUrl,
-      renderAssetUrl: mat.renderAssetUrl,
+      imageUrl: mat.imageUrl || null,
+      renderAssetUrl: mat.renderAssetUrl || null,
     });
   }
 
