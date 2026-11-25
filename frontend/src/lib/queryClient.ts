@@ -38,8 +38,14 @@ async function throwIfResNotOk(res: Response) {
       const contentType = res.headers.get('content-type') || '';
       if (contentType.includes('application/json')) {
         const data = await res.clone().json();
-        // Prefer structured error fields when available
-        errorText = (data && (data.error || data.detail || data.message)) ?? JSON.stringify(data);
+        if (data && data.errors && typeof data.errors === 'object') {
+          const details = Object.entries(data.errors)
+            .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`)
+            .join("; ");
+          errorText = `${data.message || 'Validation failed'} (${details})`;
+        } else {
+          errorText = (data && (data.error || data.detail || data.message)) ?? JSON.stringify(data);
+        }
       } else {
         errorText = (await res.text()) || res.statusText;
       }

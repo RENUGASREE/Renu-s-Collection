@@ -216,8 +216,13 @@ export default function AdminProductForm() {
     if (formData.categoryId) {
       const subs = getDescendantsWithHierarchy(formData.categoryId, categories);
       setSubcategories(subs);
+      // If the current subcategory is not a valid child of the selected category, reset it
+      if (formData.subcategoryId && (!subs.some((s) => s._id === formData.subcategoryId) || formData.subcategoryId === formData.categoryId)) {
+        setFormData((prev) => ({ ...prev, subcategoryId: "" }));
+      }
     } else {
       setSubcategories([]);
+      setFormData((prev) => ({ ...prev, subcategoryId: "" }));
     }
   }, [formData.categoryId, categories]);
 
@@ -424,17 +429,26 @@ export default function AdminProductForm() {
 
     try {
       const primaryMedia = formData.media.find((m) => m.isPrimary);
-      const primaryUrl = primaryMedia?.url || formData.media[0]?.url || formData.imageUrl;
+      const rawUrl = primaryMedia?.url || formData.media[0]?.url || formData.imageUrl;
+      const cleanImageUrl = rawUrl && rawUrl.trim() ? rawUrl.trim() : null;
 
       const payload = {
-        ...formData,
+        name: formData.name.trim(),
+        sku: formData.sku.trim(),
+        price: Number(formData.price),
+        salePrice: formData.salePrice != null && Number(formData.salePrice) > 0 ? Number(formData.salePrice) : null,
+        stock: Number(formData.stock) || 0,
+        categoryId: formData.categoryId,
+        subcategoryId: formData.subcategoryId && formData.subcategoryId.trim() ? formData.subcategoryId.trim() : null,
         isActive: targetIsActive,
-        imageUrl: primaryUrl ? primaryUrl.trim() : (isEditing ? null : undefined),
-        media: formData.media.length > 0 ? formData.media : (isEditing ? [] : []),
-        salePrice: formData.salePrice && formData.salePrice > 0 ? formData.salePrice : (isEditing ? null : undefined),
-        badge: formData.badge || undefined,
-        subcategoryId: formData.subcategoryId || undefined,
-        additionalInfo: formData.additionalInfo ? formData.additionalInfo.trim() : (isEditing ? "" : undefined),
+        isCustomizable: Boolean(formData.isCustomizable),
+        isSignaturePiece: Boolean(formData.isSignaturePiece),
+        signatureCategory: formData.signatureCategory || "none",
+        badge: formData.badge && formData.badge.trim() ? formData.badge.trim() : null,
+        description: formData.description.trim(),
+        additionalInfo: formData.additionalInfo && formData.additionalInfo.trim() ? formData.additionalInfo.trim() : null,
+        imageUrl: cleanImageUrl,
+        media: formData.media.length > 0 ? formData.media : [],
       };
 
       if (isEditing) {
