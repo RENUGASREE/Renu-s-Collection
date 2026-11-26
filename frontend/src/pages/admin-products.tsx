@@ -24,6 +24,7 @@ import {
 
 interface Product {
   _id: string;
+  id?: string;
   name: string;
   sku: string;
   price: number;
@@ -285,12 +286,21 @@ export default function AdminProducts() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <Link 
-                        to={`/product/${product._id}`}
-                        target="_blank"
+                        to={`/admin/products/${product._id || product.id}/edit`}
                         className="font-playfair font-semibold text-base sm:text-lg text-[#342824] dark:text-foreground hover:text-[#B66F72] transition-colors"
+                        title="Edit product"
                       >
                         {product.name}
                       </Link>
+                      <a 
+                        href={`/product/${product._id || product.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center text-[#756861] hover:text-[#B66F72] p-1 rounded transition-colors"
+                        title="View on storefront (opens in new tab)"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
                       <span className="font-mono text-xs text-[#756861] dark:text-muted-foreground bg-muted/40 px-2 py-0.5 rounded border border-border/40">
                         {product.sku}
                       </span>

@@ -421,7 +421,7 @@ export default function AdminOrders() {
                           size="sm"
                           className="text-xs border-[#E6D8D0] dark:border-border rounded-lg h-8"
                         >
-                          <Link to={`/orders/${order._id}`} target="_blank">
+                          <Link to={`/orders/${order._id || (order as any).id}`} target="_blank">
                             <span>Client Receipt</span>
                             <ExternalLink className="w-3 h-3 ml-1" />
                           </Link>

@@ -40,8 +40,10 @@ export class PostgresStudioReservationRepository {
   }
 
   public mapRowToReservationItem(row: any): IStudioReservationItemRecord {
+    const idStr = String(row.id);
     return {
-      id: String(row.id),
+      id: idStr,
+      _id: idStr,
       reservationId: String(row.reservation_id),
       materialId: row.material_id ? String(row.material_id) : null,
       materialName: String(row.material_name),
@@ -51,8 +53,10 @@ export class PostgresStudioReservationRepository {
   }
 
   public mapRowToReservation(row: any, items: IStudioReservationItemRecord[] = []): IStudioReservationRecord {
+    const idStr = String(row.id);
     return {
-      id: String(row.id),
+      id: idStr,
+      _id: idStr,
       orderId: String(row.order_id),
       orderNumber: String(row.order_number),
       userId: String(row.user_id),

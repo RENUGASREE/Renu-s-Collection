@@ -74,8 +74,10 @@ export class PostgresStudioRepository {
   // ---------------------------------------------------------------------------
 
   public mapRowToComponentType(row: any): IComponentTypeRecord {
+    const idStr = String(row.id);
     return {
-      id: String(row.id),
+      id: idStr,
+      _id: idStr,
       typeId: String(row.type_id),
       displayName: String(row.display_name),
       description: row.description ? String(row.description) : null,
@@ -244,8 +246,10 @@ export class PostgresStudioRepository {
   // ---------------------------------------------------------------------------
 
   public mapRowToJewelleryType(row: any): IJewelleryTypeRecord {
+    const idStr = String(row.id);
     return {
-      id: String(row.id),
+      id: idStr,
+      _id: idStr,
       slug: String(row.slug),
       displayName: String(row.display_name),
       description: row.description ? String(row.description) : null,
@@ -450,8 +454,10 @@ export class PostgresStudioRepository {
     if (row.hole_diameter_mm !== null && row.hole_diameter_mm !== undefined) dimensionsMm.holeDiameter = Number(row.hole_diameter_mm);
     if (row.attachment_size_mm !== null && row.attachment_size_mm !== undefined) dimensionsMm.attachmentSize = Number(row.attachment_size_mm);
 
+    const idStr = String(row.id);
     return {
-      id: String(row.id),
+      id: idStr,
+      _id: idStr,
       materialId: String(row.material_id),
       sku: String(row.sku).toUpperCase(),
       color: row.color ? String(row.color) : null,
@@ -476,8 +482,10 @@ export class PostgresStudioRepository {
   }
 
   public mapRowToMaterial(row: any, variants: IStudioMaterialVariantRecord[] = []): IStudioMaterialRecord {
+    const idStr = String(row.id);
     return {
-      id: String(row.id),
+      id: idStr,
+      _id: idStr,
       name: String(row.name),
       code: String(row.code),
       description: row.description ? String(row.description) : null,
@@ -949,12 +957,12 @@ export class PostgresStudioRepository {
       data.color || null,
       data.finish || null,
       data.sizeLabel || "Standard",
-      data.dimensionsMm?.length ?? data.lengthMm ?? null,
-      data.dimensionsMm?.width ?? data.widthMm ?? null,
-      data.dimensionsMm?.height ?? data.heightMm ?? null,
-      data.dimensionsMm?.diameter ?? data.diameterMm ?? null,
-      data.dimensionsMm?.holeDiameter ?? data.holeDiameterMm ?? null,
-      data.dimensionsMm?.attachmentSize ?? data.attachmentSizeMm ?? null,
+      (data.dimensionsMm as any)?.lengthMm ?? data.dimensionsMm?.length ?? data.lengthMm ?? null,
+      (data.dimensionsMm as any)?.widthMm ?? data.dimensionsMm?.width ?? data.widthMm ?? null,
+      (data.dimensionsMm as any)?.heightMm ?? data.dimensionsMm?.height ?? data.heightMm ?? null,
+      (data.dimensionsMm as any)?.diameterMm ?? data.dimensionsMm?.diameter ?? data.diameterMm ?? null,
+      (data.dimensionsMm as any)?.holeDiameterMm ?? data.dimensionsMm?.holeDiameter ?? data.holeDiameterMm ?? null,
+      (data.dimensionsMm as any)?.attachmentSizeMm ?? data.dimensionsMm?.attachmentSize ?? data.attachmentSizeMm ?? null,
       data.sellingUnit || "piece",
       data.purchaseCost ?? 0,
       data.sellingRate,
@@ -988,29 +996,29 @@ export class PostgresStudioRepository {
       setClauses.push(`size_label = $${pIdx++}`);
       params.push(data.sizeLabel);
     }
-    if (data.dimensionsMm?.length !== undefined || data.lengthMm !== undefined) {
+    if ((data.dimensionsMm as any)?.lengthMm !== undefined || data.dimensionsMm?.length !== undefined || data.lengthMm !== undefined) {
       setClauses.push(`length_mm = $${pIdx++}`);
-      params.push(data.dimensionsMm?.length ?? data.lengthMm);
+      params.push((data.dimensionsMm as any)?.lengthMm ?? data.dimensionsMm?.length ?? data.lengthMm);
     }
-    if (data.dimensionsMm?.width !== undefined || data.widthMm !== undefined) {
+    if ((data.dimensionsMm as any)?.widthMm !== undefined || data.dimensionsMm?.width !== undefined || data.widthMm !== undefined) {
       setClauses.push(`width_mm = $${pIdx++}`);
-      params.push(data.dimensionsMm?.width ?? data.widthMm);
+      params.push((data.dimensionsMm as any)?.widthMm ?? data.dimensionsMm?.width ?? data.widthMm);
     }
-    if (data.dimensionsMm?.height !== undefined || data.heightMm !== undefined) {
+    if ((data.dimensionsMm as any)?.heightMm !== undefined || data.dimensionsMm?.height !== undefined || data.heightMm !== undefined) {
       setClauses.push(`height_mm = $${pIdx++}`);
-      params.push(data.dimensionsMm?.height ?? data.heightMm);
+      params.push((data.dimensionsMm as any)?.heightMm ?? data.dimensionsMm?.height ?? data.heightMm);
     }
-    if (data.dimensionsMm?.diameter !== undefined || data.diameterMm !== undefined) {
+    if ((data.dimensionsMm as any)?.diameterMm !== undefined || data.dimensionsMm?.diameter !== undefined || data.diameterMm !== undefined) {
       setClauses.push(`diameter_mm = $${pIdx++}`);
-      params.push(data.dimensionsMm?.diameter ?? data.diameterMm);
+      params.push((data.dimensionsMm as any)?.diameterMm ?? data.dimensionsMm?.diameter ?? data.diameterMm);
     }
-    if (data.dimensionsMm?.holeDiameter !== undefined || data.holeDiameterMm !== undefined) {
+    if ((data.dimensionsMm as any)?.holeDiameterMm !== undefined || data.dimensionsMm?.holeDiameter !== undefined || data.holeDiameterMm !== undefined) {
       setClauses.push(`hole_diameter_mm = $${pIdx++}`);
-      params.push(data.dimensionsMm?.holeDiameter ?? data.holeDiameterMm);
+      params.push((data.dimensionsMm as any)?.holeDiameterMm ?? data.dimensionsMm?.holeDiameter ?? data.holeDiameterMm);
     }
-    if (data.dimensionsMm?.attachmentSize !== undefined || data.attachmentSizeMm !== undefined) {
+    if ((data.dimensionsMm as any)?.attachmentSizeMm !== undefined || data.dimensionsMm?.attachmentSize !== undefined || data.attachmentSizeMm !== undefined) {
       setClauses.push(`attachment_size_mm = $${pIdx++}`);
-      params.push(data.dimensionsMm?.attachmentSize ?? data.attachmentSizeMm);
+      params.push((data.dimensionsMm as any)?.attachmentSizeMm ?? data.dimensionsMm?.attachmentSize ?? data.attachmentSizeMm);
     }
     if (data.sellingUnit !== undefined) {
       setClauses.push(`selling_unit = $${pIdx++}`);
@@ -1107,8 +1115,10 @@ export class PostgresStudioRepository {
   // ---------------------------------------------------------------------------
 
   public mapRowToCustomizationConfig(row: any): ICustomizationConfigRecord {
+    const idStr = String(row.id);
     return {
-      id: String(row.id),
+      id: idStr,
+      _id: idStr,
       name: String(row.name),
       productType: String(row.product_type),
       categoryId: row.category_id ? String(row.category_id) : null,
@@ -1284,8 +1294,10 @@ export class PostgresStudioRepository {
   // ---------------------------------------------------------------------------
 
   public mapRowToMakingCharge(row: any): IMakingChargeRecord {
+    const idStr = String(row.id);
     return {
-      id: String(row.id),
+      id: idStr,
+      _id: idStr,
       jewelleryType: String(row.jewellery_type),
       constructionType: String(row.construction_type),
       baseFee: Number(row.base_fee ?? 0),
@@ -1365,8 +1377,10 @@ export class PostgresStudioRepository {
   // ---------------------------------------------------------------------------
 
   public mapRowToDesignRule(row: any): IDesignRuleRecord {
+    const idStr = String(row.id);
     return {
-      id: String(row.id),
+      id: idStr,
+      _id: idStr,
       jewelleryType: String(row.jewellery_type),
       constructionType: String(row.construction_type),
       minWristMm: Number(row.min_wrist_mm ?? 130),
@@ -1489,8 +1503,10 @@ export class PostgresStudioRepository {
   // ---------------------------------------------------------------------------
 
   public mapRowToDesignTemplate(row: any): IDesignTemplateRecord {
+    const idStr = String(row.id);
     return {
-      id: String(row.id),
+      id: idStr,
+      _id: idStr,
       slug: String(row.slug),
       name: String(row.name),
       description: row.description ? String(row.description) : null,
@@ -1702,8 +1718,10 @@ export class PostgresStudioRepository {
   // ---------------------------------------------------------------------------
 
   public mapRowToSavedDesign(row: any): ISavedDesignRecord {
+    const idStr = String(row.id);
     return {
-      id: String(row.id),
+      id: idStr,
+      _id: idStr,
       userId: String(row.user_id),
       name: String(row.name),
       jewelleryType: String(row.jewellery_type),

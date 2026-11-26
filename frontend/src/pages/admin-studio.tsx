@@ -114,6 +114,7 @@ interface MaterialVariant {
 
 interface StudioMaterial {
   _id: string;
+  id?: string;
   name: string;
   code: string;
   description?: string;
@@ -839,7 +840,7 @@ export default function AdminStudio() {
     if (!deletingMaterial) return;
     try {
       setMaterialConflictMsg(null);
-      await deleteStudioMaterial(deletingMaterial._id);
+      await deleteStudioMaterial(deletingMaterial._id || (deletingMaterial as any).id);
       toast({ title: "Material Deleted", description: `Deleted material ${deletingMaterial.name}.` });
       setDeletingMaterial(null);
       fetchMaterials();
@@ -871,7 +872,7 @@ export default function AdminStudio() {
       };
 
       if (editingMaterial) {
-        const res = await apiRequest("PATCH", `/api/v1/studio/admin/materials/${editingMaterial._id}`, {
+        const res = await apiRequest("PATCH", `/api/v1/studio/admin/materials/${editingMaterial._id || (editingMaterial as any).id}`, {
           ...payload,
           syncVariantSkus,
         });
@@ -927,10 +928,12 @@ export default function AdminStudio() {
         isActive: variantForm.isActive,
       };
 
+      const materialId = selectedMaterialForVariant._id || (selectedMaterialForVariant as any).id;
+
       if (editingVariantSku) {
         const res = await apiRequest(
           "PATCH",
-          `/api/v1/studio/admin/materials/${selectedMaterialForVariant._id}/variants/${encodeURIComponent(editingVariantSku)}`,
+          `/api/v1/studio/admin/materials/${materialId}/variants/${encodeURIComponent(editingVariantSku)}`,
           payload
         );
         if (!res.ok) {
@@ -941,7 +944,7 @@ export default function AdminStudio() {
       } else {
         const res = await apiRequest(
           "POST",
-          `/api/v1/studio/admin/materials/${selectedMaterialForVariant._id}/variants`,
+          `/api/v1/studio/admin/materials/${materialId}/variants`,
           payload
         );
         if (!res.ok) {
@@ -1571,7 +1574,7 @@ export default function AdminStudio() {
               <div className="space-y-4">
                 {filteredMaterials.map((mat) => (
                   <Card
-                    key={mat._id}
+                    key={mat._id || (mat as any).id}
                     className="rounded-2xl border border-[#E6D8D0] dark:border-border bg-white dark:bg-card overflow-hidden shadow-xs"
                   >
                     <div className="p-5 flex flex-col md:flex-row md:items-start justify-between gap-4 border-b border-[#E6D8D0]/60 dark:border-border/60">
@@ -1650,7 +1653,7 @@ export default function AdminStudio() {
                           onClick={async () => {
                             try {
                               const newStatus = !mat.isActive;
-                              const res = await apiRequest("PATCH", `/api/v1/studio/admin/materials/${mat._id}`, {
+                              const res = await apiRequest("PATCH", `/api/v1/studio/admin/materials/${mat._id || (mat as any).id}`, {
                                 isActive: newStatus,
                               });
                               if (!res.ok) throw new Error("Failed to update status");
@@ -1869,7 +1872,7 @@ export default function AdminStudio() {
                                         <Button
                                           size="sm"
                                           variant="ghost"
-                                          onClick={() => setDisablingVariant({ materialId: mat._id, sku: v.sku })}
+                                          onClick={() => setDisablingVariant({ materialId: mat._id || (mat as any).id, sku: v.sku })}
                                           className="h-7 px-2 text-xs text-stone-500 hover:text-amber-700 hover:bg-amber-50"
                                           title="Deactivate variant"
                                         >
@@ -1884,7 +1887,7 @@ export default function AdminStudio() {
                                             try {
                                               const res = await apiRequest(
                                                 "PATCH",
-                                                `/api/v1/studio/admin/materials/${mat._id}/variants/${encodeURIComponent(v.sku)}`,
+                                                `/api/v1/studio/admin/materials/${mat._id || (mat as any).id}/variants/${encodeURIComponent(v.sku)}`,
                                                 { isActive: true }
                                               );
                                               if (!res.ok) throw new Error("Activation failed");
@@ -1914,7 +1917,7 @@ export default function AdminStudio() {
                                         variant="ghost"
                                         onClick={() =>
                                           setDeletingVariant({
-                                            materialId: mat._id,
+                                            materialId: mat._id || (mat as any).id,
                                             materialName: mat.name,
                                             sku: v.sku,
                                             variantId: (v as any)._id,
@@ -2667,7 +2670,7 @@ export default function AdminStudio() {
             ) : (
               <div className="space-y-4">
                 {reservations.map((res: any) => (
-                  <Card key={res._id} className="p-5 rounded-2xl border border-[#E6D8D0] dark:border-border bg-white dark:bg-card shadow-xs">
+                  <Card key={res._id || res.id} className="p-5 rounded-2xl border border-[#E6D8D0] dark:border-border bg-white dark:bg-card shadow-xs">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-[#E6D8D0]/60">
                       <div>
                         <div className="flex items-center gap-2">
@@ -2701,7 +2704,7 @@ export default function AdminStudio() {
                         <div className="flex items-center gap-2">
                           <Button
                             size="sm"
-                            onClick={() => handleReconcile(res._id, "force_commit")}
+                            onClick={() => handleReconcile(res._id || res.id, "force_commit")}
                             className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-7 px-3 rounded-lg"
                           >
                             Force Commit
@@ -2709,7 +2712,7 @@ export default function AdminStudio() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => handleReconcile(res._id, "refund_and_release")}
+                            onClick={() => handleReconcile(res._id || res.id, "refund_and_release")}
                             className="text-red-600 border-red-200 hover:bg-red-50 text-xs h-7 px-3 rounded-lg"
                           >
                             Refund & Release
@@ -3984,7 +3987,7 @@ export default function AdminStudio() {
                   onClick={async () => {
                     if (deletingMaterial) {
                       try {
-                        await apiRequest("PATCH", `/api/v1/studio/admin/materials/${deletingMaterial._id}`, {
+                        await apiRequest("PATCH", `/api/v1/studio/admin/materials/${deletingMaterial._id || (deletingMaterial as any).id}`, {
                           isActive: false,
                         });
                         toast({ title: "Material Deactivated", description: `${deletingMaterial.name} is now inactive.` });

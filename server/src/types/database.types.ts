@@ -950,6 +950,7 @@ export interface IProductRatingSummary {
 
 export interface IComponentTypeRecord {
   id: string;
+  _id?: string;
   typeId: string;
   displayName: string;
   description?: string | null;
@@ -977,6 +978,7 @@ export interface IUpdateComponentTypeData {
 
 export interface IJewelleryTypeRecord {
   id: string;
+  _id?: string;
   slug: string;
   displayName: string;
   description?: string | null;
@@ -1022,6 +1024,7 @@ export interface IUpdateJewelleryTypeData {
 
 export interface IStudioMaterialVariantRecord {
   id: string;
+  _id?: string;
   materialId: string;
   sku: string;
   color?: string | null;
@@ -1108,6 +1111,7 @@ export interface IUpdateStudioMaterialVariantData {
 
 export interface IStudioMaterialRecord {
   id: string;
+  _id?: string;
   name: string;
   code: string;
   description?: string | null;
@@ -1159,6 +1163,7 @@ export interface IUpdateStudioMaterialData {
 
 export interface ICustomizationConfigRecord {
   id: string;
+  _id?: string;
   name: string;
   productType: string;
   categoryId?: string | null;
@@ -1193,6 +1198,7 @@ export interface IUpdateCustomizationConfigData {
 
 export interface IMakingChargeRecord {
   id: string;
+  _id?: string;
   jewelleryType: string;
   constructionType: string;
   baseFee: number;
@@ -1223,6 +1229,7 @@ export interface IUpsertMakingChargeData {
 
 export interface IDesignRuleRecord {
   id: string;
+  _id?: string;
   jewelleryType: string;
   constructionType: string;
   minWristMm: number;
@@ -1259,6 +1266,7 @@ export interface IUpsertDesignRuleData {
 
 export interface IDesignTemplateRecord {
   id: string;
+  _id?: string;
   slug: string;
   name: string;
   description?: string | null;
@@ -1304,6 +1312,7 @@ export interface IUpdateDesignTemplateData {
 
 export interface ISavedDesignRecord {
   id: string;
+  _id?: string;
   userId: string;
   name: string;
   jewelleryType: string;
@@ -1344,6 +1353,7 @@ export interface IUpdateSavedDesignData {
 
 export interface IStudioReservationItemRecord {
   id: string;
+  _id?: string;
   reservationId: string;
   materialId?: string | null;
   materialName: string;
@@ -1360,6 +1370,7 @@ export type StudioReservationStatusType =
 
 export interface IStudioReservationRecord {
   id: string;
+  _id?: string;
   orderId: string;
   orderNumber: string;
   userId: string;

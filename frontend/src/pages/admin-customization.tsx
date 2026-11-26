@@ -450,7 +450,7 @@ function FieldForm({
       for (const v of mat.variants || []) {
         if (v.isActive) {
           list.push({
-            materialId: mat._id,
+            materialId: mat._id || (mat as any).id,
             materialName: mat.name,
             imageUrl: mat.imageUrl,
             sku: v.sku,

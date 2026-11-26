@@ -211,7 +211,9 @@ export default function OrderDetails() {
           <h1 className="font-playfair text-2xl font-semibold text-[#342824] dark:text-foreground mb-2">Order Not Found</h1>
           <p className="text-xs sm:text-sm text-[#756861] dark:text-muted-foreground mb-6">We could not locate this order in your account.</p>
           <Button asChild className="bg-[#B66F72] hover:bg-[#95565A] text-white rounded-xl">
-            <Link to="/orders">Return to Orders</Link>
+            <Link to={user?.role === 'admin' ? '/admin/orders' : '/orders'}>
+              {user?.role === 'admin' ? 'Return to Admin Orders' : 'Return to Orders'}
+            </Link>
           </Button>
         </main>
         <Footer />
@@ -237,10 +239,10 @@ export default function OrderDetails() {
         {/* Navigation Breadcrumb */}
         <div className="mb-6">
           <Link 
-            to="/orders" 
+            to={user?.role === 'admin' ? '/admin/orders' : '/orders'} 
             className="inline-flex items-center text-xs font-medium text-[#756861] dark:text-muted-foreground hover:text-[#B66F72] dark:hover:text-primary transition-colors mb-3"
           >
-            <ArrowLeft className="w-3.5 h-3.5 mr-1" /> Back to My Orders
+            <ArrowLeft className="w-3.5 h-3.5 mr-1" /> {user?.role === 'admin' ? 'Back to Admin Orders' : 'Back to My Orders'}
           </Link>
           <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-3 border-b border-[#E6D8D0] dark:border-border/60 pb-4">
             <div>

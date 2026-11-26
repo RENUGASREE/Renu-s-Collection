@@ -100,12 +100,13 @@ router.get(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const userId = req.user?.id;
+      const isAdmin = req.user?.role === "admin";
       if (!userId) {
         return res.status(401).json({ success: false, error: "User not authenticated" });
       }
 
       const { orderId } = req.params;
-      const order = await getOrderById(userId, orderId);
+      const order = await getOrderById(userId, orderId, isAdmin);
       return res.json({ success: true, data: order });
     } catch (error) {
       next(error);

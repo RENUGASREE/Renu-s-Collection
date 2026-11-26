@@ -71,7 +71,7 @@ export default function AdminInventory() {
   const handleAdjustStock = async () => {
     if (!adjustingProduct) return;
     try {
-      const response = await apiRequest('POST', `/api/v1/products/${adjustingProduct._id}/adjust-stock`, {
+      const response = await apiRequest('POST', `/api/v1/products/${adjustingProduct._id || (adjustingProduct as any).id}/adjust-stock`, {
         quantityChange: Number(adjustment.quantityChange),
         action: adjustment.action,
         reason: adjustment.reason,

@@ -779,10 +779,10 @@ export async function listUserOrders(userId: string): Promise<IOrderRecord[]> {
   return getOrderRepo().findByUserId(userId);
 }
 
-export async function getOrderById(userId: string, orderId: string): Promise<IOrderRecord> {
+export async function getOrderById(userId: string, orderId: string, isAdmin = false): Promise<IOrderRecord> {
   if (!isValidEntityId(orderId)) throw new AppError("Invalid order id", 400);
   const order = await getOrderRepo().findById(orderId);
-  if (!order || order.userId !== userId) throw new AppError("Order not found", 404);
+  if (!order || (!isAdmin && order.userId !== userId)) throw new AppError("Order not found", 404);
   return order;
 }
 
