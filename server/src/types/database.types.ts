@@ -1084,6 +1084,7 @@ export interface ICreateStudioMaterialVariantData {
 }
 
 export interface IUpdateStudioMaterialVariantData {
+  sku?: string;
   color?: string | null;
   finish?: string | null;
   sizeLabel?: string;
@@ -1159,6 +1160,7 @@ export interface IUpdateStudioMaterialData {
   visibilityScopes?: string[];
   isActive?: boolean;
   sortOrder?: number;
+  syncVariantSkus?: boolean;
 }
 
 export interface ICustomizationConfigRecord {

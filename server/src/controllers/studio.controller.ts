@@ -609,14 +609,24 @@ export async function updateVariant(
 ): Promise<void> {
   try {
     const { sku } = req.params;
-    const updated = await studioRepo.updateVariant(sku, req.body);
+    const oldSku = sku.trim().toUpperCase();
+    const newSku = req.body.sku ? String(req.body.sku).trim().toUpperCase() : undefined;
+
+    if (newSku && newSku !== oldSku) {
+      const existing = await studioRepo.findVariantBySku(newSku);
+      if (existing) {
+        throw new AppError(`Variant with SKU "${newSku}" already exists`, 409);
+      }
+    }
+
+    const updated = await studioRepo.updateVariant(oldSku, req.body);
     if (!updated) {
-      throw new AppError(`Variant with SKU "${sku}" not found`, 404);
+      throw new AppError(`Variant with SKU "${oldSku}" not found`, 404);
     }
     res.json({
       success: true,
       data: updated,
-      message: `Variant "${sku}" updated successfully`,
+      message: `Variant "${newSku || oldSku}" updated successfully`,
     });
   } catch (error) {
     next(error);

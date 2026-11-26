@@ -844,6 +844,14 @@ export class PostgresStudioRepository {
   ): Promise<IStudioMaterialRecord | null> {
     assertValidEntityId(id, "materialId");
     const executor = this.getExecutor(client);
+
+    // If code is being changed and syncVariantSkus is true, fetch old code
+    let oldCode: string | null = null;
+    if (data.code && data.syncVariantSkus) {
+      const current = await this.findMaterialById(id, client);
+      if (current) oldCode = current.code.trim().toUpperCase();
+    }
+
     const setClauses: string[] = [];
     const params: any[] = [];
     let pIdx = 1;
@@ -916,6 +924,17 @@ export class PostgresStudioRepository {
     const result = await executor.query(sql, params);
     if (result.rows.length === 0) return null;
 
+    if (oldCode && data.code && data.syncVariantSkus) {
+      const newCode = data.code.trim().toUpperCase();
+      if (newCode !== oldCode) {
+        await executor.query(`
+          UPDATE studio_material_variants
+          SET sku = $1 || SUBSTRING(sku FROM $2), updated_at = NOW()
+          WHERE material_id = $3 AND UPPER(sku) LIKE UPPER($4)
+        `, [newCode, oldCode.length + 1, id, `${oldCode}-%`]).catch(() => {});
+      }
+    }
+
     return this.findMaterialById(id, client);
   }
 
@@ -980,10 +999,15 @@ export class PostgresStudioRepository {
     client?: IDbClient
   ): Promise<IStudioMaterialVariantRecord | null> {
     const executor = this.getExecutor(client);
+    const oldSku = sku.trim().toUpperCase();
     const setClauses: string[] = [];
     const params: any[] = [];
     let pIdx = 1;
 
+    if (data.sku !== undefined && data.sku.trim()) {
+      setClauses.push(`sku = $${pIdx++}`);
+      params.push(data.sku.trim().toUpperCase());
+    }
     if (data.color !== undefined) {
       setClauses.push(`color = $${pIdx++}`);
       params.push(data.color);
@@ -1064,6 +1088,17 @@ export class PostgresStudioRepository {
     `;
     const result = await executor.query(sql, params);
     if (result.rows.length === 0) return null;
+
+    if (data.sku !== undefined && data.sku.trim()) {
+      const newSku = data.sku.trim().toUpperCase();
+      if (newSku !== oldSku) {
+        await executor.query(
+          `UPDATE studio_reservation_items SET sku = $1 WHERE UPPER(sku) = $2`,
+          [newSku, oldSku]
+        ).catch(() => {});
+      }
+    }
+
     return this.mapRowToVariant(result.rows[0]);
   }
 

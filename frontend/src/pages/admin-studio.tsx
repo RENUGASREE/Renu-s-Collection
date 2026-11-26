@@ -314,13 +314,13 @@ export default function AdminStudio() {
 
   useEffect(() => {
     fetchJewelleryTypes(showArchivedTypes);
-    fetchMaterials();
+    fetchMaterials(true);
     fetchComponentTypes();
   }, [showArchivedTypes]);
 
   useEffect(() => {
     if (activeTab === "materials") {
-      fetchMaterials();
+      fetchMaterials(materials.length === 0);
       fetchComponentTypes();
     } else if (activeTab === "types") {
       fetchJewelleryTypes(showArchivedTypes);
@@ -382,16 +382,24 @@ export default function AdminStudio() {
     }
   };
 
-  const fetchMaterials = async () => {
+  const fetchMaterials = async (showSpinner = false) => {
+    const savedScrollY = typeof window !== "undefined" ? window.scrollY : 0;
     try {
-      setLoadingMaterials(true);
+      if (showSpinner) setLoadingMaterials(true);
       const res = await apiRequest("GET", "/api/v1/studio/admin/materials?limit=100");
       const json = await res.json();
-      if (json.success) setMaterials(json.data);
+      if (json.success) {
+        setMaterials(json.data);
+        if (savedScrollY > 0) {
+          requestAnimationFrame(() => {
+            window.scrollTo({ top: savedScrollY, behavior: "instant" });
+          });
+        }
+      }
     } catch (err: any) {
       toast({ title: "Failed to load materials", description: err.message, variant: "destructive" });
     } finally {
-      setLoadingMaterials(false);
+      if (showSpinner) setLoadingMaterials(false);
     }
   };
 
@@ -843,7 +851,7 @@ export default function AdminStudio() {
       await deleteStudioMaterial(deletingMaterial._id || (deletingMaterial as any).id);
       toast({ title: "Material Deleted", description: `Deleted material ${deletingMaterial.name}.` });
       setDeletingMaterial(null);
-      fetchMaterials();
+      fetchMaterials(false);
     } catch (err: any) {
       setMaterialConflictMsg(
         err.message ||
@@ -890,9 +898,13 @@ export default function AdminStudio() {
         toast({ title: "Material Created", description: `Created new material ${materialForm.name}.` });
       }
 
+      const scrollPos = typeof window !== "undefined" ? window.scrollY : 0;
       setShowMaterialModal(false);
       setEditingMaterial(null);
-      fetchMaterials();
+      await fetchMaterials(false);
+      if (scrollPos > 0) {
+        requestAnimationFrame(() => window.scrollTo({ top: scrollPos, behavior: "instant" }));
+      }
     } catch (err: any) {
       toast({ title: "Save Failed", description: err.message, variant: "destructive" });
     }
@@ -954,9 +966,13 @@ export default function AdminStudio() {
         toast({ title: "Variant Added", description: `Added variant SKU ${variantForm.sku}.` });
       }
 
+      const scrollPos = typeof window !== "undefined" ? window.scrollY : 0;
       setShowVariantModal(false);
       setEditingVariantSku(null);
-      fetchMaterials();
+      await fetchMaterials(false);
+      if (scrollPos > 0) {
+        requestAnimationFrame(() => window.scrollTo({ top: scrollPos, behavior: "instant" }));
+      }
     } catch (err: any) {
       toast({ title: "Variant Save Failed", description: err.message, variant: "destructive" });
     }
@@ -976,7 +992,7 @@ export default function AdminStudio() {
       }
       toast({ title: "Variant Deactivated", description: `SKU ${disablingVariant.sku} is now inactive.` });
       setDisablingVariant(null);
-      fetchMaterials();
+      fetchMaterials(false);
     } catch (err: any) {
       toast({ title: "Failed to Deactivate", description: err.message, variant: "destructive" });
     }
@@ -992,7 +1008,7 @@ export default function AdminStudio() {
       );
       toast({ title: "Variant Deleted", description: `SKU ${deletingVariant.sku} was permanently removed.` });
       setDeletingVariant(null);
-      fetchMaterials();
+      fetchMaterials(false);
     } catch (err: any) {
       const errMsg = err?.message || "";
       const is409 = errMsg.includes("409") || err?.status === 409;
@@ -1661,7 +1677,7 @@ export default function AdminStudio() {
                                 title: newStatus ? "Material Activated" : "Material Deactivated",
                                 description: `${mat.name} is now ${newStatus ? "active" : "inactive"}.`,
                               });
-                              fetchMaterials();
+                              fetchMaterials(false);
                             } catch (err: any) {
                               toast({ title: "Update Failed", description: err.message, variant: "destructive" });
                             }
@@ -1895,7 +1911,7 @@ export default function AdminStudio() {
                                                 title: "Variant Activated",
                                                 description: `SKU ${v.sku} is now active.`,
                                               });
-                                              fetchMaterials();
+                                              fetchMaterials(false);
                                             } catch (err: any) {
                                               toast({
                                                 title: "Activation Failed",
@@ -3991,7 +4007,7 @@ export default function AdminStudio() {
                           isActive: false,
                         });
                         toast({ title: "Material Deactivated", description: `${deletingMaterial.name} is now inactive.` });
-                        fetchMaterials();
+                        fetchMaterials(false);
                       } catch (err: any) {
                         toast({ title: "Deactivate Failed", description: err.message, variant: "destructive" });
                       }
