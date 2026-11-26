@@ -13,7 +13,6 @@ import { SEO } from "@/components/SEO";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import AdminNav from "@/components/AdminNav";
-import ProductImage from "@/components/ProductImage";
 import {
   ArrowLeft,
   Package,
@@ -804,13 +803,13 @@ export default function AdminProductForm() {
                       }`}
                     >
                       <div className="relative aspect-square w-full rounded-lg overflow-hidden bg-[#F1E6DF]/30 dark:bg-muted/30 border border-[#E6D8D0] dark:border-border">
-                        <ProductImage
-                          src={item.url}
+                        <img
+                          src={getAssetUrl(item.url)}
                           alt={item.alt || `Product image ${index + 1}`}
-                          name={formData.name || `Product image ${index + 1}`}
-                          category={formData.signatureCategory || "Jewellery"}
-                          size="sm"
-                          className="w-full h-full"
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = getAssetUrl(null);
+                          }}
                         />
                         {item.isPrimary && (
                           <span className="absolute top-2 left-2 bg-[#B66F72] text-white text-[10px] font-semibold px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1">

@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import ImageUploadField from "@/components/ImageUploadField";
-import ProductImage from "@/components/ProductImage";
 import { SEO } from "@/components/SEO";
 import Footer from "@/components/footer";
 import AdminNav from "@/components/AdminNav";
@@ -1577,13 +1576,13 @@ export default function AdminStudio() {
                   >
                     <div className="p-5 flex flex-col md:flex-row md:items-start justify-between gap-4 border-b border-[#E6D8D0]/60 dark:border-border/60">
                       <div className="flex items-start gap-4">
-                        <ProductImage
-                          src={mat.imageUrl}
+                        <img
+                          src={getAssetUrl(mat.imageUrl)}
                           alt={mat.name}
-                          name={mat.name}
-                          category={mat.materialType}
-                          size="sm"
-                          className="w-16 h-16 rounded-xl border border-[#E6D8D0] dark:border-border shrink-0"
+                          className="w-16 h-16 rounded-xl object-cover border border-[#E6D8D0] dark:border-border shrink-0 bg-stone-50"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = "/placeholders/placeholder.png";
+                          }}
                         />
 
                         <div>

@@ -11,7 +11,6 @@ import { SEO } from "@/components/SEO";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import AdminNav from "@/components/AdminNav";
-import ProductImage from "@/components/ProductImage";
 import { 
   Package, 
   Search, 
@@ -342,18 +341,9 @@ export default function AdminOrders() {
                       {order.items.map((i, idx) => (
                         <div key={idx} className="space-y-1">
                           <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <ProductImage
-                                src={i.imageUrl}
-                                alt={i.name}
-                                name={i.name}
-                                size="sm"
-                                className="w-8 h-8 rounded shrink-0 border border-border/40"
-                              />
-                              <span className="truncate">
-                                {i.name} <strong className="text-[#342824] dark:text-foreground">× {i.quantity}</strong>
-                              </span>
-                            </div>
+                            <span className="truncate">
+                              {i.name} <strong className="text-[#342824] dark:text-foreground">× {i.quantity}</strong>
+                            </span>
                             <span className="shrink-0">₹{(i.subtotal || i.unitPrice * i.quantity).toLocaleString('en-IN')}</span>
                           </div>
                           {i.customization && (
