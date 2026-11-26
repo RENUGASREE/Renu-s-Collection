@@ -92,7 +92,7 @@ export const CustomizationControls: React.FC<CustomizationControlsProps> = ({
               onSelect();
             }
           }}
-          className={`group relative rounded-xl border transition-all cursor-pointer flex flex-col overflow-hidden select-none min-h-[44px] ${
+          className={`group relative rounded-lg border transition-all cursor-pointer flex flex-col overflow-hidden select-none min-h-[40px] ${
             isSelected
               ? 'border-[#B66F72] ring-2 ring-[#B66F72]/30 bg-[#B66F72]/5 dark:bg-primary/10 shadow-xs'
               : 'border-[#E6D8D0] dark:border-border hover:border-[#B66F72]/50 hover:bg-[#FBF7F3]/60 dark:hover:bg-muted/30 bg-white dark:bg-card'
@@ -110,7 +110,7 @@ export const CustomizationControls: React.FC<CustomizationControlsProps> = ({
             />
             {isMultiQuantity ? (
               <div
-                className="absolute top-1.5 right-1.5 flex items-center bg-[#B66F72] text-white rounded-lg shadow-md px-1 py-0.5 gap-1 text-xs z-10"
+                className="absolute top-1 right-1 flex items-center bg-[#B66F72] text-white rounded-md shadow-xs px-1 py-0.5 gap-0.5 text-[10px] z-10"
                 onClick={(e) => e.stopPropagation()}
               >
                 <button
@@ -123,9 +123,9 @@ export const CustomizationControls: React.FC<CustomizationControlsProps> = ({
                   }}
                   title="Remove one"
                 >
-                  <Minus className="w-3 h-3" />
+                  <Minus className="w-2.5 h-2.5" />
                 </button>
-                <span className="font-bold text-[11px] min-w-[14px] text-center">{count}</span>
+                <span className="font-bold text-[10px] min-w-[12px] text-center">{count}</span>
                 <button
                   type="button"
                   className="p-0.5 hover:bg-black/20 rounded-sm transition-colors"
@@ -136,27 +136,27 @@ export const CustomizationControls: React.FC<CustomizationControlsProps> = ({
                   }}
                   title="Add another"
                 >
-                  <Plus className="w-3 h-3" />
+                  <Plus className="w-2.5 h-2.5" />
                 </button>
               </div>
             ) : isSelected ? (
-              <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-[#B66F72] text-white flex items-center justify-center shadow-sm">
-                <Check className="w-3 h-3 stroke-[3]" />
+              <div className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-[#B66F72] text-white flex items-center justify-center shadow-xs">
+                <Check className="w-2.5 h-2.5 stroke-[3]" />
               </div>
             ) : null}
           </div>
 
           {/* Option Details */}
-          <div className="p-2.5 sm:p-3 text-center flex flex-col justify-between flex-1">
-            <p className="text-xs sm:text-sm font-medium text-[#342824] dark:text-foreground leading-snug break-words">
+          <div className="p-1.5 sm:p-2 text-center flex flex-col justify-between flex-1">
+            <p className="text-[11px] sm:text-xs font-medium text-[#342824] dark:text-foreground leading-tight line-clamp-2 break-words">
               {option.label}
             </p>
             {option.priceModifier !== undefined && option.priceModifier !== 0 && (
-              <span className="text-[11px] sm:text-xs font-semibold text-[#B66F72] dark:text-primary mt-1">
+              <span className="text-[10px] sm:text-[11px] font-semibold text-[#B66F72] dark:text-primary mt-0.5">
                 {count > 1 ? (
                   <>
                     +₹{((option.priceModifier || 0) * count).toLocaleString('en-IN')}{' '}
-                    <span className="text-[10px] text-muted-foreground font-normal">
+                    <span className="text-[9px] text-muted-foreground font-normal">
                       (₹{option.priceModifier} × {count})
                     </span>
                   </>
@@ -174,17 +174,17 @@ export const CustomizationControls: React.FC<CustomizationControlsProps> = ({
     return (
       <Card
         key={option.value}
-        className={`cursor-pointer transition-all border rounded-xl overflow-hidden min-h-[44px] flex flex-col justify-center select-none ${
+        className={`cursor-pointer transition-all border rounded-lg overflow-hidden min-h-[40px] flex flex-col justify-center select-none ${
           isSelected
             ? 'border-[#B66F72] ring-2 ring-[#B66F72]/30 bg-[#B66F72]/5 dark:bg-primary/10 shadow-xs'
             : 'border-[#E6D8D0] dark:border-border hover:border-[#B66F72]/50 hover:bg-[#FBF7F3]/60 dark:hover:bg-muted/30 bg-white dark:bg-card'
         }`}
         onClick={() => !disabled && onSelect()}
       >
-        <CardContent className="p-3 text-center flex flex-col items-center justify-center relative">
+        <CardContent className="p-2 sm:p-2.5 text-center flex flex-col items-center justify-center relative">
           {isMultiQuantity ? (
             <div
-              className="absolute top-1.5 right-1.5 flex items-center bg-[#B66F72] text-white rounded-lg shadow-md px-1 py-0.5 gap-1 text-xs z-10"
+              className="absolute top-1 right-1 flex items-center bg-[#B66F72] text-white rounded-md shadow-xs px-1 py-0.5 gap-0.5 text-[10px] z-10"
               onClick={(e) => e.stopPropagation()}
             >
               <button
@@ -196,9 +196,9 @@ export const CustomizationControls: React.FC<CustomizationControlsProps> = ({
                   onDecrement();
                 }}
               >
-                <Minus className="w-3 h-3" />
+                <Minus className="w-2.5 h-2.5" />
               </button>
-              <span className="font-bold text-[11px] min-w-[14px] text-center">{count}</span>
+              <span className="font-bold text-[10px] min-w-[12px] text-center">{count}</span>
               <button
                 type="button"
                 className="p-0.5 hover:bg-black/20 rounded-sm transition-colors"
@@ -208,21 +208,21 @@ export const CustomizationControls: React.FC<CustomizationControlsProps> = ({
                   onIncrement();
                 }}
               >
-                <Plus className="w-3 h-3" />
+                <Plus className="w-2.5 h-2.5" />
               </button>
             </div>
           ) : isSelected ? (
-            <div className="absolute top-2 right-2 w-4 h-4 rounded-full bg-[#B66F72] text-white flex items-center justify-center shadow-xs">
+            <div className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-[#B66F72] text-white flex items-center justify-center shadow-xs">
               <Check className="w-2.5 h-2.5 stroke-[3]" />
             </div>
           ) : null}
-          <p className="font-medium text-xs sm:text-sm text-[#342824] dark:text-foreground break-words max-w-full">
+          <p className="font-medium text-[11px] sm:text-xs text-[#342824] dark:text-foreground break-words max-w-full leading-tight line-clamp-2">
             {option.label}
           </p>
           {option.priceModifier !== undefined && option.priceModifier !== 0 && (
             <Badge
               variant="secondary"
-              className="mt-1 text-[10px] sm:text-xs font-semibold text-[#B66F72] dark:text-primary bg-[#F1E6DF]/70 dark:bg-muted border border-[#E6D8D0]/60 dark:border-border"
+              className="mt-0.5 text-[9px] sm:text-[10px] font-semibold text-[#B66F72] dark:text-primary bg-[#F1E6DF]/70 dark:bg-muted border border-[#E6D8D0]/60 dark:border-border px-1.5 py-0"
             >
               {count > 1
                 ? `+₹${((option.priceModifier || 0) * count).toLocaleString('en-IN')} (×${count})`
@@ -258,10 +258,10 @@ export const CustomizationControls: React.FC<CustomizationControlsProps> = ({
         </div>
 
         <div
-          className={`grid gap-3 ${
+          className={`grid gap-2 sm:gap-2.5 ${
             hasAnyImages
-              ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4'
-              : 'grid-cols-2 sm:grid-cols-3'
+              ? 'grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6'
+              : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4'
           }`}
         >
           {field.options?.map((option) => {
@@ -298,10 +298,10 @@ export const CustomizationControls: React.FC<CustomizationControlsProps> = ({
         </div>
 
         <div
-          className={`grid gap-3 ${
+          className={`grid gap-2 sm:gap-2.5 ${
             hasAnyImages
-              ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4'
-              : 'grid-cols-2 sm:grid-cols-3'
+              ? 'grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6'
+              : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4'
           }`}
         >
           {field.options?.map((option) => {
@@ -371,7 +371,7 @@ export const CustomizationControls: React.FC<CustomizationControlsProps> = ({
             )}
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 sm:gap-2.5">
             {field.options?.map((option) => {
               const isSelected = value === option.value || value === option.label;
               return renderOptionCard(field, option, isSelected, () => onChange(field.key, option.value));

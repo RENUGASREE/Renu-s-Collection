@@ -927,11 +927,28 @@ export class PostgresStudioRepository {
     if (oldCode && data.code && data.syncVariantSkus) {
       const newCode = data.code.trim().toUpperCase();
       if (newCode !== oldCode) {
+        const variantsToSync = await executor.query(
+          `SELECT sku FROM studio_material_variants WHERE material_id = $1 AND UPPER(sku) LIKE UPPER($2)`,
+          [id, `${oldCode}-%`]
+        ).catch(() => ({ rows: [] }));
+
         await executor.query(`
           UPDATE studio_material_variants
           SET sku = $1 || SUBSTRING(sku FROM $2), updated_at = NOW()
           WHERE material_id = $3 AND UPPER(sku) LIKE UPPER($4)
         `, [newCode, oldCode.length + 1, id, `${oldCode}-%`]).catch(() => {});
+
+        for (const row of variantsToSync.rows) {
+          const prevSku = String(row.sku).toUpperCase();
+          const syncedSku = `${newCode}${prevSku.substring(oldCode.length)}`;
+          if (prevSku !== syncedSku) {
+            await executor.query(
+              `UPDATE studio_reservation_items SET sku = $1 WHERE UPPER(sku) = $2`,
+              [syncedSku, prevSku]
+            ).catch(() => {});
+            await this.cascadeSkuUpdate(prevSku, syncedSku, client);
+          }
+        }
       }
     }
 
@@ -1096,10 +1113,216 @@ export class PostgresStudioRepository {
           `UPDATE studio_reservation_items SET sku = $1 WHERE UPPER(sku) = $2`,
           [newSku, oldSku]
         ).catch(() => {});
+        await this.cascadeSkuUpdate(oldSku, newSku, client);
       }
     }
 
     return this.mapRowToVariant(result.rows[0]);
+  }
+
+  /**
+   * Automatically cascades a variant SKU rename across categories, customization_configs,
+   * design_templates, and saved_designs so customization options never break when a SKU is changed.
+   */
+  public async cascadeSkuUpdate(oldSku: string, newSku: string, client?: IDbClient): Promise<void> {
+    const executor = this.getExecutor(client);
+    const upperOldSku = oldSku.trim().toUpperCase();
+    const upperNewSku = newSku.trim().toUpperCase();
+    if (!upperOldSku || !upperNewSku || upperOldSku === upperNewSku) return;
+
+    try {
+      // 1. Update categories.customization_fields
+      const categoriesRes = await executor.query(
+        `SELECT id, customization_fields FROM categories WHERE customization_fields IS NOT NULL;`
+      ).catch(() => ({ rows: [] }));
+
+      for (const cat of categoriesRes.rows) {
+        let fields = cat.customization_fields;
+        if (typeof fields === "string") {
+          try {
+            fields = JSON.parse(fields);
+          } catch {
+            continue;
+          }
+        }
+        if (!Array.isArray(fields)) continue;
+
+        let changed = false;
+        for (const field of fields) {
+          if (Array.isArray(field.options)) {
+            for (const opt of field.options) {
+              if (opt.variantSku && String(opt.variantSku).trim().toUpperCase() === upperOldSku) {
+                opt.variantSku = upperNewSku;
+                changed = true;
+              }
+              if (opt.value && String(opt.value).trim().toUpperCase() === upperOldSku) {
+                opt.value = upperNewSku;
+                changed = true;
+              }
+            }
+          }
+        }
+
+        if (changed) {
+          await executor.query(
+            `UPDATE categories SET customization_fields = $1::jsonb, updated_at = NOW() WHERE id = $2;`,
+            [JSON.stringify(fields), cat.id]
+          ).catch((e) => {
+            console.error(`[cascadeSkuUpdate] Failed to update category ${cat.id}:`, e);
+          });
+        }
+      }
+
+      // 2. Update customization_configs.fields
+      const configsRes = await executor.query(
+        `SELECT id, fields FROM customization_configs WHERE fields IS NOT NULL;`
+      ).catch(() => ({ rows: [] }));
+
+      for (const conf of configsRes.rows) {
+        let fields = conf.fields;
+        if (typeof fields === "string") {
+          try {
+            fields = JSON.parse(fields);
+          } catch {
+            continue;
+          }
+        }
+        if (!Array.isArray(fields)) continue;
+
+        let changed = false;
+        for (const field of fields) {
+          if (Array.isArray(field.options)) {
+            for (const opt of field.options) {
+              if (opt.variantSku && String(opt.variantSku).trim().toUpperCase() === upperOldSku) {
+                opt.variantSku = upperNewSku;
+                changed = true;
+              }
+              if (opt.value && String(opt.value).trim().toUpperCase() === upperOldSku) {
+                opt.value = upperNewSku;
+                changed = true;
+              }
+            }
+          }
+        }
+
+        if (changed) {
+          await executor.query(
+            `UPDATE customization_configs SET fields = $1::jsonb, updated_at = NOW() WHERE id = $2;`,
+            [JSON.stringify(fields), conf.id]
+          ).catch((e) => {
+            console.error(`[cascadeSkuUpdate] Failed to update customization_config ${conf.id}:`, e);
+          });
+        }
+      }
+
+      // 3. Update design_templates.bead_sequence & charms
+      const templatesRes = await executor.query(
+        `SELECT id, bead_sequence, charms FROM design_templates WHERE bead_sequence IS NOT NULL OR charms IS NOT NULL;`
+      ).catch(() => ({ rows: [] }));
+
+      for (const tpl of templatesRes.rows) {
+        let beadSequence = tpl.bead_sequence;
+        if (typeof beadSequence === "string") {
+          try {
+            beadSequence = JSON.parse(beadSequence);
+          } catch {
+            beadSequence = [];
+          }
+        }
+        let charms = tpl.charms;
+        if (typeof charms === "string") {
+          try {
+            charms = JSON.parse(charms);
+          } catch {
+            charms = [];
+          }
+        }
+
+        let changed = false;
+        if (Array.isArray(beadSequence)) {
+          for (const b of beadSequence) {
+            if (b.variantSku && String(b.variantSku).trim().toUpperCase() === upperOldSku) {
+              b.variantSku = upperNewSku;
+              changed = true;
+            }
+          }
+        }
+        if (Array.isArray(charms)) {
+          for (const c of charms) {
+            if (c.variantSku && String(c.variantSku).trim().toUpperCase() === upperOldSku) {
+              c.variantSku = upperNewSku;
+              changed = true;
+            }
+            if (c.anchorVariantSku && String(c.anchorVariantSku).trim().toUpperCase() === upperOldSku) {
+              c.anchorVariantSku = upperNewSku;
+              changed = true;
+            }
+          }
+        }
+
+        if (changed) {
+          await executor.query(
+            `UPDATE design_templates SET bead_sequence = $1::jsonb, charms = $2::jsonb, updated_at = NOW() WHERE id = $3;`,
+            [JSON.stringify(beadSequence), JSON.stringify(charms), tpl.id]
+          ).catch((e) => {
+            console.error(`[cascadeSkuUpdate] Failed to update design_template ${tpl.id}:`, e);
+          });
+        }
+      }
+
+      // 4. Update saved_designs.bead_sequence & charms
+      const savedRes = await executor.query(
+        `SELECT id, bead_sequence, charms FROM saved_designs WHERE bead_sequence IS NOT NULL OR charms IS NOT NULL;`
+      ).catch(() => ({ rows: [] }));
+
+      for (const sd of savedRes.rows) {
+        let beadSequence = sd.bead_sequence;
+        if (typeof beadSequence === "string") {
+          try {
+            beadSequence = JSON.parse(beadSequence);
+          } catch {
+            beadSequence = [];
+          }
+        }
+        let charms = sd.charms;
+        if (typeof charms === "string") {
+          try {
+            charms = JSON.parse(charms);
+          } catch {
+            charms = [];
+          }
+        }
+
+        let changed = false;
+        if (Array.isArray(beadSequence)) {
+          for (const b of beadSequence) {
+            if (b.variantSku && String(b.variantSku).trim().toUpperCase() === upperOldSku) {
+              b.variantSku = upperNewSku;
+              changed = true;
+            }
+          }
+        }
+        if (Array.isArray(charms)) {
+          for (const c of charms) {
+            if (c.variantSku && String(c.variantSku).trim().toUpperCase() === upperOldSku) {
+              c.variantSku = upperNewSku;
+              changed = true;
+            }
+          }
+        }
+
+        if (changed) {
+          await executor.query(
+            `UPDATE saved_designs SET bead_sequence = $1::jsonb, charms = $2::jsonb, updated_at = NOW() WHERE id = $3;`,
+            [JSON.stringify(beadSequence), JSON.stringify(charms), sd.id]
+          ).catch((e) => {
+            console.error(`[cascadeSkuUpdate] Failed to update saved_design ${sd.id}:`, e);
+          });
+        }
+      }
+    } catch (err) {
+      console.error("[PostgresStudioRepository] Error cascading SKU update:", err);
+    }
   }
 
   public async deleteVariant(sku: string, client?: IDbClient): Promise<boolean> {
