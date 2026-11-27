@@ -27,7 +27,7 @@ export const BrandedImagePlaceholder: React.FC<BrandedImagePlaceholderProps> = (
   if (size === "sm") {
     return (
       <div
-        className={`relative w-full h-full min-h-[48px] ${aspectRatio} flex flex-col items-center justify-center p-1.5 text-center bg-[#FAF9F6] dark:bg-[#1A1615] border border-[#B76E79]/30 rounded-md select-none overflow-hidden ${className}`}
+        className={`relative w-full h-full ${aspectRatio} flex flex-col items-center justify-center p-1 text-center bg-[#FAF9F6] dark:bg-[#1A1615] border border-[#B76E79]/30 rounded-md select-none overflow-hidden ${className}`}
         title={cleanName}
         data-testid="branded-placeholder-sm"
       >

@@ -231,6 +231,7 @@ function CharmElement({
   const charmCx = anchorPos.cx + (anchorPos.rpx + CHARM_DROP_PX + charmRpx) * dropDir.x;
   const charmCy = anchorPos.cy + (anchorPos.rpx + CHARM_DROP_PX + charmRpx) * dropDir.y;
   const clipId = `charm-clip-${charm.instanceId}`;
+  const charmImageSrc = charm.renderAssetUrl || charm.imageUrl;
 
   return (
     <g>
@@ -243,7 +244,7 @@ function CharmElement({
         strokeWidth="1.5"
         strokeDasharray="2 1"
       />
-      {charm.renderAssetUrl ? (
+      {charmImageSrc ? (
         <>
           <defs>
             <clipPath id={clipId}>
@@ -251,7 +252,7 @@ function CharmElement({
             </clipPath>
           </defs>
           <image
-            href={getAssetUrl(charm.renderAssetUrl)}
+            href={getAssetUrl(charmImageSrc)}
             x={charmCx - charmRpx}
             y={charmCy - charmRpx}
             width={charmRpx * 2}
@@ -393,6 +394,8 @@ export default function BraceletCanvas({
               const isSel = bead.instanceId === selectedInstanceId;
               const resolvedSrc = bead.renderAssetUrl
                 ? getAssetUrl(bead.renderAssetUrl)
+                : bead.imageUrl
+                ? getAssetUrl(bead.imageUrl)
                 : null;
 
               return (

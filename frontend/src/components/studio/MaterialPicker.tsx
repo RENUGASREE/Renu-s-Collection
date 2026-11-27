@@ -142,14 +142,16 @@ function MaterialCard({
         className="w-full flex items-center gap-3 p-3 hover:bg-[#FBF7F3]/60 dark:hover:bg-muted/30 transition-colors text-left"
         onClick={() => setExpanded((e) => !e)}
       >
-        <ProductImage
-          src={material.imageUrl}
-          alt={material.name}
-          name={material.name}
-          category={material.materialType}
-          size="sm"
-          className="w-10 h-10 rounded-lg shrink-0 border border-[#E6D8D0]"
-        />
+        <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 border border-[#E6D8D0] bg-stone-50 flex items-center justify-center">
+          <ProductImage
+            src={material.imageUrl}
+            alt={material.name}
+            name={material.name}
+            category={material.materialType}
+            size="sm"
+            className="w-full h-full"
+          />
+        </div>
         <div className="flex-1 min-w-0">
           <div className="font-medium text-xs text-[#342824] dark:text-foreground truncate">
             {material.name}

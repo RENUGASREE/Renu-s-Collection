@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { getAssetUrl } from "@/lib/queryClient";
+import { cn } from "@/lib/utils";
 import BrandedImagePlaceholder from "./BrandedImagePlaceholder";
 
 export interface ProductImageProps {
@@ -41,10 +42,21 @@ export const ProductImage: React.FC<ProductImageProps> = ({
     setIsLoaded(false);
   }, [src]);
 
+  const hasCustomWidth = className && /\b(w-\d+|w-\[|size-)/.test(className);
+  const hasCustomAspect = className && /\baspect-/.test(className);
+
+  const containerClasses = cn(
+    "relative overflow-hidden",
+    !hasCustomWidth && "w-full",
+    !hasCustomAspect && aspectRatio,
+    "bg-secondary/20",
+    className
+  );
+
   // If no source is provided or image errored, render the branded placeholder
   if (!cleanSrc || hasError) {
     return (
-      <div className={`relative overflow-hidden w-full ${aspectRatio} ${className}`} onClick={onClick}>
+      <div className={containerClasses} onClick={onClick}>
         <BrandedImagePlaceholder
           name={displayName}
           category={category}
@@ -59,7 +71,7 @@ export const ProductImage: React.FC<ProductImageProps> = ({
 
   return (
     <div
-      className={`relative overflow-hidden w-full ${aspectRatio} bg-secondary/20 ${className}`}
+      className={containerClasses}
       onClick={onClick}
       data-testid={dataTestId}
     >
@@ -73,9 +85,11 @@ export const ProductImage: React.FC<ProductImageProps> = ({
             setHasError(true);
           }
         }}
-        className={`w-full h-full object-cover transition-all duration-500 ease-out ${
-          isLoaded ? "opacity-100 scale-100" : "opacity-0 scale-95"
-        } ${imgClassName}`}
+        className={cn(
+          "w-full h-full object-cover transition-all duration-500 ease-out",
+          isLoaded ? "opacity-100 scale-100" : "opacity-0 scale-95",
+          imgClassName
+        )}
       />
       {!isLoaded && !hasError && (
         <div className="absolute inset-0 bg-muted/50 dark:bg-muted/30 animate-pulse" />
