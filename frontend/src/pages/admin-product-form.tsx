@@ -28,11 +28,7 @@ import {
   CheckCircle2,
   FileText,
   Check,
-  Layers,
-  Edit3,
 } from "lucide-react";
-import { ProductStructureEditor } from "@/components/studio/ProductStructureEditor";
-import { IBraceletStructure } from "@/types/structure";
 
 interface Category {
   _id: string;
@@ -66,7 +62,7 @@ interface ProductFormData {
   additionalInfo: string;
   imageUrl: string;
   media: MediaItem[];
-  braceletStructure?: IBraceletStructure | null;
+  braceletStructure?: any;
 }
 
 export default function AdminProductForm() {
@@ -85,7 +81,6 @@ export default function AdminProductForm() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [isStructureEditorOpen, setIsStructureEditorOpen] = useState(false);
   const [formData, setFormData] = useState<ProductFormData>({
     name: "",
     sku: "",
@@ -977,75 +972,6 @@ export default function AdminProductForm() {
             </CardContent>
           </Card>
 
-          {/* Bracelet Structure Editor Card */}
-          {formData.isCustomizable && (
-            <Card className="border border-[#B66F72]/30 bg-[#FBF7F3] dark:bg-card rounded-2xl shadow-xs overflow-hidden">
-              <CardHeader className="pb-3 border-b border-[#E6D8D0]/60">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-[#B66F72]/15 text-[#95565A] dark:text-[#B66F72] flex items-center justify-center font-bold shrink-0">
-                      <Layers className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-base font-semibold text-[#342824] dark:text-foreground">
-                        Bracelet Visual Structure Editor
-                      </CardTitle>
-                      <p className="text-xs text-[#756861] dark:text-muted-foreground">
-                        Configure physical assembly (clasps, jump rings, extension chains, drape curve, charm slots) for this piece.
-                      </p>
-                    </div>
-                  </div>
-                  <Button
-                    type="button"
-                    onClick={() => setIsStructureEditorOpen(true)}
-                    className="bg-[#B66F72] hover:bg-[#95565A] text-white text-xs px-4 rounded-xl flex items-center gap-2 shrink-0"
-                  >
-                    <Edit3 className="w-3.5 h-3.5" />
-                    {formData.braceletStructure?.nodes?.length ? "Edit Visual Structure" : "Open Structure Editor"}
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-4">
-                {formData.braceletStructure?.nodes?.length ? (
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-[#756861] dark:text-muted-foreground">
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <span className="font-semibold text-emerald-600 dark:text-emerald-400">● Configured</span>
-                      <span>{formData.braceletStructure.nodes.length} structural components</span>
-                      <span>{formData.braceletStructure.connections?.length || 0} logical connections</span>
-                      {formData.braceletStructure.nodes.some(n => n.role === 'extension_chain') && (
-                        <span className="text-[#95565A] font-medium">Extension chain attached</span>
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (confirm("Reset this product's structure to default?")) {
-                          setFormData(prev => ({ ...prev, braceletStructure: null }));
-                        }
-                      }}
-                      className="text-xs text-rose-600 hover:underline"
-                    >
-                      Clear Structure
-                    </button>
-                  </div>
-                ) : (
-                  <div className="text-xs text-[#756861] dark:text-muted-foreground flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <span>No product-specific structure configured yet (uses standard circular bead layout).</span>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setIsStructureEditorOpen(true)}
-                      className="text-xs border-[#E6D8D0] self-start sm:self-auto"
-                    >
-                      Launch Editor
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
           {/* Form Actions */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3 pb-8">
             <Button
@@ -1085,24 +1011,6 @@ export default function AdminProductForm() {
             </Button>
           </div>
         </form>
-
-        {isStructureEditorOpen && (
-          <ProductStructureEditor
-            productId={productId || "new"}
-            productName={formData.name || "Untitled Bracelet"}
-            productSku={formData.sku || "BRAC-001"}
-            initialStructure={formData.braceletStructure || null}
-            onClose={() => setIsStructureEditorOpen(false)}
-            onSave={async (savedStructure) => {
-              setFormData((prev) => ({ ...prev, braceletStructure: savedStructure }));
-              setIsStructureEditorOpen(false);
-              toast({
-                title: "Structure Updated",
-                description: "Bracelet structure saved. Save the product to persist changes to the catalog.",
-              });
-            }}
-          />
-        )}
       </main>
       <Footer />
     </div>

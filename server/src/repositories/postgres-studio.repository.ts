@@ -220,6 +220,12 @@ export class PostgresStudioRepository {
   }
 
   public async ensureDefaultComponentTypes(client?: IDbClient): Promise<void> {
+    const executor = this.getExecutor(client);
+    const countRes = await executor.query<{ count: number }>(`SELECT COUNT(*)::integer AS count FROM component_types;`);
+    if (countRes.rows[0] && Number(countRes.rows[0].count) > 0) {
+      // Table already initialized; never revive types deleted by administrator!
+      return;
+    }
     const defaults = [
       { typeId: "bead", displayName: "Bead", displayOrder: 1 },
       { typeId: "stone", displayName: "Gemstone", displayOrder: 2 },
@@ -230,7 +236,6 @@ export class PostgresStudioRepository {
       { typeId: "pendant", displayName: "Pendant", displayOrder: 7 },
       { typeId: "other", displayName: "Other Finding", displayOrder: 8 },
     ];
-    const executor = this.getExecutor(client);
     for (const d of defaults) {
       await executor.query(
         `INSERT INTO component_types (id, type_id, display_name, display_order, is_active, created_at, updated_at)

@@ -707,6 +707,41 @@ export const ManualAssemblyDesigner: React.FC<ManualAssemblyDesignerProps> = ({
                 </g>
               )}
 
+              {/* Blank Canvas Placeholder */}
+              {structure.nodes.length === 0 && structure.attachmentPoints.length === 0 && (
+                <g className="pointer-events-none select-none">
+                  <circle cx="250" cy="210" r="28" fill="#F4EBE6" stroke="#D8C8BF" strokeWidth="1" strokeDasharray="3 3" />
+                  <text
+                    x="250"
+                    y="215"
+                    textAnchor="middle"
+                    fill="#9E8E85"
+                    fontSize="20"
+                  >
+                    +
+                  </text>
+                  <text
+                    x="250"
+                    y="262"
+                    textAnchor="middle"
+                    fill="#5C4D44"
+                    fontSize="13"
+                    fontWeight="600"
+                  >
+                    Your assembly canvas is empty.
+                  </text>
+                  <text
+                    x="250"
+                    y="282"
+                    textAnchor="middle"
+                    fill="#8C7D74"
+                    fontSize="11"
+                  >
+                    Add the components you want to construct your jewellery.
+                  </text>
+                </g>
+              )}
+
               {/* Memory Wire Endpoints Markers */}
               {!previewMode && activeMethod?.baseMaterialType === "memory_wire" && (
                 <>

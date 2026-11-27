@@ -70,28 +70,6 @@ export interface IStudioConstructionMethod {
   updatedAt?: string;
 }
 
-export interface IStudioDesignOrder {
-  id: string;
-  userId?: string | null;
-  orderId?: string | null;
-  categoryId?: string | null;
-  subcategoryId?: string | null;
-  constructionMethodId?: string | null;
-  assemblyStructureId?: string | null;
-  designRuleId?: string | null;
-  baseMaterialSku?: string | null;
-  selectedSizeLabel?: string | null;
-  physicalMeasurements: Record<string, any>;
-  endpointASelection: Record<string, any>;
-  endpointBSelection: Record<string, any>;
-  componentSelections: any[];
-  visualStructureSnapshot: Record<string, any>;
-  pricingSnapshot: Record<string, any>;
-  allocatedVariantSkus?: Record<string, string>;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
 export interface IStudioDesignRule {
   id: string;
   name: string;
@@ -215,28 +193,6 @@ export interface IStudioAssemblyStructure {
   updatedAt?: string;
 }
 
-export interface IStudioDesignOrder {
-  id: string;
-  userId?: string | null;
-  orderId?: string | null;
-  categoryId?: string | null;
-  subcategoryId?: string | null;
-  constructionMethodId?: string | null;
-  assemblyStructureId?: string | null;
-  designRuleId?: string | null;
-  baseMaterialSku?: string | null;
-  selectedSizeLabel?: string | null;
-  physicalMeasurements: Record<string, any>;
-  endpointASelection: Record<string, any>;
-  endpointBSelection: Record<string, any>;
-  componentSelections: any[];
-  visualStructureSnapshot: Record<string, any>;
-  pricingSnapshot: Record<string, any>;
-  allocatedVariantSkus?: Record<string, string>;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
 export interface IStudioMaterialLink {
   id: string;
   studioMaterialId: string;
@@ -246,28 +202,6 @@ export interface IStudioMaterialLink {
   authoritativeSource: 'studio' | 'customization' | 'inventory';
   consumptionQty: number;
   notes?: string | null;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface IStudioDesignOrder {
-  id: string;
-  userId?: string | null;
-  orderId?: string | null;
-  categoryId?: string | null;
-  subcategoryId?: string | null;
-  constructionMethodId?: string | null;
-  assemblyStructureId?: string | null;
-  designRuleId?: string | null;
-  baseMaterialSku?: string | null;
-  selectedSizeLabel?: string | null;
-  physicalMeasurements: Record<string, any>;
-  endpointASelection: Record<string, any>;
-  endpointBSelection: Record<string, any>;
-  componentSelections: any[];
-  visualStructureSnapshot: Record<string, any>;
-  pricingSnapshot: Record<string, any>;
-  allocatedVariantSkus?: Record<string, string>;
   createdAt?: string;
   updatedAt?: string;
 }

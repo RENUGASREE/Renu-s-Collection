@@ -51,7 +51,6 @@ export async function listComponentTypes(
   next: NextFunction
 ): Promise<void> {
   try {
-    await studioRepo.ensureDefaultComponentTypes();
     const isAdmin = req.user?.role === "admin" || req.query.admin === "true";
     const filter = !isAdmin && req.query.includeInactive !== "true" ? { isActive: true } : undefined;
 

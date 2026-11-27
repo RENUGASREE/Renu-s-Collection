@@ -64,6 +64,11 @@ export const ComponentType: Model<IComponentType> =
  * Uses $setOnInsert so existing admin customisations (e.g. edited displayName) are preserved.
  */
 export async function ensureDefaultComponentTypes(): Promise<void> {
+  const count = await ComponentType.countDocuments();
+  if (count > 0) {
+    // Already initialized; do not revive types deleted by administrator!
+    return;
+  }
   const operations = DEFAULT_COMPONENT_TYPES.map((t) => ({
     updateOne: {
       filter: { typeId: t.typeId },

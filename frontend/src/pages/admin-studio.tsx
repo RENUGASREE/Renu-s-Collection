@@ -51,7 +51,23 @@ import {
   Archive,
   ArchiveRestore,
   Info,
+  FolderTree,
+  Wrench,
+  Link as LinkIcon,
 } from "lucide-react";
+import { StudioCategoriesSection } from "@/components/studio/admin/StudioCategoriesSection";
+import { StudioConstructionMethodsSection } from "@/components/studio/admin/StudioConstructionMethodsSection";
+import { StudioDesignRulesSection } from "@/components/studio/admin/StudioDesignRulesSection";
+import { StudioMaterialLinksSection } from "@/components/studio/admin/StudioMaterialLinksSection";
+import { ManualAssemblyDesigner } from "@/components/studio/ManualAssemblyDesigner";
+import {
+  fetchStudioCategories,
+  fetchConstructionMethods,
+} from "@/lib/studio/independentStudioApi";
+import type {
+  IStudioCategory,
+  IStudioConstructionMethod,
+} from "@/types/studio.types";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -165,8 +181,12 @@ interface MakingCharge {
 export default function AdminStudio() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<
-    "materials" | "types" | "rules" | "pricing" | "reservations" | "templates"
-  >("materials");
+    "categories" | "methods" | "rules" | "designer" | "materials" | "links" | "types" | "pricing" | "reservations" | "templates"
+  >("categories");
+
+  // State: Independent Studio Hierarchy & Methods
+  const [studioCategories, setStudioCategories] = useState<IStudioCategory[]>([]);
+  const [studioMethods, setStudioMethods] = useState<IStudioConstructionMethod[]>([]);
 
   // State: Design Templates
   const [templates, setTemplates] = useState<DesignTemplate[]>([]);
@@ -321,6 +341,8 @@ export default function AdminStudio() {
     fetchJewelleryTypes(showArchivedTypes);
     fetchMaterials(true);
     fetchComponentTypes();
+    fetchStudioCategories(false).then(setStudioCategories).catch(() => {});
+    fetchConstructionMethods(false).then(setStudioMethods).catch(() => {});
   }, [showArchivedTypes]);
 
   useEffect(() => {
@@ -1373,6 +1395,8 @@ export default function AdminStudio() {
               fetchJewelleryTypes();
               fetchMaterials();
               fetchTemplates();
+              fetchStudioCategories(false).then(setStudioCategories).catch(() => {});
+              fetchConstructionMethods(false).then(setStudioMethods).catch(() => {});
               if (selectedRuleType && selectedRuleConstruction) {
                 fetchRule(selectedRuleType, selectedRuleConstruction);
               }
@@ -1393,15 +1417,67 @@ export default function AdminStudio() {
         <div className="flex items-center gap-2 mb-8 overflow-x-auto pb-1">
           <button
             type="button"
+            onClick={() => setActiveTab("categories")}
+            className={`px-4 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-2 shrink-0 ${
+              activeTab === "categories"
+                ? "bg-[#B66F72] text-white shadow-xs"
+                : "bg-white dark:bg-card border border-[#E6D8D0] dark:border-border text-[#756861] dark:text-muted-foreground hover:bg-[#F1E6DF]/50"
+            }`}
+          >
+            <FolderTree className="w-3.5 h-3.5" />
+            <span>Categories & Subcategories</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("methods")}
+            className={`px-4 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-2 shrink-0 ${
+              activeTab === "methods"
+                ? "bg-[#B66F72] text-white shadow-xs"
+                : "bg-white dark:bg-card border border-[#E6D8D0] dark:border-border text-[#756861] dark:text-muted-foreground hover:bg-[#F1E6DF]/50"
+            }`}
+          >
+            <Wrench className="w-3.5 h-3.5" />
+            <span>Construction Methods</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("rules")}
+            className={`px-4 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-2 shrink-0 ${
+              activeTab === "rules"
+                ? "bg-[#B66F72] text-white shadow-xs"
+                : "bg-white dark:bg-card border border-[#E6D8D0] dark:border-border text-[#756861] dark:text-muted-foreground hover:bg-[#F1E6DF]/50"
+            }`}
+          >
+            <Ruler className="w-3.5 h-3.5" />
+            <span>Design Rules & Calibration</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("designer")}
+            className={`px-4 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-2 shrink-0 ${
+              activeTab === "designer"
+                ? "bg-[#B66F72] text-white shadow-xs"
+                : "bg-white dark:bg-card border border-[#E6D8D0] dark:border-border text-[#756861] dark:text-muted-foreground hover:bg-[#F1E6DF]/50"
+            }`}
+          >
+            <Sliders className="w-3.5 h-3.5" />
+            <span>Manual Assembly Designer</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveTab("materials")}
-            className={`px-4 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-2 ${
+            className={`px-4 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-2 shrink-0 ${
               activeTab === "materials"
                 ? "bg-[#B66F72] text-white shadow-xs"
                 : "bg-white dark:bg-card border border-[#E6D8D0] dark:border-border text-[#756861] dark:text-muted-foreground hover:bg-[#F1E6DF]/50"
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
-            <span>Shared Materials & Variants</span>
+            <span>Studio Materials</span>
             <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20 text-white">
               {materials.length}
             </span>
@@ -1409,50 +1485,34 @@ export default function AdminStudio() {
 
           <button
             type="button"
-            onClick={() => setActiveTab("types")}
-            className={`px-4 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-2 ${
-              activeTab === "types"
+            onClick={() => setActiveTab("links")}
+            className={`px-4 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-2 shrink-0 ${
+              activeTab === "links"
                 ? "bg-[#B66F72] text-white shadow-xs"
                 : "bg-white dark:bg-card border border-[#E6D8D0] dark:border-border text-[#756861] dark:text-muted-foreground hover:bg-[#F1E6DF]/50"
             }`}
           >
-            <Sliders className="w-3.5 h-3.5" />
-            <span>Jewellery Types</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-stone-100 dark:bg-muted text-stone-600">
-              {jewelleryTypes.length}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab("rules")}
-            className={`px-4 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-2 ${
-              activeTab === "rules"
-                ? "bg-[#B66F72] text-white shadow-xs"
-                : "bg-white dark:bg-card border border-[#E6D8D0] dark:border-border text-[#756861] dark:text-muted-foreground hover:bg-[#F1E6DF]/50"
-            }`}
-          >
-            <Ruler className="w-3.5 h-3.5" />
-            <span>Design Rules (Bracelet)</span>
+            <LinkIcon className="w-3.5 h-3.5" />
+            <span>Explicit Material Links</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab("pricing")}
-            className={`px-4 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-2 ${
+            className={`px-4 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-2 shrink-0 ${
               activeTab === "pricing"
                 ? "bg-[#B66F72] text-white shadow-xs"
                 : "bg-white dark:bg-card border border-[#E6D8D0] dark:border-border text-[#756861] dark:text-muted-foreground hover:bg-[#F1E6DF]/50"
             }`}
           >
             <DollarSign className="w-3.5 h-3.5" />
-            <span>Making Charges & Fees</span>
+            <span>Pricing & Fees</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab("reservations")}
-            className={`px-4 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-2 ${
+            className={`px-4 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-2 shrink-0 ${
               activeTab === "reservations"
                 ? "bg-[#B66F72] text-white shadow-xs"
                 : "bg-white dark:bg-card border border-[#E6D8D0] dark:border-border text-[#756861] dark:text-muted-foreground hover:bg-[#F1E6DF]/50"
@@ -1465,7 +1525,7 @@ export default function AdminStudio() {
           <button
             type="button"
             onClick={() => setActiveTab("templates")}
-            className={`px-4 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-2 ${
+            className={`px-4 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-2 shrink-0 ${
               activeTab === "templates"
                 ? "bg-[#B66F72] text-white shadow-xs"
                 : "bg-white dark:bg-card border border-[#E6D8D0] dark:border-border text-[#756861] dark:text-muted-foreground hover:bg-[#F1E6DF]/50"
@@ -1478,6 +1538,29 @@ export default function AdminStudio() {
             </span>
           </button>
         </div>
+
+        {/* TAB: STUDIO CATEGORIES & SUBCATEGORIES */}
+        {activeTab === "categories" && (
+          <StudioCategoriesSection />
+        )}
+
+        {/* TAB: CONSTRUCTION METHODS */}
+        {activeTab === "methods" && (
+          <StudioConstructionMethodsSection />
+        )}
+
+        {/* TAB: MANUAL ASSEMBLY DESIGNER */}
+        {activeTab === "designer" && (
+          <ManualAssemblyDesigner
+            categories={studioCategories}
+            methods={studioMethods}
+          />
+        )}
+
+        {/* TAB: EXPLICIT MATERIAL LINKS */}
+        {activeTab === "links" && (
+          <StudioMaterialLinksSection studioMaterials={materials} />
+        )}
 
         {/* TAB 1: SHARED MATERIALS & VARIANTS */}
         {activeTab === "materials" && (
@@ -2274,176 +2357,9 @@ export default function AdminStudio() {
           </div>
         )}
 
-        {/* TAB 3: DESIGN RULES (MULTI-TYPE) */}
+        {/* TAB 3: DESIGN RULES & CALIBRATION */}
         {activeTab === "rules" && (
-          <div className="max-w-3xl bg-white dark:bg-card p-8 rounded-2xl border border-[#E6D8D0] dark:border-border shadow-xs space-y-6">
-            <div>
-              <span className="text-xs uppercase font-semibold text-[#B99A72] tracking-wider">Calibration Engine</span>
-              <h3 className="font-playfair text-2xl font-semibold text-[#342824] dark:text-foreground mt-0.5">
-                Design Rules & Physics Calibration
-              </h3>
-              <p className="text-xs text-[#756861] dark:text-muted-foreground mt-1">
-                Configure physical limits, component count limits, and sizing boundaries per jewelry type and construction method.
-              </p>
-            </div>
-
-            {/* Selectors */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-xl bg-[#FBF7F3] dark:bg-background border border-[#E6D8D0] dark:border-border">
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold">Jewellery Category</Label>
-                <select
-                  value={selectedRuleType}
-                  onChange={(e) => {
-                    const newType = e.target.value;
-                    setSelectedRuleType(newType);
-                    const jt = jewelleryTypes.find((t) => t.slug === newType);
-                    if (jt && jt.supportedConstructionTypes.length > 0) {
-                      setSelectedRuleConstruction(jt.supportedConstructionTypes[0]);
-                    }
-                  }}
-                  className="w-full h-9 px-3 rounded-lg border border-[#E6D8D0] bg-white text-xs dark:bg-card dark:border-border"
-                >
-                  {jewelleryTypes.map((t) => (
-                    <option key={t.slug} value={t.slug}>
-                      {t.displayName}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold">Construction Method</Label>
-                <select
-                  value={selectedRuleConstruction}
-                  onChange={(e) => setSelectedRuleConstruction(e.target.value)}
-                  className="w-full h-9 px-3 rounded-lg border border-[#E6D8D0] bg-white text-xs dark:bg-card dark:border-border"
-                >
-                  {(jewelleryTypes.find((t) => t.slug === selectedRuleType)?.supportedConstructionTypes || [selectedRuleConstruction]).map((c) => (
-                    <option key={c} value={c}>
-                      {c.replace(/_/g, " ").toUpperCase()}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {loadingRule ? (
-              <div className="py-12 text-center text-xs text-[#756861]">
-                <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-[#B66F72]" />
-                Loading calibration rules...
-              </div>
-            ) : !currentRule ? (
-              <div className="py-10 text-center border-2 border-dashed border-[#E6D8D0] rounded-xl p-6">
-                <AlertCircle className="w-8 h-8 text-amber-600 mx-auto mb-2" />
-                <h4 className="font-playfair text-base font-semibold">No Rules Configured</h4>
-                <p className="text-xs text-[#756861] max-w-md mx-auto mt-1 mb-4">
-                  No calibration rule exists for <strong>{selectedRuleType}</strong> with construction <strong>{selectedRuleConstruction}</strong>.
-                </p>
-                <Button
-                  onClick={handleInitRuleTemplate}
-                  className="bg-[#B66F72] hover:bg-[#95565A] text-white text-xs rounded-xl h-9 px-5"
-                >
-                  <Plus className="w-3.5 h-3.5 mr-1.5" />
-                  Initialize Rule Template
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold">
-                      {selectedRuleType === "earrings"
-                        ? "Min Earring Drop Length (mm)"
-                        : selectedRuleType === "bangles"
-                        ? "Min Bangle Circumference (mm)"
-                        : selectedRuleType === "chain_necklace"
-                        ? "Min Chain Length (mm)"
-                        : "Min Wrist Circumference (mm)"}
-                    </Label>
-                    <Input
-                      type="number"
-                      value={currentRule.minWristMm}
-                      onChange={(e) => setCurrentRule({ ...currentRule, minWristMm: Number(e.target.value) })}
-                      className="text-xs rounded-xl"
-                    />
-                    <span className="text-[10px] text-muted-foreground">Minimum wearable dimension</span>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold">
-                      {selectedRuleType === "earrings"
-                        ? "Max Earring Drop Length (mm)"
-                        : selectedRuleType === "bangles"
-                        ? "Max Bangle Circumference (mm)"
-                        : selectedRuleType === "chain_necklace"
-                        ? "Max Chain Length (mm)"
-                        : "Max Wrist Circumference (mm)"}
-                    </Label>
-                    <Input
-                      type="number"
-                      value={currentRule.maxWristMm}
-                      onChange={(e) => setCurrentRule({ ...currentRule, maxWristMm: Number(e.target.value) })}
-                      className="text-xs rounded-xl"
-                    />
-                    <span className="text-[10px] text-muted-foreground">Maximum wearable dimension</span>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold">Min Component Count</Label>
-                    <Input
-                      type="number"
-                      value={currentRule.minComponents}
-                      onChange={(e) => setCurrentRule({ ...currentRule, minComponents: Number(e.target.value) })}
-                      className="text-xs rounded-xl"
-                    />
-                    <span className="text-[10px] text-muted-foreground">Minimum items to assemble</span>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold">Max Component Count</Label>
-                    <Input
-                      type="number"
-                      value={currentRule.maxComponents}
-                      onChange={(e) => setCurrentRule({ ...currentRule, maxComponents: Number(e.target.value) })}
-                      className="text-xs rounded-xl"
-                    />
-                    <span className="text-[10px] text-muted-foreground">Physical canvas density limit</span>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold">Max Charms / Accents Allowed</Label>
-                    <Input
-                      type="number"
-                      value={currentRule.maxCharms}
-                      onChange={(e) => setCurrentRule({ ...currentRule, maxCharms: Number(e.target.value) })}
-                      className="text-xs rounded-xl"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold">Fit / Slack Allowance (mm)</Label>
-                    <Input
-                      type="number"
-                      value={currentRule.fitAllowanceMm}
-                      onChange={(e) => setCurrentRule({ ...currentRule, fitAllowanceMm: Number(e.target.value) })}
-                      className="text-xs rounded-xl"
-                    />
-                    <span className="text-[10px] text-muted-foreground">Slack allowance for closure & drape</span>
-                  </div>
-                </div>
-
-                <div className="pt-4 border-t border-[#E6D8D0]/60 dark:border-border/60 flex items-center justify-between">
-                  <span className="text-xs text-[#756861]">Rule Version: v{currentRule.version}</span>
-                  <Button
-                    onClick={handleSaveRule}
-                    className="bg-[#B66F72] hover:bg-[#95565A] text-white text-xs rounded-xl h-9 px-6"
-                  >
-                    Save Construction Rules
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
+          <StudioDesignRulesSection />
         )}
 
         {/* TAB 4: MAKING CHARGES & SERVICE FEES (MULTI-TYPE) */}
