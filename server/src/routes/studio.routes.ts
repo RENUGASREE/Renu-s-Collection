@@ -323,6 +323,20 @@ router.delete(
 
 // Inventory & Reservation Management (Admin)
 router.get(
+  "/admin/inventory",
+  requireAuth,
+  requireAdmin,
+  studioController.getStudioInventoryDashboardAdmin
+);
+
+router.get(
+  "/admin/inventory/dashboard",
+  requireAuth,
+  requireAdmin,
+  studioController.getStudioInventoryDashboardAdmin
+);
+
+router.get(
   "/admin/inventory/reservations",
   requireAuth,
   requireAdmin,

@@ -54,11 +54,13 @@ import {
   FolderTree,
   Wrench,
   Link as LinkIcon,
+  Boxes,
 } from "lucide-react";
 import { StudioCategoriesSection } from "@/components/studio/admin/StudioCategoriesSection";
 import { StudioConstructionMethodsSection } from "@/components/studio/admin/StudioConstructionMethodsSection";
 import { StudioDesignRulesSection } from "@/components/studio/admin/StudioDesignRulesSection";
 import { StudioMaterialLinksSection } from "@/components/studio/admin/StudioMaterialLinksSection";
+import { StudioInventorySection } from "@/components/studio/admin/StudioInventorySection";
 import { ManualAssemblyDesigner } from "@/components/studio/ManualAssemblyDesigner";
 import {
   fetchStudioCategories,
@@ -181,7 +183,7 @@ interface MakingCharge {
 export default function AdminStudio() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<
-    "categories" | "methods" | "rules" | "designer" | "materials" | "links" | "types" | "pricing" | "reservations" | "templates"
+    "categories" | "methods" | "rules" | "designer" | "materials" | "inventory" | "links" | "types" | "pricing" | "reservations" | "templates"
   >("categories");
 
   // State: Independent Studio Hierarchy & Methods
@@ -939,6 +941,27 @@ export default function AdminStudio() {
     }
   };
 
+  const handleOpenEditMaterial = (mat: StudioMaterial) => {
+    setEditingMaterial(mat);
+    setSyncVariantSkus(true);
+    setMaterialForm({
+      name: mat.name,
+      code: mat.code,
+      description: mat.description || "",
+      materialType: mat.materialType,
+      imageUrl: mat.imageUrl || "",
+      renderAssetUrl: mat.renderAssetUrl || "",
+      allowedJewelleryTypes: mat.allowedJewelleryTypes || [],
+      visibilityScopes: mat.visibilityScopes && mat.visibilityScopes.length > 0 ? mat.visibilityScopes : ["studio"],
+      isActive: mat.isActive,
+      selectionPolicy: (mat as any).selectionPolicy || "customer_selects_variant",
+      assortmentNotes: (mat as any).assortmentNotes || "",
+      eligibleAssortmentSkus: (mat as any).eligibleAssortmentSkus || [],
+    });
+    setShowMaterialModal(true);
+  };
+
+
   // ==========================================================================
   // VARIANT ACTIONS
   // ==========================================================================
@@ -1487,6 +1510,19 @@ export default function AdminStudio() {
 
           <button
             type="button"
+            onClick={() => setActiveTab("inventory")}
+            className={`px-4 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-2 shrink-0 ${
+              activeTab === "inventory"
+                ? "bg-[#B66F72] text-white shadow-xs"
+                : "bg-white dark:bg-card border border-[#E6D8D0] dark:border-border text-[#756861] dark:text-muted-foreground hover:bg-[#F1E6DF]/50"
+            }`}
+          >
+            <Boxes className="w-3.5 h-3.5" />
+            <span>Studio Inventory</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveTab("links")}
             className={`px-4 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-2 shrink-0 ${
               activeTab === "links"
@@ -1556,6 +1592,19 @@ export default function AdminStudio() {
           <ManualAssemblyDesigner
             categories={studioCategories}
             methods={studioMethods}
+          />
+        )}
+
+        {/* TAB: STUDIO INVENTORY */}
+        {activeTab === "inventory" && (
+          <StudioInventorySection
+            onNavigateToMaterial={(materialId) => {
+              setActiveTab("materials");
+              const target = materials.find((m) => m.id === materialId);
+              if (target) {
+                handleOpenEditMaterial(target);
+              }
+            }}
           />
         )}
 

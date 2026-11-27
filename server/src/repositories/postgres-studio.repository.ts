@@ -55,6 +55,13 @@ import {
 } from "../types/database.types.js";
 import { PostgresDatabase } from "../db/postgres.js";
 import { assertValidEntityId } from "../utils/helpers.js";
+import {
+  IStudioInventoryFilterOptions,
+  IStudioInventoryResponse,
+  IStudioInventoryMaterialItem,
+  IStudioInventoryVariantItem,
+  IStudioInventorySummary,
+} from "../types/studio.types.js";
 
 export class PostgresStudioRepository {
   private client?: IDbClient;
@@ -2239,5 +2246,358 @@ export class PostgresStudioRepository {
     const sql = `DELETE FROM saved_designs WHERE id = $1;`;
     const result = await executor.query(sql, [id]);
     return result.rowCount > 0;
+  }
+
+  // ===========================================================================
+  // 10. STUDIO INVENTORY DASHBOARD
+  // ===========================================================================
+
+  public async getStudioInventoryDashboard(
+    options?: IStudioInventoryFilterOptions,
+    client?: IDbClient
+  ): Promise<IStudioInventoryResponse> {
+    const executor = this.getExecutor(client);
+
+    // 1. Query active reservations grouped by SKU and material_id
+    const activeResSql = `
+      SELECT sri.material_id, UPPER(sri.sku) AS sku, SUM(sri.quantity)::integer AS reserved_quantity
+      FROM studio_reservation_items sri
+      JOIN studio_reservations sr ON sr.id = sri.reservation_id
+      WHERE sr.status = 'reserved' AND sr.expires_at > NOW()
+      GROUP BY sri.material_id, UPPER(sri.sku);
+    `;
+    const resResult = await executor.query<{ material_id: string; sku: string; reserved_quantity: number }>(activeResSql);
+    const reservedBySku = new Map<string, number>();
+    const reservedByMatId = new Map<string, number>();
+    let totalReservedUnits = 0;
+
+    for (const r of resResult.rows) {
+      const qty = Number(r.reserved_quantity) || 0;
+      totalReservedUnits += qty;
+      if (r.sku) {
+        reservedBySku.set(r.sku.toUpperCase(), (reservedBySku.get(r.sku.toUpperCase()) || 0) + qty);
+      }
+      if (r.material_id) {
+        reservedByMatId.set(r.material_id, (reservedByMatId.get(r.material_id) || 0) + qty);
+      }
+    }
+
+    // 2. Query material links to identify inventory source (Studio direct, Customization authoritative, or Pool)
+    let links: any[] = [];
+    try {
+      const linkRes = await executor.query(`
+        SELECT id, studio_material_id, studio_variant_sku, customization_material_id,
+               customization_variant_sku, authoritative_source, consumption_qty, notes
+        FROM studio_material_links;
+      `);
+      links = linkRes.rows;
+    } catch {
+      links = [];
+    }
+    const linksByMatId = new Map<string, any[]>();
+    const linksBySku = new Map<string, any>();
+    for (const l of links) {
+      if (l.studio_material_id) {
+        if (!linksByMatId.has(l.studio_material_id)) {
+          linksByMatId.set(l.studio_material_id, []);
+        }
+        linksByMatId.get(l.studio_material_id)!.push(l);
+      }
+      if (l.studio_variant_sku) {
+        linksBySku.set(l.studio_variant_sku.toUpperCase(), l);
+      }
+    }
+
+    // 3. Query Studio categories (falling back to jewellery_types)
+    let categories: Array<{ id: string; name: string; slug: string }> = [];
+    try {
+      const catRes = await executor.query(`
+        SELECT id, name, slug FROM studio_categories WHERE is_active = TRUE ORDER BY display_order ASC, name ASC;
+      `);
+      categories = catRes.rows.map((r: any) => ({ id: String(r.id), name: String(r.name), slug: String(r.slug) }));
+    } catch {
+      categories = [];
+    }
+    if (categories.length === 0) {
+      try {
+        const jtRes = await executor.query(`
+          SELECT id, display_name AS name, slug FROM jewellery_types WHERE is_archived = FALSE ORDER BY display_order ASC;
+        `);
+        categories = jtRes.rows.map((r: any) => ({ id: String(r.id), name: String(r.name), slug: String(r.slug) }));
+      } catch {
+        categories = [];
+      }
+    }
+
+    // 4. Query Component Types
+    let componentTypes: Array<{ typeId: string; displayName: string }> = [];
+    try {
+      const ctRes = await executor.query(`
+        SELECT type_id, display_name FROM component_types WHERE is_active = TRUE ORDER BY display_order ASC, display_name ASC;
+      `);
+      componentTypes = ctRes.rows.map((r: any) => ({ typeId: String(r.type_id), displayName: String(r.display_name) }));
+    } catch {
+      componentTypes = [];
+    }
+
+    // 5. Query ALL Studio Materials (active, inactive, published, drafts)
+    const matSql = `
+      SELECT m.id, m.name, m.code, m.description, m.material_type, m.image_url,
+             m.render_asset_url, m.additional_images, m.allowed_jewellery_types,
+             m.supported_construction_types, m.visibility_scopes, m.is_active,
+             m.sort_order, m.selection_policy, m.assortment_notes, m.eligible_assortment_skus,
+             m.created_at, m.updated_at
+      FROM studio_materials m
+      ORDER BY m.sort_order ASC, m.name ASC;
+    `;
+    const matsResult = await executor.query(matSql);
+
+    // 6. Query ALL Studio Material Variants
+    const varSql = `
+      SELECT id, material_id, sku, color, finish, size_label, length_mm, width_mm,
+             height_mm, diameter_mm, hole_diameter_mm, attachment_size_mm,
+             selling_unit, purchase_cost, selling_rate, stock, low_stock_threshold,
+             is_active, image_url, render_asset_url, created_at, updated_at
+      FROM studio_material_variants
+      ORDER BY size_label ASC, sku ASC;
+    `;
+    const varsResult = await executor.query(varSql);
+    const variantsByMatId = new Map<string, any[]>();
+    for (const vRow of varsResult.rows) {
+      const mid = String(vRow.material_id);
+      if (!variantsByMatId.has(mid)) {
+        variantsByMatId.set(mid, []);
+      }
+      variantsByMatId.get(mid)!.push(vRow);
+    }
+
+    // 7. Assemble materials with authoritative calculations
+    const allMaterials: IStudioInventoryMaterialItem[] = [];
+    let outOfStockVariants = 0;
+    let lowStockVariants = 0;
+    let totalVariants = 0;
+    let totalAvailableUnits = 0;
+
+    // Track shared inventory pools to ensure shared stock is represented only once in totalAvailableUnits
+    const accountedSharedPools = new Set<string>();
+
+    for (const mRow of matsResult.rows) {
+      const mid = String(mRow.id);
+      const mVariantsRaw = variantsByMatId.get(mid) || [];
+      const mLinks = linksByMatId.get(mid) || [];
+
+      // Determine material-level authoritative source
+      let matSourceLabel = "Independent Studio";
+      let matAuthSource: "studio" | "customization" | "inventory" = "studio";
+      if (mLinks.length > 0) {
+        const primaryLink = mLinks[0];
+        if (primaryLink.authoritative_source === "customization") {
+          matSourceLabel = "Store Customization (Linked)";
+          matAuthSource = "customization";
+        } else if (primaryLink.authoritative_source === "inventory") {
+          matSourceLabel = "Inventory Pool (Linked)";
+          matAuthSource = "inventory";
+        } else {
+          matSourceLabel = "Studio Direct";
+          matAuthSource = "studio";
+        }
+      }
+
+      const isSellerRandom = mRow.selection_policy === "seller_random_variant";
+      const eligibleSkus: string[] = Array.isArray(mRow.eligible_assortment_skus)
+        ? mRow.eligible_assortment_skus.map((s: any) => String(s).toUpperCase())
+        : [];
+
+      const variants: IStudioInventoryVariantItem[] = [];
+
+      for (const vRow of mVariantsRaw) {
+        totalVariants++;
+        const skuUpper = String(vRow.sku).toUpperCase();
+        const rawStock = Math.max(0, Number(vRow.stock) || 0);
+        const vReserved = reservedBySku.get(skuUpper) || 0;
+
+        // Individual variant stock
+        const availQty = rawStock;
+        const lowThreshold = Math.max(0, Number(vRow.low_stock_threshold ?? 5));
+        const isOutOfStock = availQty === 0;
+        const isLowStock = availQty > 0 && availQty <= lowThreshold;
+
+        if (isOutOfStock) outOfStockVariants++;
+        if (isLowStock) lowStockVariants++;
+
+        // Variant inventory source
+        const vLink = linksBySku.get(skuUpper) || (mLinks.length === 1 ? mLinks[0] : null);
+        let vSourceLabel = matSourceLabel;
+        let vAuthSource = matAuthSource;
+        if (vLink) {
+          if (vLink.authoritative_source === "customization") {
+            vSourceLabel = "Store Customization (Linked)";
+            vAuthSource = "customization";
+          } else if (vLink.authoritative_source === "inventory") {
+            vSourceLabel = "Inventory Pool (Linked)";
+            vAuthSource = "inventory";
+          } else {
+            vSourceLabel = "Studio Direct";
+            vAuthSource = "studio";
+          }
+        }
+
+        variants.push({
+          id: String(vRow.id),
+          sku: String(vRow.sku),
+          name: vRow.size_label ? `${vRow.size_label} (${vRow.sku})` : String(vRow.sku),
+          sizeLabel: String(vRow.size_label || ""),
+          color: vRow.color ? String(vRow.color) : null,
+          finish: vRow.finish ? String(vRow.finish) : null,
+          stockQuantity: rawStock,
+          availableQuantity: availQty,
+          reservedQuantity: vReserved,
+          lowStockThreshold: lowThreshold,
+          isLowStock,
+          isOutOfStock,
+          isActive: Boolean(vRow.is_active),
+          inventorySource: vSourceLabel,
+          authoritativeSource: vAuthSource,
+        });
+      }
+
+      // Material-level totals
+      let matAvailableStock = 0;
+      let matReservedStock = 0;
+
+      if (isSellerRandom) {
+        // Seller-random assortment: pool of eligible active variants minus pending pooled reservations
+        const eligibleVariants = variants.filter(v =>
+          v.isActive && (eligibleSkus.length === 0 || eligibleSkus.includes(v.sku.toUpperCase()))
+        );
+        const grossPoolStock = eligibleVariants.reduce((sum, v) => sum + v.stockQuantity, 0);
+        const pooledReserved = reservedByMatId.get(mid) || 0;
+        matAvailableStock = Math.max(0, grossPoolStock - pooledReserved);
+        matReservedStock = pooledReserved;
+      } else {
+        matAvailableStock = variants.reduce((sum, v) => sum + v.availableQuantity, 0);
+        matReservedStock = variants.reduce((sum, v) => sum + v.reservedQuantity, 0);
+      }
+
+      // Add to total available units, ensuring shared inventory pools are counted once
+      if (matAuthSource === "inventory" || matAuthSource === "customization") {
+        const poolKey = mLinks.map((l: any) => `${l.customization_material_id}:${l.customization_variant_sku || '*'}`).sort().join("|");
+        if (poolKey && !accountedSharedPools.has(poolKey)) {
+          accountedSharedPools.add(poolKey);
+          totalAvailableUnits += matAvailableStock;
+        } else if (!poolKey) {
+          totalAvailableUnits += matAvailableStock;
+        }
+      } else {
+        totalAvailableUnits += matAvailableStock;
+      }
+
+      const visibilityScopes = Array.isArray(mRow.visibility_scopes) ? mRow.visibility_scopes : ["studio"];
+      const isPublished = Boolean(mRow.is_active) && visibilityScopes.includes("studio");
+
+      allMaterials.push({
+        id: mid,
+        name: String(mRow.name),
+        code: String(mRow.code),
+        componentType: String(mRow.material_type),
+        categories: Array.isArray(mRow.allowed_jewellery_types) ? mRow.allowed_jewellery_types : [],
+        selectionPolicy: isSellerRandom ? "seller_random_variant" : "customer_selects_variant",
+        assortmentNotes: mRow.assortment_notes ? String(mRow.assortment_notes) : null,
+        eligibleAssortmentSkus: eligibleSkus,
+        imageUrl: mRow.image_url ? String(mRow.image_url) : null,
+        isActive: Boolean(mRow.is_active),
+        isPublished,
+        visibilityScopes,
+        variantCount: variants.length,
+        totalAvailableStock: matAvailableStock,
+        totalReservedStock: matReservedStock,
+        isOutOfStock: variants.length > 0 && matAvailableStock === 0,
+        isLowStock: variants.some(v => v.isLowStock),
+        inventorySource: matSourceLabel,
+        authoritativeSource: matAuthSource,
+        variants,
+      });
+    }
+
+    const summary: IStudioInventorySummary = {
+      totalMaterials: allMaterials.length,
+      totalVariants,
+      totalAvailableUnits,
+      totalReservedUnits,
+      outOfStockVariants,
+      lowStockVariants,
+    };
+
+    // Filter materials based on search/filter options
+    let filteredMaterials = allMaterials;
+
+    if (options?.search && options.search.trim()) {
+      const q = options.search.trim().toLowerCase();
+      filteredMaterials = filteredMaterials.filter(m =>
+        m.name.toLowerCase().includes(q) ||
+        m.code.toLowerCase().includes(q) ||
+        m.variants.some(v => v.sku.toLowerCase().includes(q) || v.name.toLowerCase().includes(q))
+      );
+    }
+
+    if (options?.category && options.category !== "all") {
+      const cat = options.category.toLowerCase().trim();
+      filteredMaterials = filteredMaterials.filter(m =>
+        m.categories.some(c => c.toLowerCase() === cat)
+      );
+    }
+
+    if (options?.componentType && options.componentType !== "all") {
+      const ct = options.componentType.toLowerCase().trim();
+      filteredMaterials = filteredMaterials.filter(m =>
+        m.componentType.toLowerCase() === ct
+      );
+    }
+
+    if (options?.stockStatus && options.stockStatus !== "all") {
+      if (options.stockStatus === "in_stock") {
+        filteredMaterials = filteredMaterials.filter(m => m.totalAvailableStock > 0);
+      } else if (options.stockStatus === "low_stock") {
+        filteredMaterials = filteredMaterials.filter(m => m.isLowStock);
+      } else if (options.stockStatus === "out_of_stock") {
+        filteredMaterials = filteredMaterials.filter(m => m.isOutOfStock);
+      }
+    }
+
+    if (options?.inventorySource && options.inventorySource !== "all") {
+      const src = options.inventorySource.toLowerCase().trim();
+      filteredMaterials = filteredMaterials.filter(m => {
+        if (src === "independent") return m.authoritativeSource === "studio" && m.inventorySource === "Independent Studio";
+        if (src === "studio_direct") return m.inventorySource === "Studio Direct";
+        if (src === "store_customization") return m.authoritativeSource === "customization";
+        if (src === "inventory_pool") return m.authoritativeSource === "inventory";
+        return true;
+      });
+    }
+
+    if (options?.status && options.status !== "all") {
+      const active = options.status === "active";
+      filteredMaterials = filteredMaterials.filter(m => m.isActive === active);
+    }
+
+    if (options?.published && options.published !== "all") {
+      const pub = options.published === "published";
+      filteredMaterials = filteredMaterials.filter(m => m.isPublished === pub);
+    }
+
+    const inventorySources = [
+      "Independent Studio",
+      "Studio Direct",
+      "Store Customization (Linked)",
+      "Inventory Pool (Linked)",
+    ];
+
+    return {
+      summary,
+      materials: filteredMaterials,
+      categories,
+      componentTypes,
+      inventorySources,
+    };
   }
 }

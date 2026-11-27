@@ -6,6 +6,8 @@ import type {
   IStudioAssemblyStructure,
   IStudioMaterialLink,
   PhysicalSpecsConfig,
+  IStudioInventoryResponse,
+  IStudioInventoryFilterOptions,
 } from "@/types/studio.types";
 
 // ============================================================================
@@ -217,3 +219,29 @@ export async function probePhysicalFit(specs: PhysicalSpecsConfig, components: A
   const json = await res.json();
   return json.data;
 }
+
+// ============================================================================
+// STUDIO INVENTORY DASHBOARD
+// ============================================================================
+
+export async function fetchStudioInventory(
+  params?: IStudioInventoryFilterOptions
+): Promise<IStudioInventoryResponse> {
+  const query = new URLSearchParams();
+  if (params) {
+    if (params.search) query.set("search", params.search);
+    if (params.category && params.category !== "all") query.set("category", params.category);
+    if (params.componentType && params.componentType !== "all") query.set("componentType", params.componentType);
+    if (params.stockStatus && params.stockStatus !== "all") query.set("stockStatus", params.stockStatus);
+    if (params.inventorySource && params.inventorySource !== "all") query.set("inventorySource", params.inventorySource);
+    if (params.status && params.status !== "all") query.set("status", params.status);
+    if (params.published && params.published !== "all") query.set("published", params.published);
+  }
+  const queryString = query.toString();
+  const url = `/api/v1/studio/admin/inventory${queryString ? `?${queryString}` : ""}`;
+  const res = await apiRequest("GET", url);
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.message || "Failed to load studio inventory");
+  return json.data;
+}
+

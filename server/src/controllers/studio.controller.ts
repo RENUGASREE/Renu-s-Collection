@@ -1104,3 +1104,39 @@ export async function reconcileReservationAdmin(
     next(error);
   }
 }
+
+export async function getStudioInventoryDashboardAdmin(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const {
+      search,
+      category,
+      componentType,
+      stockStatus,
+      inventorySource,
+      status,
+      published,
+    } = req.query as any;
+
+    const data = await studioRepo.getStudioInventoryDashboard({
+      search: search ? String(search) : undefined,
+      category: category ? String(category) : undefined,
+      componentType: componentType ? String(componentType) as any : undefined,
+      stockStatus: stockStatus ? String(stockStatus) as any : undefined,
+      inventorySource: inventorySource ? String(inventorySource) : undefined,
+      status: status ? String(status) as any : undefined,
+      published: published ? String(published) as any : undefined,
+    });
+
+    res.json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+

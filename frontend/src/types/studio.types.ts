@@ -205,3 +205,72 @@ export interface IStudioMaterialLink {
   createdAt?: string;
   updatedAt?: string;
 }
+
+export interface IStudioInventoryVariantItem {
+  id: string;
+  sku: string;
+  name: string;
+  sizeLabel: string;
+  color: string | null;
+  finish: string | null;
+  stockQuantity: number;
+  availableQuantity: number;
+  reservedQuantity: number;
+  lowStockThreshold: number;
+  isLowStock: boolean;
+  isOutOfStock: boolean;
+  isActive: boolean;
+  inventorySource: string;
+  authoritativeSource: "studio" | "customization" | "inventory";
+}
+
+export interface IStudioInventoryMaterialItem {
+  id: string;
+  name: string;
+  code: string;
+  componentType: string;
+  categories: string[];
+  selectionPolicy: "customer_selects_variant" | "seller_random_variant";
+  assortmentNotes?: string | null;
+  eligibleAssortmentSkus?: string[];
+  imageUrl?: string | null;
+  isActive: boolean;
+  isPublished: boolean;
+  visibilityScopes: string[];
+  variantCount: number;
+  totalAvailableStock: number;
+  totalReservedStock: number;
+  isOutOfStock: boolean;
+  isLowStock: boolean;
+  inventorySource: string;
+  authoritativeSource: "studio" | "customization" | "inventory";
+  variants: IStudioInventoryVariantItem[];
+}
+
+export interface IStudioInventorySummary {
+  totalMaterials: number;
+  totalVariants: number;
+  totalAvailableUnits: number;
+  totalReservedUnits: number;
+  outOfStockVariants: number;
+  lowStockVariants: number;
+}
+
+export interface IStudioInventoryFilterOptions {
+  search?: string;
+  category?: string;
+  componentType?: string;
+  stockStatus?: "all" | "in_stock" | "low_stock" | "out_of_stock";
+  inventorySource?: string;
+  status?: "all" | "active" | "inactive";
+  published?: "all" | "published" | "unpublished";
+}
+
+export interface IStudioInventoryResponse {
+  summary: IStudioInventorySummary;
+  materials: IStudioInventoryMaterialItem[];
+  categories: Array<{ id: string; name: string; slug: string }>;
+  componentTypes: Array<{ typeId: string; displayName: string }>;
+  inventorySources: string[];
+}
+
