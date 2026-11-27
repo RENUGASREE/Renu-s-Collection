@@ -77,7 +77,6 @@ export async function createComponentType(
   next: NextFunction
 ): Promise<void> {
   try {
-    await studioRepo.ensureDefaultComponentTypes();
     const { displayName, typeId, description, displayOrder, isActive } = req.body;
 
     if (!displayName || !displayName.trim()) {

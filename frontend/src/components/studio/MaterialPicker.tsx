@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { getAssetUrl } from "@/lib/queryClient";
 import ProductImage from "@/components/ProductImage";
 import { Badge } from "@/components/ui/badge";
@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Search, ChevronDown, ChevronRight, Sparkles, AlertTriangle } from "lucide-react";
 import type { PublicMaterial, PublicVariant, DesignRule } from "@/lib/studio/studioApi";
 import type { BraceletDesign } from "@/lib/studio/designState";
+import { fetchComponentTypes, IStudioComponentType } from "@/lib/studio/independentStudioApi";
 
 // ============================================================================
 // HELPERS
@@ -271,6 +272,13 @@ export default function MaterialPicker({
 }: MaterialPickerProps) {
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
+  const [componentTypes, setComponentTypes] = useState<IStudioComponentType[]>([]);
+
+  useEffect(() => {
+    fetchComponentTypes(true)
+      .then(setComponentTypes)
+      .catch((err) => console.error("Failed to fetch component types in MaterialPicker:", err));
+  }, []);
 
   const hasSelection = design.selectedInstanceId !== null &&
     design.beadSequence.some((b) => b.instanceId === design.selectedInstanceId);
@@ -278,16 +286,16 @@ export default function MaterialPicker({
   const filteredMaterials = useMemo(() => {
     const q = search.trim().toLowerCase();
     return materials.filter((m) => {
-      if (filterType === "charms") {
-        if (m.materialType !== CHARM_TYPE) return false;
-      } else if (filterType !== "all") {
-        if (filterType === "bead" || filterType === "beads") {
+      if (filterType !== "all") {
+        if (filterType === "charms" || filterType === "charm") {
+          if (m.materialType !== "charm") return false;
+        } else if (filterType === "bead" || filterType === "beads") {
           if (m.materialType !== "bead") return false;
         } else if (m.materialType !== filterType) {
           return false;
         }
       }
-      // When filterType === "all", keep ALL components (beads, stones, spacers, charms)
+      // When filterType === "all", keep ALL components
       if (!q) return true;
       return (
         m.name.toLowerCase().includes(q) ||
@@ -297,7 +305,7 @@ export default function MaterialPicker({
     });
   }, [materials, filterType, search]);
 
-  const showingCharms = filterType === "charms";
+  const showingCharms = filterType === "charms" || filterType === "charm";
 
   const actionButtons: { key: PickerAction; label: string; disabled?: boolean }[] = [
     { key: "append", label: "Add to end" },
@@ -359,10 +367,12 @@ export default function MaterialPicker({
       <div className="flex gap-1 flex-wrap">
         {[
           { key: "all", label: "All" },
-          { key: "bead", label: "Beads" },
-          { key: "stone", label: "Stones" },
-          { key: "spacer", label: "Spacers" },
-          { key: "charms", label: "Charms" },
+          ...(componentTypes.length > 0
+            ? componentTypes.map((t) => ({ key: t.typeId, label: t.displayName }))
+            : [
+                { key: "bead", label: "Beads" },
+                { key: "charm", label: "Charms" },
+              ]),
         ].map(({ key, label }) => (
           <button
             key={key}

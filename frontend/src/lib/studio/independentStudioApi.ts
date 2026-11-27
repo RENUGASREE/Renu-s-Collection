@@ -188,6 +188,27 @@ export async function deleteMaterialLink(id: string): Promise<void> {
 }
 
 // ============================================================================
+// COMPONENT TYPES
+// ============================================================================
+
+export interface IStudioComponentType {
+  id: string;
+  typeId: string;
+  displayName: string;
+  description?: string | null;
+  displayOrder?: number;
+  isActive: boolean;
+  materialCount?: number;
+}
+
+export async function fetchComponentTypes(onlyActive = true): Promise<IStudioComponentType[]> {
+  const url = onlyActive ? "/api/v1/studio/component-types" : "/api/v1/studio/component-types?includeInactive=true";
+  const res = await apiRequest("GET", url);
+  const json = await res.json();
+  return json.data || [];
+}
+
+// ============================================================================
 // PHYSICAL CALIBRATION PROBE
 // ============================================================================
 

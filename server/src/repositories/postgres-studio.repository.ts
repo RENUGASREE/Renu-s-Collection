@@ -1694,6 +1694,7 @@ export class PostgresStudioRepository {
         : ["bead", "stone", "spacer", "charm"],
       maxCharms: Number(row.max_charms ?? 5),
       fitAllowanceMm: Number(row.fit_allowance_mm ?? 10),
+      charmCountMode: (row.charm_count_mode || "total_units") as any,
       requiresReviewThresholds:
         typeof row.requires_review_thresholds === "string"
           ? JSON.parse(row.requires_review_thresholds)
@@ -1711,6 +1712,64 @@ export class PostgresStudioRepository {
     client?: IDbClient
   ): Promise<IDesignRuleRecord | null> {
     const executor = this.getExecutor(client);
+
+    // 1. Check independent Studio rules table (studio_design_rules) first
+    try {
+      let studioSql = `
+        SELECT sdr.id, sdr.name, sdr.category_id, sdr.construction_method_id,
+               sdr.min_wrist_mm, sdr.max_wrist_mm, sdr.min_components, sdr.max_components,
+               sdr.max_charms, sdr.fit_allowance_mm, sdr.permitted_bead_sizes_mm,
+               sdr.allowed_material_types, sdr.endpoint_assembly_rules, sdr.charm_count_mode,
+               sdr.is_published, sdr.is_active, sdr.version, sdr.created_at, sdr.updated_at
+        FROM studio_design_rules sdr
+        LEFT JOIN studio_construction_methods scm ON scm.id = sdr.construction_method_id
+        LEFT JOIN studio_categories sc ON sc.id = sdr.category_id
+        WHERE sdr.is_active = TRUE
+      `;
+      const sdrParams: any[] = [];
+      if (constructionType) {
+        sdrParams.push(constructionType.trim());
+        studioSql += ` AND (LOWER(sdr.construction_method_id) = LOWER($${sdrParams.length}) OR LOWER(scm.slug) = LOWER($${sdrParams.length}))`;
+      }
+      if (jewelleryType) {
+        sdrParams.push(jewelleryType.trim());
+        studioSql += ` AND (LOWER(sdr.category_id) = LOWER($${sdrParams.length}) OR LOWER(sc.slug) = LOWER($${sdrParams.length}) OR sdr.category_id IS NULL)`;
+      }
+      studioSql += ` ORDER BY sdr.created_at DESC LIMIT 1;`;
+      const studioRes = await executor.query(studioSql, sdrParams);
+      if (studioRes.rows.length > 0) {
+        const row = studioRes.rows[0];
+        return {
+          id: String(row.id),
+          _id: String(row.id),
+          jewelleryType: row.category_id || jewelleryType,
+          constructionType: row.construction_method_id || constructionType || "standard",
+          minWristMm: Number(row.min_wrist_mm ?? 130),
+          maxWristMm: Number(row.max_wrist_mm ?? 220),
+          minComponents: Number(row.min_components ?? 1),
+          maxComponents: Number(row.max_components ?? 50),
+          permittedBeadSizesMm: Array.isArray(row.permitted_bead_sizes_mm) ? row.permitted_bead_sizes_mm.map(Number) : [4, 6, 8, 10, 12],
+          allowedMaterialTypes: Array.isArray(row.allowed_material_types) ? row.allowed_material_types : ["bead", "charm"],
+          maxCharms: Number(row.max_charms ?? 5),
+          fitAllowanceMm: Number(row.fit_allowance_mm ?? 15),
+          requiresReviewThresholds: {
+            extremeWristBelowMm: 120,
+            extremeWristAboveMm: 230,
+            asymmetryRatio: 3,
+            singleMaterialDominanceRatio: 0.95,
+          },
+          isActive: Boolean(row.is_active),
+          version: Number(row.version ?? 1),
+          charmCountMode: (row.charm_count_mode || "total_units") as any,
+          createdAt: new Date(row.created_at),
+          updatedAt: new Date(row.updated_at),
+        } as IDesignRuleRecord;
+      }
+    } catch {
+      // Fallback to legacy design_rules table if table is missing or error
+    }
+
+    // 2. Fall back to legacy design_rules table
     let sql = `
       SELECT id, jewellery_type, construction_type, min_wrist_mm, max_wrist_mm,
              min_components, max_components, permitted_bead_sizes_mm, allowed_material_types,

@@ -15,6 +15,8 @@ import {
   fetchStudioCategories,
   assignMethodToSubcategory,
   removeMethodFromSubcategory,
+  fetchComponentTypes,
+  IStudioComponentType,
 } from "@/lib/studio/independentStudioApi";
 import type {
   IStudioConstructionMethod,
@@ -49,21 +51,11 @@ const BASE_TYPES = [
   { value: "other", label: "Other Construction" },
 ];
 
-const COMPONENT_ROLES = [
-  { value: "bead", label: "Beads" },
-  { value: "charm", label: "Charms" },
-  { value: "spacer", label: "Spacers" },
-  { value: "clasp", label: "Clasps" },
-  { value: "jump_ring", label: "Jump Rings" },
-  { value: "extension_chain", label: "Extension Chains" },
-  { value: "end_cap", label: "End Caps / Securing Beads" },
-  { value: "pendant", label: "Pendants" },
-];
-
 export const StudioConstructionMethodsSection: React.FC = () => {
   const { toast } = useToast();
   const [methods, setMethods] = useState<IStudioConstructionMethod[]>([]);
   const [categories, setCategories] = useState<IStudioCategory[]>([]);
+  const [componentTypes, setComponentTypes] = useState<IStudioComponentType[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Form states
@@ -79,14 +71,14 @@ export const StudioConstructionMethodsSection: React.FC = () => {
     displayOrder: 0,
     isActive: true,
     isPublished: true,
-    allowedComponentRoles: ["bead", "charm", "spacer"] as string[],
-    // Physical Specs
-    cordDiameterMm: 0.8,
-    chainLengthMm: 50,
-    wireThicknessMm: 0.6,
-    innerDiameterMm: 55,
-    turnsCount: 1,
-    beadableLengthMm: 160,
+    allowedComponentRoles: [] as string[],
+    // Physical Specs (Nullable, starts blank)
+    cordDiameterMm: null as number | null,
+    chainLengthMm: null as number | null,
+    wireThicknessMm: null as number | null,
+    innerDiameterMm: null as number | null,
+    turnsCount: null as number | null,
+    beadableLengthMm: null as number | null,
     // Endpoints
     endpointAVisible: false,
     endpointASelectable: false,
@@ -101,12 +93,14 @@ export const StudioConstructionMethodsSection: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [fetchedMethods, flatCategories] = await Promise.all([
+      const [fetchedMethods, flatCategories, fetchedTypes] = await Promise.all([
         fetchConstructionMethods(false),
         fetchStudioCategories(false),
+        fetchComponentTypes(true),
       ]);
       setMethods(fetchedMethods);
       setCategories(flatCategories);
+      setComponentTypes(fetchedTypes);
     } catch (err: any) {
       toast({
         title: "Failed to load construction methods",
@@ -133,13 +127,13 @@ export const StudioConstructionMethodsSection: React.FC = () => {
       displayOrder: methods.length + 1,
       isActive: true,
       isPublished: true,
-      allowedComponentRoles: ["bead", "charm", "spacer"],
-      cordDiameterMm: 0.8,
-      chainLengthMm: 50,
-      wireThicknessMm: 0.6,
-      innerDiameterMm: 55,
-      turnsCount: 1,
-      beadableLengthMm: 160,
+      allowedComponentRoles: [],
+      cordDiameterMm: null,
+      chainLengthMm: null,
+      wireThicknessMm: null,
+      innerDiameterMm: null,
+      turnsCount: null,
+      beadableLengthMm: null,
       endpointAVisible: false,
       endpointASelectable: false,
       endpointARequired: false,
@@ -167,13 +161,13 @@ export const StudioConstructionMethodsSection: React.FC = () => {
       displayOrder: method.displayOrder || 0,
       isActive: method.isActive,
       isPublished: method.isPublished,
-      allowedComponentRoles: method.allowedComponentRoles || ["bead", "charm"],
-      cordDiameterMm: specs.cordDiameterMm || 0.8,
-      chainLengthMm: specs.chainLengthMm || 50,
-      wireThicknessMm: specs.wireThicknessMm || 0.6,
-      innerDiameterMm: specs.innerDiameterMm || 55,
-      turnsCount: specs.turnsCount || 1,
-      beadableLengthMm: specs.beadableLengthMm || 160,
+      allowedComponentRoles: method.allowedComponentRoles || [],
+      cordDiameterMm: specs.cordDiameterMm ?? null,
+      chainLengthMm: specs.chainLengthMm ?? null,
+      wireThicknessMm: specs.wireThicknessMm ?? null,
+      innerDiameterMm: specs.innerDiameterMm ?? null,
+      turnsCount: specs.turnsCount ?? null,
+      beadableLengthMm: specs.beadableLengthMm ?? null,
       endpointAVisible: endA.visible ?? false,
       endpointASelectable: endA.isCustomerSelectable ?? false,
       endpointARequired: endA.isSelectionRequired ?? false,
@@ -216,12 +210,12 @@ export const StudioConstructionMethodsSection: React.FC = () => {
       isPublished: formData.isPublished,
       allowedComponentRoles: formData.allowedComponentRoles,
       physicalSpecsConfig: {
-        cordDiameterMm: Number(formData.cordDiameterMm) || 0.8,
-        chainLengthMm: Number(formData.chainLengthMm) || null,
-        wireThicknessMm: Number(formData.wireThicknessMm) || null,
-        innerDiameterMm: Number(formData.innerDiameterMm) || null,
-        turnsCount: Number(formData.turnsCount) || null,
-        beadableLengthMm: Number(formData.beadableLengthMm) || null,
+        cordDiameterMm: formData.cordDiameterMm !== null && !isNaN(Number(formData.cordDiameterMm)) ? Number(formData.cordDiameterMm) : null,
+        chainLengthMm: formData.chainLengthMm !== null && !isNaN(Number(formData.chainLengthMm)) ? Number(formData.chainLengthMm) : null,
+        wireThicknessMm: formData.wireThicknessMm !== null && !isNaN(Number(formData.wireThicknessMm)) ? Number(formData.wireThicknessMm) : null,
+        innerDiameterMm: formData.innerDiameterMm !== null && !isNaN(Number(formData.innerDiameterMm)) ? Number(formData.innerDiameterMm) : null,
+        turnsCount: formData.turnsCount !== null && !isNaN(Number(formData.turnsCount)) ? Number(formData.turnsCount) : null,
+        beadableLengthMm: formData.beadableLengthMm !== null && !isNaN(Number(formData.beadableLengthMm)) ? Number(formData.beadableLengthMm) : null,
       },
       endpointAConfig: {
         visible: formData.endpointAVisible,
@@ -510,62 +504,68 @@ export const StudioConstructionMethodsSection: React.FC = () => {
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   <div>
-                    <Label className="text-[11px]">Cord Diameter</Label>
+                    <Label className="text-[11px]">Cord Diameter (Optional, mm)</Label>
                     <Input
                       type="number"
                       step="0.1"
-                      value={formData.cordDiameterMm}
-                      onChange={(e) => setFormData({ ...formData, cordDiameterMm: parseFloat(e.target.value) || 0 })}
+                      placeholder="e.g. 0.8"
+                      value={formData.cordDiameterMm ?? ""}
+                      onChange={(e) => setFormData({ ...formData, cordDiameterMm: e.target.value === "" ? null : parseFloat(e.target.value) })}
                       className="h-7 text-xs rounded-lg mt-1"
                     />
                   </div>
                   <div>
-                    <Label className="text-[11px]">Inner Diameter</Label>
+                    <Label className="text-[11px]">Inner Diameter (Optional, mm)</Label>
                     <Input
                       type="number"
                       step="1"
-                      value={formData.innerDiameterMm}
-                      onChange={(e) => setFormData({ ...formData, innerDiameterMm: parseFloat(e.target.value) || 0 })}
+                      placeholder="e.g. 55"
+                      value={formData.innerDiameterMm ?? ""}
+                      onChange={(e) => setFormData({ ...formData, innerDiameterMm: e.target.value === "" ? null : parseFloat(e.target.value) })}
                       className="h-7 text-xs rounded-lg mt-1"
                     />
                   </div>
                   <div>
-                    <Label className="text-[11px]">Beadable Length</Label>
+                    <Label className="text-[11px]">Beadable Length (Optional, mm)</Label>
                     <Input
                       type="number"
                       step="1"
-                      value={formData.beadableLengthMm}
-                      onChange={(e) => setFormData({ ...formData, beadableLengthMm: parseFloat(e.target.value) || 0 })}
+                      placeholder="e.g. 160"
+                      value={formData.beadableLengthMm ?? ""}
+                      onChange={(e) => setFormData({ ...formData, beadableLengthMm: e.target.value === "" ? null : parseFloat(e.target.value) })}
                       className="h-7 text-xs rounded-lg mt-1"
                     />
                   </div>
                   <div>
-                    <Label className="text-[11px]">Wire Thickness</Label>
+                    <Label className="text-[11px]">Wire Thickness (Optional, mm)</Label>
                     <Input
                       type="number"
                       step="0.1"
-                      value={formData.wireThicknessMm}
-                      onChange={(e) => setFormData({ ...formData, wireThicknessMm: parseFloat(e.target.value) || 0 })}
+                      placeholder="e.g. 0.6"
+                      value={formData.wireThicknessMm ?? ""}
+                      onChange={(e) => setFormData({ ...formData, wireThicknessMm: e.target.value === "" ? null : parseFloat(e.target.value) })}
                       className="h-7 text-xs rounded-lg mt-1"
                     />
                   </div>
                   <div>
-                    <Label className="text-[11px]">Chain Length</Label>
+                    <Label className="text-[11px]">Chain Length (Optional, mm)</Label>
                     <Input
                       type="number"
                       step="1"
-                      value={formData.chainLengthMm}
-                      onChange={(e) => setFormData({ ...formData, chainLengthMm: parseFloat(e.target.value) || 0 })}
+                      placeholder="e.g. 50"
+                      value={formData.chainLengthMm ?? ""}
+                      onChange={(e) => setFormData({ ...formData, chainLengthMm: e.target.value === "" ? null : parseFloat(e.target.value) })}
                       className="h-7 text-xs rounded-lg mt-1"
                     />
                   </div>
                   <div>
-                    <Label className="text-[11px]">Wire Turns</Label>
+                    <Label className="text-[11px]">Wire Turns (Optional)</Label>
                     <Input
                       type="number"
                       step="1"
-                      value={formData.turnsCount}
-                      onChange={(e) => setFormData({ ...formData, turnsCount: parseInt(e.target.value) || 1 })}
+                      placeholder="e.g. 1"
+                      value={formData.turnsCount ?? ""}
+                      onChange={(e) => setFormData({ ...formData, turnsCount: e.target.value === "" ? null : parseInt(e.target.value) })}
                       className="h-7 text-xs rounded-lg mt-1"
                     />
                   </div>
@@ -672,25 +672,29 @@ export const StudioConstructionMethodsSection: React.FC = () => {
               {/* Allowed Component Roles */}
               <div>
                 <Label className="text-xs mb-1.5 block">Allowed Component Roles in this Method</Label>
-                <div className="flex flex-wrap gap-2">
-                  {COMPONENT_ROLES.map((role) => {
-                    const active = formData.allowedComponentRoles.includes(role.value);
-                    return (
-                      <button
-                        key={role.value}
-                        type="button"
-                        onClick={() => handleToggleRole(role.value)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-all ${
-                          active
-                            ? "bg-[#B66F72] text-white border-[#B66F72]"
-                            : "bg-stone-50 border-stone-200 text-stone-600 hover:border-stone-300"
-                        }`}
-                      >
-                        {role.label}
-                      </button>
-                    );
-                  })}
-                </div>
+                {componentTypes.length === 0 ? (
+                  <p className="text-[11px] text-[#756861]">No active component types found. Add them in Component Types Management.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {componentTypes.map((type) => {
+                      const active = formData.allowedComponentRoles.includes(type.typeId);
+                      return (
+                        <button
+                          key={type.typeId}
+                          type="button"
+                          onClick={() => handleToggleRole(type.typeId)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-all ${
+                            active
+                              ? "bg-[#B66F72] text-white border-[#B66F72]"
+                              : "bg-stone-50 border-stone-200 text-stone-600 hover:border-stone-300"
+                          }`}
+                        >
+                          {type.displayName}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* Status Toggles */}

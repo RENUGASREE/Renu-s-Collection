@@ -163,10 +163,10 @@ export const StudioMaterialLinksSection: React.FC<StudioMaterialLinksSectionProp
         <div>
           <h2 className="text-base font-semibold text-[#342824] dark:text-foreground flex items-center gap-2">
             <LinkIcon className="w-4 h-4 text-[#B66F72]" />
-            <span>Explicit Material Linking</span>
+            <span>Inventory Connections</span>
           </h2>
           <p className="text-xs text-[#756861] dark:text-muted-foreground mt-0.5">
-            Explicitly link Studio materials and variants with Store customization materials and inventory items.
+            Connect Studio materials and variants with Store customization materials and physical stock pools to keep inventory unified without duplicate records.
           </p>
         </div>
         <Button
@@ -176,7 +176,7 @@ export const StudioMaterialLinksSection: React.FC<StudioMaterialLinksSectionProp
           className="bg-[#B66F72] hover:bg-[#95565A] text-white text-xs px-4 rounded-xl flex items-center gap-2 shrink-0 self-start sm:self-auto"
         >
           <Plus className="w-3.5 h-3.5" />
-          <span>New Material Link</span>
+          <span>New Inventory Connection</span>
         </Button>
       </div>
 
@@ -279,7 +279,7 @@ export const StudioMaterialLinksSection: React.FC<StudioMaterialLinksSectionProp
           <div className="bg-white dark:bg-card border border-[#E6D8D0] dark:border-border rounded-2xl w-full max-w-md shadow-2xl p-6 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-[#E6D8D0]">
               <h3 className="text-sm font-semibold text-[#342824] dark:text-foreground">
-                {editingId ? "Edit Material Link" : "Establish Explicit Material Link"}
+                {editingId ? "Edit Inventory Connection" : "Establish Inventory Connection"}
               </h3>
               <Button
                 type="button"
@@ -358,12 +358,34 @@ export const StudioMaterialLinksSection: React.FC<StudioMaterialLinksSectionProp
                   <Label className="text-xs">Consumption Qty</Label>
                   <Input
                     type="number"
-                    min="1"
+                    min={1}
                     value={formData.consumptionQty}
                     onChange={(e) => setFormData({ ...formData, consumptionQty: parseInt(e.target.value) || 1 })}
                     className="h-8 text-xs rounded-xl mt-1"
                   />
                 </div>
+              </div>
+
+              {/* Authoritative Source Plain-Language Help Text */}
+              <div className="p-2.5 rounded-xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-900/30 text-[11px] space-y-1 text-[#756861] dark:text-muted-foreground">
+                <span className="font-semibold text-[#5C4D44] dark:text-foreground block">
+                  Authoritative Stock Source Guide:
+                </span>
+                {formData.authoritativeSource === "studio" && (
+                  <p>
+                    <strong>Studio:</strong> The Studio material record is the single truth for available quantity. Reservations and order deductions directly manage this stock level.
+                  </p>
+                )}
+                {formData.authoritativeSource === "customization" && (
+                  <p>
+                    <strong>Store Customization:</strong> The store product customization item is the single truth. Studio displays stock based on the store catalog material.
+                  </p>
+                )}
+                {formData.authoritativeSource === "inventory" && (
+                  <p>
+                    <strong>Inventory Pool:</strong> Both Create Your Own Studio and standard product customizations draw from and decrement a shared physical warehouse stock pool.
+                  </p>
+                )}
               </div>
 
               <div>

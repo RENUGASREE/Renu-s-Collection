@@ -343,6 +343,8 @@ export default function AdminStudio() {
     fetchComponentTypes();
     fetchStudioCategories(false).then(setStudioCategories).catch(() => {});
     fetchConstructionMethods(false).then(setStudioMethods).catch(() => {});
+    fetchTemplates();
+    fetchReservations();
   }, [showArchivedTypes]);
 
   useEffect(() => {
@@ -1493,7 +1495,7 @@ export default function AdminStudio() {
             }`}
           >
             <LinkIcon className="w-3.5 h-3.5" />
-            <span>Explicit Material Links</span>
+            <span>Inventory Connections</span>
           </button>
 
           <button
@@ -1598,12 +1600,18 @@ export default function AdminStudio() {
                   onChange={(e) => setFilterCategory(e.target.value)}
                   className="h-9 px-3 text-xs rounded-xl border border-[#E6D8D0] dark:border-border bg-white dark:bg-card text-[#342824] dark:text-foreground"
                 >
-                  <option value="all">All Categories</option>
-                  {jewelleryTypes.map((t) => (
-                    <option key={t.slug} value={t.slug}>
-                      {t.displayName} Eligible
-                    </option>
-                  ))}
+                  <option value="all">All Studio Categories</option>
+                  {studioCategories.length > 0
+                    ? studioCategories.map((c) => (
+                        <option key={c.id || c.slug} value={c.slug || c.id}>
+                          {c.name}
+                        </option>
+                      ))
+                    : jewelleryTypes.map((t) => (
+                        <option key={t.slug} value={t.slug}>
+                          {t.displayName} Eligible
+                        </option>
+                      ))}
                 </select>
 
                 <select
@@ -2378,20 +2386,23 @@ export default function AdminStudio() {
             {/* Selectors */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-xl bg-[#FBF7F3] dark:bg-background border border-[#E6D8D0] dark:border-border">
               <div className="space-y-1">
-                <Label className="text-xs font-semibold">Jewellery Category</Label>
+                <Label className="text-xs font-semibold">Studio Jewellery Category</Label>
                 <select
                   value={selectedPricingType}
                   onChange={(e) => {
                     const newType = e.target.value;
                     setSelectedPricingType(newType);
-                    const jt = jewelleryTypes.find((t) => t.slug === newType);
-                    if (jt && jt.supportedConstructionTypes.length > 0) {
-                      setSelectedPricingConstruction(jt.supportedConstructionTypes[0]);
-                    }
                   }}
                   className="w-full h-9 px-3 rounded-lg border border-[#E6D8D0] bg-white text-xs dark:bg-card dark:border-border"
                 >
-                  {jewelleryTypes.map((t) => (
+                  {studioCategories.map((c) => (
+                    <option key={c.id || c.slug} value={c.slug || c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                  {/* Preserved legacy category to access the ₹20 craftsmanship charge */}
+                  <option value="bracelet">Bracelet (Legacy ₹20 Record)</option>
+                  {jewelleryTypes.filter(jt => jt.slug !== "bracelet").map((t) => (
                     <option key={t.slug} value={t.slug}>
                       {t.displayName}
                     </option>
@@ -2406,11 +2417,21 @@ export default function AdminStudio() {
                   onChange={(e) => setSelectedPricingConstruction(e.target.value)}
                   className="w-full h-9 px-3 rounded-lg border border-[#E6D8D0] bg-white text-xs dark:bg-card dark:border-border"
                 >
-                  {(jewelleryTypes.find((t) => t.slug === selectedPricingType)?.supportedConstructionTypes || [selectedPricingConstruction]).map((c) => (
-                    <option key={c} value={c}>
-                      {c.replace(/_/g, " ").toUpperCase()}
+                  {studioMethods.map((m) => (
+                    <option key={m.id || m.slug} value={m.slug || m.id}>
+                      {m.name}
                     </option>
                   ))}
+                  {/* Preserved legacy construction type for legacy ₹20 charge */}
+                  <option value="elastic_bead">Elastic Bead (Legacy Base)</option>
+                  {jewelleryTypes
+                    .find((t) => t.slug === selectedPricingType)
+                    ?.supportedConstructionTypes?.filter((c) => c !== "elastic_bead")
+                    .map((c) => (
+                      <option key={c} value={c}>
+                        {c.replace(/_/g, " ").toUpperCase()}
+                      </option>
+                    ))}
                 </select>
               </div>
             </div>
@@ -2563,24 +2584,58 @@ export default function AdminStudio() {
           </div>
         )}
 
-        {/* TAB 5: STOCK RESERVATIONS & LIFECYCLE (MILESTONE 6) */}
+        {/* TAB 5: STOCK RESERVATIONS & LIFECYCLE */}
         {activeTab === "reservations" && (
           <div className="space-y-6">
+            {/* Plain-Language Lifecycle Guide */}
+            <div className="p-4 rounded-2xl bg-white dark:bg-card border border-[#E6D8D0] dark:border-border text-xs space-y-2">
+              <div className="flex items-center gap-2 font-semibold text-sm text-[#342824] dark:text-foreground">
+                <Package className="w-4 h-4 text-[#B66F72]" />
+                <span>How Component Stock Reservations Work</span>
+              </div>
+              <p className="text-[#756861] dark:text-muted-foreground text-[11px] leading-relaxed">
+                When a customer designs jewellery and proceeds to checkout, the system reserves the selected components to prevent overselling.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                <div className="p-3 rounded-xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-900/30">
+                  <span className="font-semibold text-amber-800 dark:text-amber-300 block mb-0.5">1. Reserved</span>
+                  <span className="text-[11px] text-[#756861] dark:text-muted-foreground">Held temporarily while payment is pending and released when the configured reservation timeout expires. Safe from other shoppers.</span>
+                </div>
+                <div className="p-3 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200/50 dark:border-emerald-900/30">
+                  <span className="font-semibold text-emerald-800 dark:text-emerald-300 block mb-0.5">2. Committed</span>
+                  <span className="text-[11px] text-[#756861] dark:text-muted-foreground">Order paid or Cash on Delivery placed. Physical stock is permanently deducted.</span>
+                </div>
+                <div className="p-3 rounded-xl bg-stone-100/60 dark:bg-muted/40 border border-stone-200/60 dark:border-border">
+                  <span className="font-semibold text-stone-700 dark:text-foreground block mb-0.5">3. Released / Restocked</span>
+                  <span className="text-[11px] text-[#756861] dark:text-muted-foreground">Cart abandoned or order cancelled. Components automatically return to inventory.</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Filter and Action Bar */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white dark:bg-card p-4 rounded-2xl border border-[#E6D8D0] dark:border-border">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-[#756861]">Filter Status:</span>
-                <select
-                  value={filterReservationStatus}
-                  onChange={(e) => setFilterReservationStatus(e.target.value)}
-                  className="text-xs rounded-lg border border-[#E6D8D0] dark:border-border bg-[#FBF7F3] dark:bg-background h-8 px-2"
-                >
-                  <option value="all">All Statuses</option>
-                  <option value="reserved">Reserved (Pending Payment)</option>
-                  <option value="committed">Committed (Paid / COD)</option>
-                  <option value="released">Released (Expired / Failed)</option>
-                  <option value="restocked">Restocked (Cancelled)</option>
-                  <option value="reconciliation_required">Reconciliation Required</option>
-                </select>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {[
+                  { key: "all", label: "All" },
+                  { key: "reserved", label: "Reserved" },
+                  { key: "committed", label: "Committed" },
+                  { key: "released", label: "Released" },
+                  { key: "restocked", label: "Restocked" },
+                  { key: "reconciliation_required", label: "Requires Review" },
+                ].map(({ key, label }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setFilterReservationStatus(key)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
+                      filterReservationStatus === key
+                        ? "bg-[#342824] text-white shadow-xs"
+                        : "bg-[#FBF7F3] dark:bg-background border border-[#E6D8D0] text-[#756861] hover:border-[#B66F72]"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
 
               <div className="flex items-center gap-2">
@@ -2760,18 +2815,6 @@ export default function AdminStudio() {
               </div>
             </div>
 
-            {/* Safeguard Notice Banner */}
-            <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-3">
-              <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-              <div className="space-y-1">
-                <p className="font-semibold text-amber-800 dark:text-amber-300">
-                  Testing Mode Template Publication Notice
-                </p>
-                <p className="leading-relaxed">
-                  Starter templates referencing temporary <code className="font-mono bg-amber-100 dark:bg-amber-900/40 px-1 py-0.5 rounded">TEST-</code> inventory can be published for workflow verification in test mode. <strong>Public Visibility Note:</strong> When published, any visitor navigating to the Create Your Own Studio can view and load this template into their designer. Be sure to unpublish or delete test templates before going live with genuine inventory.
-                </p>
-              </div>
-            </div>
 
             {loadingTemplates ? (
               <div className="py-20 text-center">
@@ -3082,36 +3125,71 @@ export default function AdminStudio() {
                 </div>
 
                 <div className="space-y-1.5 pt-2">
-                  <Label>Eligible Jewellery Types</Label>
+                  <Label>Eligible Studio Categories</Label>
+                  <p className="text-[11px] text-[#756861] dark:text-muted-foreground">
+                    Select which independent Studio jewellery categories can use this material.
+                  </p>
                   <div className="grid grid-cols-2 gap-2">
-                    {jewelleryTypes.map((t) => (
-                      <label key={t.slug} className="flex items-center gap-2 p-2 rounded-lg border cursor-pointer text-xs">
-                        <input
-                          type="checkbox"
-                          checked={materialForm.allowedJewelleryTypes.includes(t.slug)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setMaterialForm({
-                                ...materialForm,
-                                allowedJewelleryTypes: [...materialForm.allowedJewelleryTypes, t.slug],
-                              });
-                            } else {
-                              setMaterialForm({
-                                ...materialForm,
-                                allowedJewelleryTypes: materialForm.allowedJewelleryTypes.filter((x) => x !== t.slug),
-                              });
-                            }
-                          }}
-                          className="accent-[#B66F72]"
-                        />
-                        <span>{t.displayName}</span>
-                      </label>
-                    ))}
+                    {studioCategories.length > 0 ? (
+                      studioCategories.map((c) => {
+                        const val = c.slug || c.id;
+                        return (
+                          <label key={c.id || c.slug} className="flex items-center gap-2 p-2 rounded-lg border cursor-pointer text-xs">
+                            <input
+                              type="checkbox"
+                              checked={materialForm.allowedJewelleryTypes.includes(val)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setMaterialForm({
+                                    ...materialForm,
+                                    allowedJewelleryTypes: [...materialForm.allowedJewelleryTypes, val],
+                                  });
+                                } else {
+                                  setMaterialForm({
+                                    ...materialForm,
+                                    allowedJewelleryTypes: materialForm.allowedJewelleryTypes.filter((x) => x !== val),
+                                  });
+                                }
+                              }}
+                              className="accent-[#B66F72]"
+                            />
+                            <span>{c.name}</span>
+                          </label>
+                        );
+                      })
+                    ) : (
+                      jewelleryTypes.map((t) => (
+                        <label key={t.slug} className="flex items-center gap-2 p-2 rounded-lg border cursor-pointer text-xs">
+                          <input
+                            type="checkbox"
+                            checked={materialForm.allowedJewelleryTypes.includes(t.slug)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setMaterialForm({
+                                  ...materialForm,
+                                  allowedJewelleryTypes: [...materialForm.allowedJewelleryTypes, t.slug],
+                                });
+                              } else {
+                                setMaterialForm({
+                                  ...materialForm,
+                                  allowedJewelleryTypes: materialForm.allowedJewelleryTypes.filter((x) => x !== t.slug),
+                                });
+                              }
+                            }}
+                            className="accent-[#B66F72]"
+                          />
+                          <span>{t.displayName}</span>
+                        </label>
+                      ))
+                    )}
                   </div>
                 </div>
 
                 <div className="space-y-1.5 pt-2">
-                  <Label>Available in (Website Features)</Label>
+                  <Label>Where can this material be selected?</Label>
+                  <p className="text-[11px] text-[#756861] dark:text-muted-foreground">
+                    Visibility control: Choose which customer storefront interfaces can display this material for selection.
+                  </p>
                   <div className="grid grid-cols-2 gap-2">
                     <label className="flex items-center gap-2 p-2 rounded-lg border cursor-pointer text-xs">
                       <input
@@ -3153,12 +3231,9 @@ export default function AdminStudio() {
                         }}
                         className="accent-[#B66F72]"
                       />
-                      <span>Bracelet Customization</span>
+                      <span>Store Product Customization</span>
                     </label>
                   </div>
-                  <p className="text-[11px] text-[#756861] dark:text-muted-foreground">
-                    Control which customer-facing sections can load and display this material.
-                  </p>
                 </div>
 
                 <div className="space-y-3 pt-2 border-t border-[#E6D8D0]/60">

@@ -10,6 +10,8 @@ import { getAssetUrl } from "@/lib/queryClient";
 import {
   fetchAssemblyStructure,
   saveAssemblyStructure,
+  fetchComponentTypes,
+  IStudioComponentType,
 } from "@/lib/studio/independentStudioApi";
 import type {
   IStudioCategory,
@@ -78,6 +80,7 @@ export const ManualAssemblyDesigner: React.FC<ManualAssemblyDesignerProps> = ({
   const [methodId, setMethodId] = useState<string>(initialMethodId || "");
 
   // Structure & Editor states
+  const [activeComponentTypes, setActiveComponentTypes] = useState<IStudioComponentType[]>([]);
   const [structure, setStructure] = useState<IStudioAssemblyStructure>(DEFAULT_BLANK_STRUCTURE);
   const [history, setHistory] = useState<IStudioAssemblyStructure[]>([]);
   const [redoStack, setRedoStack] = useState<IStudioAssemblyStructure[]>([]);
@@ -123,6 +126,13 @@ export const ManualAssemblyDesigner: React.FC<ManualAssemblyDesignerProps> = ({
     setStructure(next);
     setIsSaved(false);
   };
+
+  // Load active component types from database
+  useEffect(() => {
+    fetchComponentTypes(true)
+      .then((types) => setActiveComponentTypes(types))
+      .catch((err) => console.error("Failed to fetch active component types:", err));
+  }, []);
 
   // Load structure whenever method or subcategory changes
   useEffect(() => {
@@ -531,6 +541,7 @@ export const ManualAssemblyDesigner: React.FC<ManualAssemblyDesignerProps> = ({
                 Click a component to place it manually onto the blank canvas:
               </p>
 
+              {/* Structural Base */}
               <button
                 type="button"
                 onClick={() => handleAddComponent("bracelet_base", "Base Wire / Cord Path")}
@@ -540,42 +551,31 @@ export const ManualAssemblyDesigner: React.FC<ManualAssemblyDesignerProps> = ({
                 <Circle className="w-3.5 h-3.5 text-[#B66F72]" />
               </button>
 
-              <button
-                type="button"
-                onClick={() => handleAddComponent("bead", "Bead Placement Slot")}
-                className="w-full text-left px-3 py-2 rounded-xl border border-[#E6D8D0] hover:border-[#B66F72] bg-[#FBF7F3] hover:bg-[#F5ECE5] text-xs font-medium text-[#342824] dark:text-foreground transition-all flex items-center justify-between"
-              >
-                <span>Bead / Spacer Slot</span>
-                <span className="text-[10px] text-[#B0A0A0]">⌀8mm</span>
-              </button>
+              {/* Dynamic Database-backed Active Component Types */}
+              {activeComponentTypes.length > 0 ? (
+                activeComponentTypes.map((t) => (
+                  <button
+                    key={t.typeId}
+                    type="button"
+                    onClick={() => handleAddComponent(t.typeId, `${t.displayName} Placement Slot`)}
+                    className="w-full text-left px-3 py-2 rounded-xl border border-[#E6D8D0] hover:border-[#B66F72] bg-[#FBF7F3] hover:bg-[#F5ECE5] text-xs font-medium text-[#342824] dark:text-foreground transition-all flex items-center justify-between"
+                  >
+                    <span>{t.displayName} Slot</span>
+                    <span className="text-[10px] text-[#B0A0A0]">{t.typeId}</span>
+                  </button>
+                ))
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleAddComponent("bead", "Bead Placement Slot")}
+                  className="w-full text-left px-3 py-2 rounded-xl border border-[#E6D8D0] hover:border-[#B66F72] bg-[#FBF7F3] hover:bg-[#F5ECE5] text-xs font-medium text-[#342824] dark:text-foreground transition-all flex items-center justify-between"
+                >
+                  <span>Bead Slot</span>
+                  <span className="text-[10px] text-[#B0A0A0]">bead</span>
+                </button>
+              )}
 
-              <button
-                type="button"
-                onClick={() => handleAddComponent("lobster_clasp", "Lobster Clasp")}
-                className="w-full text-left px-3 py-2 rounded-xl border border-[#E6D8D0] hover:border-[#B66F72] bg-[#FBF7F3] hover:bg-[#F5ECE5] text-xs font-medium text-[#342824] dark:text-foreground transition-all flex items-center justify-between"
-              >
-                <span>Lobster Clasp</span>
-                <span className="text-[10px] text-[#B0A0A0]">Clasp</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleAddComponent("jump_ring", "Jump Ring")}
-                className="w-full text-left px-3 py-2 rounded-xl border border-[#E6D8D0] hover:border-[#B66F72] bg-[#FBF7F3] hover:bg-[#F5ECE5] text-xs font-medium text-[#342824] dark:text-foreground transition-all flex items-center justify-between"
-              >
-                <span>Jump Ring Connector</span>
-                <span className="text-[10px] text-[#B0A0A0]">Ring</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleAddComponent("extension_chain", "Parametric Extension Chain")}
-                className="w-full text-left px-3 py-2 rounded-xl border border-[#E6D8D0] hover:border-[#B66F72] bg-[#FBF7F3] hover:bg-[#F5ECE5] text-xs font-medium text-[#342824] dark:text-foreground transition-all flex items-center justify-between"
-              >
-                <span>Extension Chain (SVG Links)</span>
-                <span className="text-[10px] text-[#95565A]">50mm Drape</span>
-              </button>
-
+              {/* Customer Charm Attachment Slot */}
               <button
                 type="button"
                 onClick={handleAddAttachmentPoint}

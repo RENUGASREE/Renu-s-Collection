@@ -1354,6 +1354,7 @@ export interface IDesignRuleRecord {
   allowedMaterialTypes: string[];
   maxCharms: number;
   fitAllowanceMm: number;
+  charmCountMode?: 'total_units' | 'distinct_types' | string;
   requiresReviewThresholds?: any;
   isActive: boolean;
   version: number;
