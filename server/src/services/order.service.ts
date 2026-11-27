@@ -37,6 +37,7 @@ import {
 import { PostgresOrderRepository } from "../repositories/postgres-order.repository.js";
 import { PostgresProductRepository } from "../repositories/postgres-product.repository.js";
 import { PostgresUserRepository } from "../repositories/postgres-user.repository.js";
+import { PostgresStudioRepository } from "../repositories/postgres-studio.repository.js";
 import { PostgresDatabase } from "../db/postgres.js";
 import type { IAddress } from "../models/User.js";
 import type { OrderStatus } from "../types/index.js";
@@ -51,6 +52,7 @@ const SHIPPING_FLAT = 50;
 let activeOrderRepo: PostgresOrderRepository | null = null;
 let activeProductRepo: PostgresProductRepository | null = null;
 let activeUserRepo: PostgresUserRepository | null = null;
+let activeStudioRepo: PostgresStudioRepository | null = null;
 let activePool: IDbPool | null = null;
 
 export function setOrderRepository(repo: PostgresOrderRepository): void {
@@ -68,6 +70,10 @@ export function setOrderProductRepository(repo: PostgresProductRepository): void
 
 export function setOrderUserRepository(repo: PostgresUserRepository): void {
   activeUserRepo = repo;
+}
+
+export function setOrderStudioRepository(repo: PostgresStudioRepository): void {
+  activeStudioRepo = repo;
 }
 
 function getOrderPool(): IDbPool {
@@ -96,6 +102,13 @@ function getUserRepo(): PostgresUserRepository {
     activeUserRepo = new PostgresUserRepository(getOrderPool());
   }
   return activeUserRepo;
+}
+
+function getStudioRepo(): PostgresStudioRepository {
+  if (!activeStudioRepo) {
+    activeStudioRepo = new PostgresStudioRepository(getOrderPool());
+  }
+  return activeStudioRepo;
 }
 
 // ---------------------------------------------------------------------------
@@ -560,6 +573,14 @@ export async function createOrderFromCart(
             engraving: item.customization.engraving,
             priceModifier: item.customization.priceModifier ?? priceModifier,
             breakdown,
+            braceletStructureSnapshot: product.braceletStructure || (item.customization as any).braceletStructureSnapshot || null,
+          }
+        : product.braceletStructure
+        ? {
+            selections: {},
+            priceModifier: 0,
+            breakdown: [],
+            braceletStructureSnapshot: product.braceletStructure,
           }
         : undefined,
     });
@@ -819,6 +840,30 @@ export async function cancelOrder(userId: string, orderId: string): Promise<IOrd
     }
   }
 
+  // Restock any physically allocated variants from order items
+  if (order.items && order.items.length > 0) {
+    const studioRepo = getStudioRepo();
+    for (const item of order.items) {
+      const cust = item.customization;
+      if (cust) {
+        const allocatedSku = cust.allocatedVariantSku;
+        const allocatedSkus = cust.allocatedVariantSkus || {};
+        const skusToRestock = new Set<string>();
+        if (allocatedSku) skusToRestock.add(allocatedSku);
+        for (const s of Object.values(allocatedSkus)) {
+          if (typeof s === "string" && s) skusToRestock.add(s);
+        }
+        for (const sku of skusToRestock) {
+          try {
+            await studioRepo.incrementVariantStock(sku, 1);
+          } catch (err) {
+            console.error(`[cancelOrder] Failed to restock allocated variant ${sku}:`, err);
+          }
+        }
+      }
+    }
+  }
+
   // Idempotently rollback coupon usage if previously processed
   if (order.couponCode && order.couponProcessed) {
     try {
@@ -891,6 +936,30 @@ export async function updateOrderStatus(
         console.error(`[updateOrderStatus] Failed to restock studio reservation for order ${order.id}:`, studioErr);
       }
     }
+
+    // Restock any physically allocated variants from order items
+    if (order.items && order.items.length > 0) {
+      const studioRepo = getStudioRepo();
+      for (const item of order.items) {
+        const cust = item.customization;
+        if (cust) {
+          const allocatedSku = cust.allocatedVariantSku;
+          const allocatedSkus = cust.allocatedVariantSkus || {};
+          const skusToRestock = new Set<string>();
+          if (allocatedSku) skusToRestock.add(allocatedSku);
+          for (const s of Object.values(allocatedSkus)) {
+            if (typeof s === "string" && s) skusToRestock.add(s);
+          }
+          for (const sku of skusToRestock) {
+            try {
+              await studioRepo.incrementVariantStock(sku, 1);
+            } catch (err) {
+              console.error(`[updateOrderStatus] Failed to restock allocated variant ${sku}:`, err);
+            }
+          }
+        }
+      }
+    }
     if (order.couponCode && order.couponProcessed) {
       try {
         await couponService.rollbackCouponUsage(order.couponCode);
@@ -938,6 +1007,115 @@ export async function updateOrderStatus(
   });
 
   return updated || order;
+}
+
+export async function allocateOrderVariant(
+  orderId: string,
+  itemIndex: number,
+  materialCode: string,
+  variantSku: string,
+  adminId?: string
+): Promise<IOrderRecord> {
+  const orderRepo = getOrderRepo();
+  const order = await orderRepo.findById(orderId);
+  if (!order) throw new AppError("Order not found", 404);
+
+  if (order.status === "cancelled") {
+    throw new AppError("Cannot allocate variants for a cancelled order", 400);
+  }
+
+  const items = order.items || [];
+  if (itemIndex < 0 || itemIndex >= items.length) {
+    throw new AppError(`Order item at index ${itemIndex} not found`, 404);
+  }
+
+  const targetItem = items[itemIndex];
+  const studioRepo = getStudioRepo();
+
+  // Validate variant
+  const found = await studioRepo.findVariantBySku(variantSku);
+  if (!found || !found.variant) {
+    throw new AppError(`Variant SKU "${variantSku}" not found in studio catalogue`, 404);
+  }
+  const variant = found.variant;
+  const material = found.material;
+
+  // Validate material reference matches
+  const targetCode = materialCode.trim().toUpperCase();
+  if (
+    material.code.toUpperCase() !== targetCode &&
+    material.id !== materialCode &&
+    material.name.toUpperCase() !== targetCode
+  ) {
+    throw new AppError(
+      `Variant SKU "${variantSku}" belongs to material "${material.name}" (${material.code}), not "${materialCode}".`,
+      400
+    );
+  }
+
+  // Validate eligible assortment if defined
+  if (material.eligibleAssortmentSkus && material.eligibleAssortmentSkus.length > 0) {
+    const isEligible = material.eligibleAssortmentSkus.some(
+      (s: string) => s.toUpperCase() === variantSku.toUpperCase()
+    );
+    if (!isEligible) {
+      throw new AppError(
+        `Variant SKU "${variantSku}" is not an eligible assortment variant for material "${material.name}". Eligible: ${material.eligibleAssortmentSkus.join(", ")}`,
+        400
+      );
+    }
+  }
+
+  // Check duplicate / repeated allocation
+  const currentCustomization = targetItem.customization || {};
+  const currentAllocated = currentCustomization.allocatedVariantSkus || {};
+  if (currentAllocated[materialCode] || currentCustomization.allocatedVariantSku) {
+    const existingSku = currentAllocated[materialCode] || currentCustomization.allocatedVariantSku;
+    throw new AppError(
+      `Variant for material "${materialCode}" on item #${itemIndex + 1} has already been allocated (${existingSku}). Repeated allocation is prevented.`,
+      400
+    );
+  }
+
+  // Insufficient variant stock check
+  if (typeof variant.stock === "number" && variant.stock < 1) {
+    throw new AppError(
+      `Insufficient stock for variant "${variantSku}" (${variant.sizeLabel || variantSku}). Available: ${variant.stock}, Required: 1.`,
+      400
+    );
+  }
+
+  // Atomic decrement for concurrency protection
+  const decremented = await studioRepo.atomicDecrementVariantStock(variantSku, 1);
+  if (!decremented) {
+    throw new AppError(
+      `Insufficient stock for variant "${variantSku}". Stock became unavailable concurrently.`,
+      400
+    );
+  }
+
+  // Update item customization snapshot with allocatedVariantSku
+  const updatedCustomization = {
+    ...currentCustomization,
+    allocatedVariantSku: variantSku,
+    allocatedVariantSkus: {
+      ...currentAllocated,
+      [materialCode]: variantSku,
+    },
+  };
+
+  await orderRepo.updateOrderItemCustomization(targetItem.id, updatedCustomization);
+
+  // Append audit note to order history
+  await orderRepo.appendStatusHistory(order.id, {
+    status: order.status,
+    note: `Allocated physical variant ${variantSku} for ${materialCode} on item #${itemIndex + 1}`,
+    changedAt: new Date(),
+    changedBy: adminId,
+  });
+
+  const refreshedOrder = await orderRepo.findById(order.id);
+  return refreshedOrder || order;
 }
 
 // ---------------------------------------------------------------------------

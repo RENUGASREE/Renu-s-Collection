@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { getAssetUrl } from '@/lib/queryClient';
 import BrandedImagePlaceholder from './BrandedImagePlaceholder';
+import BraceletStructureRenderer, { SelectedCharmDetail } from './studio/BraceletStructureRenderer';
+import { IBraceletStructure } from '@/types/structure';
 
 export interface PreviewLayer {
   layerId: string;
@@ -15,6 +17,8 @@ export interface CustomizationPreviewProps {
   category?: string;
   layers?: PreviewLayer[];
   selections?: Record<string, string | string[]>;
+  braceletStructure?: IBraceletStructure | null;
+  charmDetailsMap?: Map<string, SelectedCharmDetail>;
   className?: string;
 }
 
@@ -24,10 +28,26 @@ export const CustomizationPreview: React.FC<CustomizationPreviewProps> = ({
   category,
   layers = [],
   selections = {},
+  braceletStructure = null,
+  charmDetailsMap = new Map(),
   className = '',
 }) => {
   const [baseHasError, setBaseHasError] = useState(false);
   const [layerErrors, setLayerErrors] = useState<Record<string, boolean>>({});
+
+  // If a product-specific visual bracelet structure is configured, use the vector/SVG renderer
+  if (braceletStructure && Array.isArray(braceletStructure.nodes) && braceletStructure.nodes.length > 0) {
+    return (
+      <div className={`relative w-full h-full overflow-hidden flex items-center justify-center ${className}`}>
+        <BraceletStructureRenderer
+          structure={braceletStructure}
+          selections={selections}
+          charmDetailsMap={charmDetailsMap}
+          className="w-full h-full max-h-[520px]"
+        />
+      </div>
+    );
+  }
 
   const cleanBase = (baseImage || "").trim();
 

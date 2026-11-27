@@ -304,6 +304,8 @@ export interface PublicMaterialVariant {
   sellingRate: number;
   inStock: boolean;
   stock?: number;
+  imageUrl?: string;
+  renderAssetUrl?: string;
 }
 
 export interface PublicStudioMaterial {
@@ -319,6 +321,9 @@ export interface PublicStudioMaterial {
   allowedJewelleryTypes: string[];
   visibilityScopes: string[];
   sortOrder: number;
+  selectionPolicy?: 'customer_selects_variant' | 'seller_random_variant';
+  assortmentNotes?: string;
+  eligibleAssortmentSkus?: string[];
   variants: PublicMaterialVariant[];
 }
 
@@ -335,6 +340,8 @@ export function toPublicMaterial(mat: IStudioMaterialRecord): PublicStudioMateri
       sellingRate: v.sellingRate,
       inStock: v.stock > 0,
       stock: v.stock,
+      imageUrl: v.imageUrl || undefined,
+      renderAssetUrl: v.renderAssetUrl || undefined,
     }));
 
   return {
@@ -350,6 +357,9 @@ export function toPublicMaterial(mat: IStudioMaterialRecord): PublicStudioMateri
     allowedJewelleryTypes: mat.allowedJewelleryTypes || [],
     visibilityScopes: mat.visibilityScopes || ["studio"],
     sortOrder: mat.sortOrder,
+    selectionPolicy: mat.selectionPolicy || 'customer_selects_variant',
+    assortmentNotes: mat.assortmentNotes || undefined,
+    eligibleAssortmentSkus: mat.eligibleAssortmentSkus || [],
     variants: activeVariants,
   };
 }

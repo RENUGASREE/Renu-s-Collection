@@ -230,38 +230,40 @@ function CharmElement({
   const lineSy = anchorPos.cy + anchorPos.rpx * dropDir.y;
   const charmCx = anchorPos.cx + (anchorPos.rpx + CHARM_DROP_PX + charmRpx) * dropDir.x;
   const charmCy = anchorPos.cy + (anchorPos.rpx + CHARM_DROP_PX + charmRpx) * dropDir.y;
-  const clipId = `charm-clip-${charm.instanceId}`;
-  const charmImageSrc = charm.renderAssetUrl || charm.imageUrl;
+  // Image-resolution priority:
+  // 1. Variant-specific transparent render image.
+  // 2. Confirmed transparent render asset (PNG/WebP).
+  // 3. Graceful fallback medallion (never squish an unrelated camera photo or crop into circle).
+  const transparentSrc = charm.renderAssetUrl || (
+    charm.imageUrl && (charm.imageUrl.endsWith(".png") || charm.imageUrl.endsWith(".webp") || charm.imageUrl.includes("data:image/png"))
+      ? charm.imageUrl
+      : null
+  );
 
   return (
     <g>
-      {/* Jump ring line */}
+      {/* Jump ring line connecting anchor bead to charm */}
       <line
         x1={lineSx} y1={lineSy}
-        x2={charmCx - charmRpx * 0.5 * dropDir.x}
-        y2={charmCy - charmRpx * 0.5 * dropDir.y}
+        x2={charmCx - charmRpx * 0.4 * dropDir.x}
+        y2={charmCy - charmRpx * 0.4 * dropDir.y}
         stroke="#C0A888"
         strokeWidth="1.5"
         strokeDasharray="2 1"
       />
-      {charmImageSrc ? (
-        <>
-          <defs>
-            <clipPath id={clipId}>
-              <circle cx={charmCx} cy={charmCy} r={charmRpx} />
-            </clipPath>
-          </defs>
-          <image
-            href={getAssetUrl(charmImageSrc)}
-            x={charmCx - charmRpx}
-            y={charmCy - charmRpx}
-            width={charmRpx * 2}
-            height={charmRpx * 2}
-            clipPath={`url(#${clipId})`}
-            preserveAspectRatio="xMidYMid meet"
-          />
-        </>
+      {transparentSrc ? (
+        /* Render natural charm silhouette with transparent background without circular clipping */
+        <image
+          href={getAssetUrl(transparentSrc)}
+          x={charmCx - charmRpx * 1.2}
+          y={charmCy - charmRpx * 1.2}
+          width={charmRpx * 2.4}
+          height={charmRpx * 2.4}
+          preserveAspectRatio="xMidYMid meet"
+          className="transition-transform duration-200"
+        />
       ) : (
+        /* Elegant metallic charm medallion fallback when no transparent asset is available */
         <>
           <defs>
             <radialGradient id={`cg-${charm.instanceId}`} cx="38%" cy="32%" r="65%">
@@ -283,6 +285,7 @@ function CharmElement({
             y={charmCy + charmRpx * 0.35}
             textAnchor="middle"
             fontSize={charmRpx * 1.1}
+            fill="#FAF6F0"
             style={{ pointerEvents: "none", userSelect: "none" }}
           >
             ✦

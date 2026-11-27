@@ -23,6 +23,9 @@ export interface PublicVariant {
   sellingRate: number;
   inStock: boolean;
   stock?: number;
+  isActive?: boolean;
+  imageUrl?: string;
+  renderAssetUrl?: string;
 }
 
 export interface PublicMaterial {
@@ -37,6 +40,9 @@ export interface PublicMaterial {
   allowedJewelleryTypes: string[];
   visibilityScopes?: string[];
   sortOrder: number;
+  selectionPolicy?: 'customer_selects_variant' | 'seller_random_variant';
+  assortmentNotes?: string;
+  eligibleAssortmentSkus?: string[];
   variants: PublicVariant[];
 }
 
@@ -50,6 +56,7 @@ export interface DesignRule {
   permittedBeadSizesMm: number[];
   allowedMaterialTypes: string[];
   maxCharms: number;
+  charmCountMode?: 'total_units' | 'distinct_types';
   fitAllowanceMm: number;
   isActive: boolean;
 }

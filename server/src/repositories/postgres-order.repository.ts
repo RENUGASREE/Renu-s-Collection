@@ -924,6 +924,28 @@ export class PostgresOrderRepository {
   }
 
   /**
+   * Updates an order item's customization snapshot (e.g. for allocated variant assignment).
+   */
+  public async updateOrderItemCustomization(
+    orderItemId: string,
+    customization: any,
+    client?: IDbClient
+  ): Promise<boolean> {
+    if (!isValidEntityId(orderItemId)) return false;
+    const executor = this.getExecutor(client);
+
+    const result = await executor.query(
+      `UPDATE order_items
+       SET customization = $2::jsonb
+       WHERE id = $1
+       RETURNING id;`,
+      [orderItemId, JSON.stringify(customization || {})]
+    );
+
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  /**
    * Deletes an order by ID (cascades to order_items).
    */
   public async deleteById(id: string, client?: IDbClient): Promise<boolean> {

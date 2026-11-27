@@ -5,6 +5,7 @@ import {
   getOrderById,
   cancelOrder,
   updateOrderStatus,
+  allocateOrderVariant,
 } from "../services/order.service.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireAdmin } from "../middleware/auth.js";
@@ -153,6 +154,39 @@ router.patch(
       }
 
       const order = await updateOrderStatus(orderId, status, trackingNumber, req.user?.id);
+      return res.json({ success: true, data: order });
+    } catch (error) {
+      next(error);
+      return;
+    }
+  }
+);
+
+// Admin: Allocate variant for seller-random assortment
+router.patch(
+  "/admin/:orderId/allocate-variant",
+  requireAdmin,
+  validateParams(z.object({ orderId: z.string() })),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { orderId } = req.params;
+      const { itemIndex, materialCode, variantSku } = req.body;
+
+      if (typeof itemIndex !== "number" || !materialCode || !variantSku) {
+        return res.status(400).json({
+          success: false,
+          error: "itemIndex (number), materialCode (string), and variantSku (string) are required",
+        });
+      }
+
+      const order = await allocateOrderVariant(
+        orderId,
+        itemIndex,
+        String(materialCode),
+        String(variantSku),
+        req.user?.id
+      );
+
       return res.json({ success: true, data: order });
     } catch (error) {
       next(error);

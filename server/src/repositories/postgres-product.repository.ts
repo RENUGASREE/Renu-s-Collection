@@ -62,6 +62,7 @@ export interface ProductDbRow {
   signature_category: string;
   is_active: boolean;
   is_customizable: boolean;
+  bracelet_structure?: any;
   average_rating: string | number;
   review_count: number;
   created_at: Date | string;
@@ -100,6 +101,7 @@ export interface ProductRecord {
   signatureCategory: string;
   isActive: boolean;
   isCustomizable: boolean;
+  braceletStructure?: any;
   averageRating: number;
   reviewCount: number;
   createdAt: Date;
@@ -134,6 +136,7 @@ export interface CreateProductData {
   signatureCategory?: "fashion" | "trending" | "latest" | "none" | string;
   isActive?: boolean;
   isCustomizable?: boolean;
+  braceletStructure?: any;
   averageRating?: number;
   reviewCount?: number;
 }
@@ -165,6 +168,7 @@ export interface UpdateProductData {
   signatureCategory?: "fashion" | "trending" | "latest" | "none" | string;
   isActive?: boolean;
   isCustomizable?: boolean;
+  braceletStructure?: any;
   averageRating?: number;
   reviewCount?: number;
 }
@@ -235,6 +239,7 @@ export const ALLOWED_PRODUCT_UPDATE_COLUMNS: Readonly<Record<string, string>> = 
   isCustomizable: "is_customizable",
   averageRating: "average_rating",
   reviewCount: "review_count",
+  braceletStructure: "bracelet_structure",
 });
 
 /**
@@ -271,6 +276,19 @@ export function mapRowToProduct(row: ProductDbRow): ProductRecord {
     }
   }
 
+  let braceletStructure: any = null;
+  if (row.bracelet_structure) {
+    if (typeof row.bracelet_structure === "string") {
+      try {
+        braceletStructure = JSON.parse(row.bracelet_structure);
+      } catch {
+        braceletStructure = null;
+      }
+    } else {
+      braceletStructure = row.bracelet_structure;
+    }
+  }
+
   return {
     id: row.id,
     _id: row.id,
@@ -301,6 +319,7 @@ export function mapRowToProduct(row: ProductDbRow): ProductRecord {
     signatureCategory: row.signature_category || "none",
     isActive: Boolean(row.is_active),
     isCustomizable: Boolean(row.is_customizable),
+    braceletStructure,
     averageRating: Number(row.average_rating ?? 0),
     reviewCount: Number(row.review_count ?? 0),
     createdAt: row.created_at instanceof Date ? row.created_at : new Date(row.created_at),
@@ -337,6 +356,7 @@ const PRODUCT_SELECT_FIELDS = `
   is_customizable,
   average_rating,
   review_count,
+  bracelet_structure,
   created_at,
   updated_at
 `;
@@ -852,6 +872,9 @@ export class PostgresProductRepository {
       addField("signature_category", data.signatureCategory || "none");
       addField("is_active", data.isActive !== undefined ? Boolean(data.isActive) : true);
       addField("is_customizable", data.isCustomizable !== undefined ? Boolean(data.isCustomizable) : true);
+      if (data.braceletStructure !== undefined) {
+        addField("bracelet_structure", data.braceletStructure ? JSON.stringify(data.braceletStructure) : null);
+      }
       addField("average_rating", data.averageRating ?? 0);
       addField("review_count", data.reviewCount ?? 0);
 
@@ -982,8 +1005,15 @@ export class PostgresProductRepository {
       if (data.badge !== undefined) addSet("badge", data.badge);
       if (data.isSignaturePiece !== undefined) addSet("is_signature_piece", Boolean(data.isSignaturePiece));
       if (data.signatureCategory !== undefined) addSet("signature_category", data.signatureCategory);
-      if (data.isActive !== undefined) addSet("is_active", Boolean(data.isActive));
-      if (data.isCustomizable !== undefined) addSet("is_customizable", Boolean(data.isCustomizable));
+      if (data.isActive !== undefined) {
+        addSet("is_active", Boolean(data.isActive));
+      }
+      if (data.isCustomizable !== undefined) {
+        addSet("is_customizable", Boolean(data.isCustomizable));
+      }
+      if (data.braceletStructure !== undefined) {
+        addSet("bracelet_structure", data.braceletStructure ? JSON.stringify(data.braceletStructure) : null);
+      }
       if (data.averageRating !== undefined) addSet("average_rating", data.averageRating);
       if (data.reviewCount !== undefined) addSet("review_count", data.reviewCount);
 

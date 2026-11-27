@@ -101,6 +101,7 @@ export const createProductSchema = z.object({
   signatureCategory: z.enum(["fashion", "trending", "latest", "none"]).optional(),
   isActive: z.boolean().optional(),
   isCustomizable: z.boolean().optional(),
+  braceletStructure: z.any().optional().nullable(),
 });
 
 export const updateProductSchema = createProductSchema.partial();

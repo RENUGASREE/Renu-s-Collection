@@ -294,6 +294,7 @@ export async function getProductCustomization(productId: string, client?: IDbCli
     basePrice: product.salePrice ?? product.price ?? product.basePrice,
     fields: enrichedFields.sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0)),
     previewLayers,
+    braceletStructure: product.braceletStructure || null,
     isCustomizable: product.isCustomizable,
   };
 }

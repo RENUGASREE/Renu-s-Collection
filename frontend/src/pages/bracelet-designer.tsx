@@ -506,6 +506,8 @@ export default function BraceletDesigner() {
   const handleSelectVariant = useCallback(
     (material: PublicMaterial, variant: PublicVariant, kind: "bead" | "charm") => {
       const matId = material.id || (material as any)._id;
+      const availableStock = typeof variant.stock === "number" ? variant.stock : variant.inStock ? 999 : 0;
+
       if (kind === "charm") {
         if (!design.selectedInstanceId || !design.beadSequence.some(b => b.instanceId === design.selectedInstanceId)) {
           toast({
@@ -515,14 +517,65 @@ export default function BraceletDesigner() {
           });
           return;
         }
+
+        // Instant validation: maximum charms allowed
+        const maxCharms = designRule?.maxCharms ?? 3;
+        const countMode = designRule?.charmCountMode ?? "total_units";
+        const currentCount = countMode === "distinct_types"
+          ? new Set(design.charms.map(c => c.variantSku)).size
+          : design.charms.length;
+
+        if (currentCount >= maxCharms && (countMode === "total_units" || !design.charms.some(c => c.variantSku === variant.sku))) {
+          toast({
+            title: "Charm Limit Reached",
+            description: `Maximum of ${maxCharms} charms reached. Remove a charm to select another.`,
+            variant: "destructive",
+          });
+          return;
+        }
+
+        // Instant validation: available inventory stock
+        const currentUsedCharmQty = design.charms.filter(c => c.variantSku === variant.sku).length;
+        if (currentUsedCharmQty >= availableStock) {
+          toast({
+            title: "Stock Limit Reached",
+            description: `Only ${availableStock} ${material.name} (${variant.sizeLabel}) is currently available.`,
+            variant: "destructive",
+          });
+          return;
+        }
+
+        // Priority image resolution:
+        // 1. Variant-specific transparent render image.
+        // 2. Variant image if transparent.
+        // 3. Parent transparent render image only when appropriate.
+        const resolvedRenderAsset = variant.renderAssetUrl || (
+          variant.imageUrl && (variant.imageUrl.endsWith(".png") || variant.imageUrl.endsWith(".webp"))
+            ? variant.imageUrl
+            : (!material.variants.some(other => other.sku !== variant.sku && other.renderAssetUrl) ? material.renderAssetUrl : undefined)
+        );
+
         const charm: Omit<CharmAttachment, "instanceId" | "anchorInstanceId"> = {
           materialId: matId,
           variantSku: variant.sku,
-          renderAssetUrl: material.renderAssetUrl,
-          imageUrl: material.imageUrl,
-          displayName: `${material.name} · ${variant.sizeLabel}`,
+          renderAssetUrl: resolvedRenderAsset,
+          imageUrl: variant.imageUrl || material.imageUrl,
+          displayName: material.selectionPolicy === 'seller_random_variant'
+            ? `${material.name} (Seller Random Assortment)`
+            : `${material.name} · ${variant.sizeLabel}`,
         };
         dispatch(attachCharm(design, charm));
+        return;
+      }
+
+      // Instant stock validation for beads
+      const usedBeadQty = design.beadSequence.filter(b => b.variantSku === variant.sku).length;
+      if (usedBeadQty >= availableStock) {
+        toast({
+          title: "Stock Limit Reached",
+          description: `Only ${availableStock} of ${material.name} (${variant.sizeLabel}) is available in stock.`,
+          variant: "destructive",
+        });
         return;
       }
 
@@ -532,8 +585,8 @@ export default function BraceletDesigner() {
         variantSku: variant.sku,
         materialType: material.materialType,
         diameterMm: variant.dimensionsMm?.diameterMm ?? 0,
-        renderAssetUrl: material.renderAssetUrl,
-        imageUrl: material.imageUrl,
+        renderAssetUrl: variant.renderAssetUrl || material.renderAssetUrl,
+        imageUrl: variant.imageUrl || material.imageUrl,
         color: variant.color,
         finish: variant.finish,
         displayName: `${material.name} · ${variant.sizeLabel}`,

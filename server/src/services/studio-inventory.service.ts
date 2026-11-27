@@ -60,6 +60,7 @@ export interface VerifiedComponent {
   materialId?: string | null;
   materialName: string;
   availableStock: number;
+  isSellerRandom?: boolean;
 }
 
 function isLikelyCharmSelection(key: string, value: string): boolean {
@@ -305,9 +306,24 @@ export async function validateCustomDesignStock(
       );
     }
 
-    if (variant.stock < required) {
+    const isSellerRandom = material.selectionPolicy === "seller_random_variant";
+    const availablePoolStock = isSellerRandom
+      ? material.variants
+          .filter(
+            (v: any) =>
+              v.isActive &&
+              (!material.eligibleAssortmentSkus?.length ||
+                material.eligibleAssortmentSkus.includes(v.sku))
+          )
+          .reduce(
+            (sum: number, v: any) => sum + (typeof v.stock === "number" ? v.stock : 0),
+            0
+          )
+      : variant.stock;
+
+    if (availablePoolStock < required) {
       throw new AppError(
-        `Insufficient stock for "${material.name}" (${sku}) used in "${itemNamesStr}". Requested: ${required}, Available: ${variant.stock}.`,
+        `Insufficient stock for "${material.name}" (${sku}) used in "${itemNamesStr}". Requested: ${required}, Available: ${availablePoolStock}.`,
         400
       );
     }
@@ -316,7 +332,8 @@ export async function validateCustomDesignStock(
       quantity: required,
       materialId: material.id,
       materialName: material.name,
-      availableStock: variant.stock,
+      availableStock: availablePoolStock,
+      isSellerRandom,
     };
   }
 
@@ -350,14 +367,19 @@ export async function reserveStudioStockForOrder(params: {
     try {
       for (const sku of skus) {
         const comp = verified[sku];
-        const success = await studioRepo.atomicDecrementVariantStock(sku, comp.quantity, dbClient);
-        if (!success) {
-          throw new AppError(
-            `Stock for component "${comp.materialName}" (${sku}) became unavailable during checkout reservation. Please review your cart.`,
-            400
-          );
+        if (!comp.isSellerRandom) {
+          const success = await studioRepo.atomicDecrementVariantStock(sku, comp.quantity, dbClient);
+          if (!success) {
+            throw new AppError(
+              `Stock for component "${comp.materialName}" (${sku}) became unavailable during checkout reservation. Please review your cart.`,
+              400
+            );
+          }
+          successfullyReserved.push({ sku, quantity: comp.quantity });
+        } else {
+          // Seller-random assortment: reserved in pool without premature variant deduction
+          successfullyReserved.push({ sku, quantity: comp.quantity });
         }
-        successfullyReserved.push({ sku, quantity: comp.quantity });
       }
     } catch (err: any) {
       // In non-transactional or mocked client environments, run loop rollback
@@ -663,6 +685,11 @@ export async function restockStudioReservation(
   // Restore component stock
   for (const item of transitioned.items) {
     try {
+      const mat = await studioRepo.findMaterialByCode(item.sku, client);
+      if (mat && mat.selectionPolicy === "seller_random_variant") {
+        // Pool reservation is released; physical variants are restored by order cancellation if allocated
+        continue;
+      }
       await studioRepo.incrementVariantStock(item.sku, item.quantity, client);
     } catch (err) {
       console.error(`[restockStudioReservation] Error restocking SKU ${item.sku}:`, err);

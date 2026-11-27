@@ -71,18 +71,28 @@ function VariantPill({
   const nonStd = kind === "bead" && isNonStandardSize(variant, rule);
   const isAvailable = typeof variant.stock === "number" ? variant.stock > 0 : Boolean(variant.inStock);
   const disabled = !isAvailable;
+  const variantThumb = variant.renderAssetUrl || variant.imageUrl;
 
   return (
     <button
       type="button"
       disabled={disabled}
       onClick={onSelect}
-      className={`w-full text-left px-3 py-2.5 rounded-xl border transition-all text-xs flex items-start justify-between gap-2 ${
+      className={`w-full text-left px-3 py-2.5 rounded-xl border transition-all text-xs flex items-center justify-between gap-2.5 ${
         disabled
           ? "opacity-40 cursor-not-allowed bg-stone-50 border-stone-200"
-          : "bg-white dark:bg-card border-[#E6D8D0] dark:border-border hover:border-[#B66F72] hover:bg-[#FBF7F3] dark:hover:bg-muted/50 cursor-pointer"
+          : "bg-white dark:bg-card border-[#E6D8D0] dark:border-border hover:border-[#B66F72] hover:bg-[#FBF7F3] dark:hover:bg-muted/50 cursor-pointer shadow-2xs"
       }`}
     >
+      {variantThumb && (
+        <div className="w-7 h-7 rounded-md overflow-hidden shrink-0 border border-[#E6D8D0] bg-stone-50 flex items-center justify-center aspect-square">
+          <img
+            src={getAssetUrl(variantThumb)}
+            alt={variant.sizeLabel}
+            className="w-full h-full object-contain p-0.5"
+          />
+        </div>
+      )}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className="font-medium text-[#342824] dark:text-foreground">{variant.sizeLabel}</span>
@@ -142,22 +152,36 @@ function MaterialCard({
         className="w-full flex items-center gap-3 p-3 hover:bg-[#FBF7F3]/60 dark:hover:bg-muted/30 transition-colors text-left"
         onClick={() => setExpanded((e) => !e)}
       >
-        <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 border border-[#E6D8D0] bg-stone-50 flex items-center justify-center">
+        <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 border border-[#E6D8D0] bg-stone-50 flex items-center justify-center aspect-square">
           <ProductImage
             src={material.imageUrl}
             alt={material.name}
             name={material.name}
             category={material.materialType}
             size="sm"
+            aspectRatio="aspect-square"
             className="w-full h-full"
+            imgClassName="object-cover w-full h-full"
           />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="font-medium text-xs text-[#342824] dark:text-foreground truncate">
-            {material.name}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="font-medium text-xs text-[#342824] dark:text-foreground truncate">
+              {material.name}
+            </span>
+            {material.materialType === CHARM_TYPE && (
+              <span className="text-[9px] uppercase px-1.5 py-0.2 rounded bg-[#B66F72]/15 text-[#B66F72] font-semibold shrink-0">
+                Charm
+              </span>
+            )}
+            {material.selectionPolicy === 'seller_random_variant' && (
+              <span className="text-[9px] uppercase px-1.5 py-0.2 rounded bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 font-semibold shrink-0">
+                Random
+              </span>
+            )}
           </div>
           <div className="text-[10px] text-[#B0A0A0]">
-            {material.variants.length} variant{material.variants.length !== 1 ? "s" : ""}
+            {material.selectionPolicy === 'seller_random_variant' ? "Seller Assortment" : `${material.variants.length} variant${material.variants.length !== 1 ? "s" : ""}`}
             {" · "}
             <span className="font-mono uppercase">{material.code}</span>
           </div>
@@ -170,8 +194,49 @@ function MaterialCard({
       </button>
 
       {expanded && (
-        <div className="px-3 pb-3 space-y-1.5 border-t border-[#E6D8D0]/50">
-          {material.variants.length === 0 ? (
+        <div className="px-3 pb-3 space-y-2 border-t border-[#E6D8D0]/50 pt-2">
+          {material.selectionPolicy === 'seller_random_variant' ? (
+            (() => {
+              const eligibleVariants = material.variants.filter((v) =>
+                v.inStock !== false && (!material.eligibleAssortmentSkus?.length || material.eligibleAssortmentSkus.includes(v.sku))
+              );
+              const poolStock = eligibleVariants.reduce((sum, v) => sum + (typeof v.stock === "number" ? v.stock : v.inStock ? 1 : 0), 0);
+              const sampleRate = eligibleVariants[0]?.sellingRate ?? 0;
+              const unit = eligibleVariants[0]?.sellingUnit ?? "piece";
+              const isPoolAvailable = poolStock > 0;
+
+              return (
+                <div className="rounded-xl border border-[#B66F72]/30 bg-[#FAF7F5] dark:bg-muted/40 p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="font-semibold text-xs text-[#342824] dark:text-foreground">Random Assortment</span>
+                      <span className="text-[10px] text-[#B66F72] ml-1.5 font-medium">(Seller Selected)</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="font-bold text-xs text-[#B66F72]">₹{sampleRate}</span>
+                      <span className="text-[10px] text-[#B0A0A0]">/{unit}</span>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-[#756861] dark:text-muted-foreground leading-relaxed">
+                    {material.assortmentNotes || "Finish or style will be randomly selected by our artisans during order crafting."}
+                  </p>
+                  <div className="flex items-center justify-between pt-1">
+                    <span className={`text-[10px] font-medium ${isPoolAvailable ? "text-emerald-600" : "text-red-500"}`}>
+                      {isPoolAvailable ? `Assortment available (pool stock: ${poolStock})` : "Out of stock"}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={!isPoolAvailable}
+                      onClick={() => onSelectVariant(eligibleVariants[0] || material.variants[0])}
+                      className="px-3 py-1 rounded-lg text-xs font-medium bg-[#B66F72] text-white hover:bg-[#95565A] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                    >
+                      Add Assortment
+                    </button>
+                  </div>
+                </div>
+              );
+            })()
+          ) : material.variants.length === 0 ? (
             <p className="text-[11px] text-[#B0A0A0] italic py-2">No variants configured.</p>
           ) : (
             material.variants.map((v) => (
@@ -213,14 +278,16 @@ export default function MaterialPicker({
   const filteredMaterials = useMemo(() => {
     const q = search.trim().toLowerCase();
     return materials.filter((m) => {
-      if (filterType === "charms") return m.materialType === CHARM_TYPE;
-      if (filterType !== "all" && filterType !== "charms") {
-        if (!BEAD_TYPES.includes(m.materialType)) return false;
-        if (filterType !== "beads" && m.materialType !== filterType) return false;
-      } else if (filterType === "all") {
-        if (m.materialType === CHARM_TYPE) return false; // charms in separate section
-        if (!BEAD_TYPES.includes(m.materialType)) return false;
+      if (filterType === "charms") {
+        if (m.materialType !== CHARM_TYPE) return false;
+      } else if (filterType !== "all") {
+        if (filterType === "bead" || filterType === "beads") {
+          if (m.materialType !== "bead") return false;
+        } else if (m.materialType !== filterType) {
+          return false;
+        }
       }
+      // When filterType === "all", keep ALL components (beads, stones, spacers, charms)
       if (!q) return true;
       return (
         m.name.toLowerCase().includes(q) ||
@@ -229,11 +296,6 @@ export default function MaterialPicker({
       );
     });
   }, [materials, filterType, search]);
-
-  const charmMaterials = useMemo(
-    () => materials.filter((m) => m.materialType === CHARM_TYPE),
-    [materials]
-  );
 
   const showingCharms = filterType === "charms";
 
@@ -319,50 +381,38 @@ export default function MaterialPicker({
 
       {/* Material list */}
       <div className="flex-1 overflow-y-auto space-y-2 pr-0.5">
-        {showingCharms ? (
-          charmMaterials.length === 0 ? (
-            <EmptyMaterialsState message="No charm components configured yet." />
-          ) : (
-            <>
-              {!hasSelection && (
-                <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 text-amber-900 dark:text-amber-200 text-[11px]">
-                  <Sparkles className="w-3 h-3 shrink-0" />
-                  Select a bead on the canvas first to attach a charm.
-                </div>
-              )}
-              {charmMaterials.map((m, i) => (
-                <MaterialCard
-                  key={m.id}
-                  material={m}
-                  kind="charm"
-                  rule={designRule}
-                  hasSelection={hasSelection}
-                  defaultExpanded={i === 0}
-                  onSelectVariant={(v) => onSelectVariant(m, v, "charm")}
-                />
-              ))}
-            </>
-          )
-        ) : filteredMaterials.length === 0 ? (
+        {showingCharms && !hasSelection && (
+          <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 text-amber-900 dark:text-amber-200 text-[11px] mb-2">
+            <Sparkles className="w-3 h-3 shrink-0" />
+            Select a bead on the canvas first to attach a charm.
+          </div>
+        )}
+
+        {filteredMaterials.length === 0 ? (
           <EmptyMaterialsState
             message={
               search
                 ? `No components match "${search}".`
+                : showingCharms
+                ? "No charm components configured yet."
                 : "No components in this category yet."
             }
           />
         ) : (
-          filteredMaterials.map((m, i) => (
-            <MaterialCard
-              key={m.id}
-              material={m}
-              kind="bead"
-              rule={designRule}
-              hasSelection={hasSelection}
-              defaultExpanded={i === 0 && filteredMaterials.length <= 3}
-              onSelectVariant={(v) => onSelectVariant(m, v, "bead")}
-            />
-          ))
+          filteredMaterials.map((m, i) => {
+            const kind = m.materialType === CHARM_TYPE ? "charm" : "bead";
+            return (
+              <MaterialCard
+                key={m.id}
+                material={m}
+                kind={kind}
+                rule={designRule}
+                hasSelection={hasSelection}
+                defaultExpanded={i === 0 && filteredMaterials.length <= 3}
+                onSelectVariant={(v) => onSelectVariant(m, v, kind)}
+              />
+            );
+          })
         )}
       </div>
     </div>

@@ -475,6 +475,8 @@ export class PostgresStudioRepository {
       stock: Number(row.stock ?? 0),
       lowStockThreshold: Number(row.low_stock_threshold ?? 5),
       isActive: Boolean(row.is_active),
+      imageUrl: row.image_url ? String(row.image_url) : null,
+      renderAssetUrl: row.render_asset_url ? String(row.render_asset_url) : null,
       dimensionsMm: Object.keys(dimensionsMm).length > 0 ? dimensionsMm : undefined,
       createdAt: new Date(row.created_at),
       updatedAt: new Date(row.updated_at),
@@ -498,6 +500,9 @@ export class PostgresStudioRepository {
       visibilityScopes: Array.isArray(row.visibility_scopes) ? row.visibility_scopes : ["studio"],
       isActive: Boolean(row.is_active),
       sortOrder: Number(row.sort_order ?? 0),
+      selectionPolicy: (row.selection_policy as any) || 'customer_selects_variant',
+      assortmentNotes: row.assortment_notes ? String(row.assortment_notes) : null,
+      eligibleAssortmentSkus: Array.isArray(row.eligible_assortment_skus) ? row.eligible_assortment_skus : [],
       variants,
       createdAt: new Date(row.created_at),
       updatedAt: new Date(row.updated_at),
@@ -799,13 +804,15 @@ export class PostgresStudioRepository {
         id, name, code, description, material_type, image_url,
         render_asset_url, additional_images, allowed_jewellery_types,
         supported_construction_types, visibility_scopes, is_active,
-        sort_order, created_at, updated_at
+        sort_order, selection_policy, assortment_notes, eligible_assortment_skus,
+        created_at, updated_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW(), NOW())
       RETURNING id, name, code, description, material_type, image_url,
                 render_asset_url, additional_images, allowed_jewellery_types,
                 supported_construction_types, visibility_scopes, is_active,
-                sort_order, created_at, updated_at;
+                sort_order, selection_policy, assortment_notes, eligible_assortment_skus,
+                created_at, updated_at;
     `;
     const params = [
       id,
@@ -821,6 +828,9 @@ export class PostgresStudioRepository {
       data.visibilityScopes || ["studio"],
       data.isActive !== undefined ? data.isActive : true,
       data.sortOrder ?? 0,
+      data.selectionPolicy || 'customer_selects_variant',
+      data.assortmentNotes || null,
+      data.eligibleAssortmentSkus || [],
     ];
     const matResult = await executor.query(sql, params);
     const createdMaterial = this.mapRowToMaterial(matResult.rows[0], []);
@@ -904,6 +914,18 @@ export class PostgresStudioRepository {
       setClauses.push(`sort_order = $${pIdx++}`);
       params.push(data.sortOrder);
     }
+    if (data.selectionPolicy !== undefined) {
+      setClauses.push(`selection_policy = $${pIdx++}`);
+      params.push(data.selectionPolicy);
+    }
+    if (data.assortmentNotes !== undefined) {
+      setClauses.push(`assortment_notes = $${pIdx++}`);
+      params.push(data.assortmentNotes);
+    }
+    if (data.eligibleAssortmentSkus !== undefined) {
+      setClauses.push(`eligible_assortment_skus = $${pIdx++}`);
+      params.push(data.eligibleAssortmentSkus);
+    }
 
     if (setClauses.length === 0) {
       return this.findMaterialById(id, client);
@@ -919,7 +941,8 @@ export class PostgresStudioRepository {
       RETURNING id, name, code, description, material_type, image_url,
                 render_asset_url, additional_images, allowed_jewellery_types,
                 supported_construction_types, visibility_scopes, is_active,
-                sort_order, created_at, updated_at;
+                sort_order, selection_policy, assortment_notes, eligible_assortment_skus,
+                created_at, updated_at;
     `;
     const result = await executor.query(sql, params);
     if (result.rows.length === 0) return null;
@@ -978,13 +1001,15 @@ export class PostgresStudioRepository {
         id, material_id, sku, color, finish, size_label,
         length_mm, width_mm, height_mm, diameter_mm, hole_diameter_mm,
         attachment_size_mm, selling_unit, purchase_cost, selling_rate,
-        stock, low_stock_threshold, is_active, created_at, updated_at
+        stock, low_stock_threshold, is_active, image_url, render_asset_url,
+        created_at, updated_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, NOW(), NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, NOW(), NOW())
       RETURNING id, material_id, sku, color, finish, size_label,
                 length_mm, width_mm, height_mm, diameter_mm, hole_diameter_mm,
                 attachment_size_mm, selling_unit, purchase_cost, selling_rate,
-                stock, low_stock_threshold, is_active, created_at, updated_at;
+                stock, low_stock_threshold, is_active, image_url, render_asset_url,
+                created_at, updated_at;
     `;
     const params = [
       id,
@@ -1005,6 +1030,8 @@ export class PostgresStudioRepository {
       data.stock ?? 0,
       data.lowStockThreshold ?? 5,
       data.isActive !== undefined ? data.isActive : true,
+      data.imageUrl || null,
+      data.renderAssetUrl || null,
     ];
     const result = await executor.query(sql, params);
     return this.mapRowToVariant(result.rows[0]);
@@ -1085,6 +1112,14 @@ export class PostgresStudioRepository {
       setClauses.push(`is_active = $${pIdx++}`);
       params.push(data.isActive);
     }
+    if (data.imageUrl !== undefined) {
+      setClauses.push(`image_url = $${pIdx++}`);
+      params.push(data.imageUrl);
+    }
+    if (data.renderAssetUrl !== undefined) {
+      setClauses.push(`render_asset_url = $${pIdx++}`);
+      params.push(data.renderAssetUrl);
+    }
 
     if (setClauses.length === 0) {
       const v = await this.findVariantBySku(sku, client);
@@ -1101,7 +1136,8 @@ export class PostgresStudioRepository {
       RETURNING id, material_id, sku, color, finish, size_label,
                 length_mm, width_mm, height_mm, diameter_mm, hole_diameter_mm,
                 attachment_size_mm, selling_unit, purchase_cost, selling_rate,
-                stock, low_stock_threshold, is_active, created_at, updated_at;
+                stock, low_stock_threshold, is_active, image_url, render_asset_url,
+                created_at, updated_at;
     `;
     const result = await executor.query(sql, params);
     if (result.rows.length === 0) return null;

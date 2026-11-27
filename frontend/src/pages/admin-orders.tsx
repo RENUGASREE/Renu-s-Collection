@@ -47,6 +47,8 @@ interface OrderItem {
     previewImageUrl?: string;
     engraving?: string;
     breakdown?: { field: string; option: string; modifier?: number }[];
+    allocatedVariantSku?: string;
+    allocatedVariantSkus?: Record<string, string>;
   };
 }
 
@@ -102,6 +104,36 @@ export default function AdminOrders() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [updating, setUpdating] = useState(false);
+  const [allocationInput, setAllocationInput] = useState<{ [key: string]: string }>({});
+
+  const handleAllocateVariant = async (orderId: string, itemIndex: number, materialCode: string, variantSku: string) => {
+    if (!variantSku.trim()) return;
+    try {
+      setUpdating(true);
+      const res = await apiRequest('PATCH', `/api/v1/orders/admin/${orderId}/allocate-variant`, {
+        itemIndex,
+        materialCode: materialCode || 'assortment',
+        variantSku: variantSku.trim().toUpperCase(),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.error || err?.message || 'Failed to allocate variant');
+      }
+      toast({
+        title: 'Variant Allocated',
+        description: `Successfully allocated SKU ${variantSku.toUpperCase()} for item #${itemIndex + 1}.`,
+      });
+      await fetchOrders();
+    } catch (error) {
+      toast({
+        title: 'Allocation Failed',
+        description: formatApiErrorMessage(error),
+        variant: 'destructive',
+      });
+    } finally {
+      setUpdating(false);
+    }
+  };
 
   useEffect(() => {
     fetchOrders();
@@ -389,6 +421,37 @@ export default function AdminOrders() {
                                   Engraving: "{i.customization.engraving}"
                                 </div>
                               )}
+
+                              {i.customization.allocatedVariantSku && (
+                                <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 font-medium pt-1">
+                                  <CheckCircle2 className="w-3 h-3 shrink-0" />
+                                  <span>Allocated Physical Variant: <strong className="font-mono">{i.customization.allocatedVariantSku}</strong></span>
+                                </div>
+                              )}
+
+                              <div className="pt-1.5 flex items-center gap-1.5 flex-wrap">
+                                <Input
+                                  placeholder="Physical Variant SKU..."
+                                  value={allocationInput[`${order._id}_${idx}`] ?? i.customization.allocatedVariantSku ?? ""}
+                                  onChange={(e) => setAllocationInput({ ...allocationInput, [`${order._id}_${idx}`]: e.target.value })}
+                                  className="h-6 text-[10px] w-36 font-mono px-2 py-0.5 rounded border-[#E6D8D0]"
+                                />
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={updating}
+                                  onClick={() => handleAllocateVariant(
+                                    order._id,
+                                    idx,
+                                    i.sku || 'assortment',
+                                    allocationInput[`${order._id}_${idx}`] || i.customization?.allocatedVariantSku || ""
+                                  )}
+                                  className="h-6 px-2 text-[10px] text-[#B66F72] border-[#B66F72]/40 hover:bg-[#B66F72]/10 rounded"
+                                >
+                                  Assign SKU
+                                </Button>
+                              </div>
                             </div>
                           )}
                         </div>

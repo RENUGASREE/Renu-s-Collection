@@ -234,6 +234,9 @@ export default function AdminStudio() {
     allowedJewelleryTypes: ["bracelet"],
     visibilityScopes: ["studio"],
     isActive: true,
+    selectionPolicy: "customer_selects_variant" as "customer_selects_variant" | "seller_random_variant",
+    assortmentNotes: "",
+    eligibleAssortmentSkus: [] as string[],
   });
 
   // Variant Modal
@@ -253,6 +256,8 @@ export default function AdminStudio() {
     stock: 100,
     lowStockThreshold: 10,
     isActive: true,
+    imageUrl: "",
+    renderAssetUrl: "",
   });
 
   // Component Types Management State
@@ -938,6 +943,8 @@ export default function AdminStudio() {
         stock: Number(variantForm.stock) || 0,
         lowStockThreshold: Number(variantForm.lowStockThreshold) || 5,
         isActive: variantForm.isActive,
+        imageUrl: variantForm.imageUrl.trim() || undefined,
+        renderAssetUrl: variantForm.renderAssetUrl.trim() || undefined,
       };
 
       const materialId = selectedMaterialForVariant._id || (selectedMaterialForVariant as any).id;
@@ -1554,6 +1561,9 @@ export default function AdminStudio() {
                       allowedJewelleryTypes: ["bracelet"],
                       visibilityScopes: ["studio"],
                       isActive: true,
+                      selectionPolicy: "customer_selects_variant",
+                      assortmentNotes: "",
+                      eligibleAssortmentSkus: [],
                     });
                     setShowMaterialModal(true);
                   }}
@@ -1731,6 +1741,9 @@ export default function AdminStudio() {
                               allowedJewelleryTypes: mat.allowedJewelleryTypes,
                               visibilityScopes: mat.visibilityScopes && mat.visibilityScopes.length > 0 ? mat.visibilityScopes : ["studio"],
                               isActive: mat.isActive,
+                              selectionPolicy: (mat as any).selectionPolicy || "customer_selects_variant",
+                              assortmentNotes: (mat as any).assortmentNotes || "",
+                              eligibleAssortmentSkus: (mat as any).eligibleAssortmentSkus || [],
                             });
                             setShowMaterialModal(true);
                           }}
@@ -1758,6 +1771,8 @@ export default function AdminStudio() {
                               stock: 50,
                               lowStockThreshold: 10,
                               isActive: true,
+                              imageUrl: "",
+                              renderAssetUrl: "",
                             });
                             setShowVariantModal(true);
                           }}
@@ -1875,6 +1890,8 @@ export default function AdminStudio() {
                                             stock: v.stock,
                                             lowStockThreshold: v.lowStockThreshold,
                                             isActive: v.isActive,
+                                            imageUrl: (v as any).imageUrl || "",
+                                            renderAssetUrl: (v as any).renderAssetUrl || "",
                                           });
                                           setShowVariantModal(true);
                                         }}
@@ -3228,6 +3245,65 @@ export default function AdminStudio() {
                   </p>
                 </div>
 
+                <div className="space-y-3 pt-2 border-t border-[#E6D8D0]/60">
+                  <Label>Variant Selection Policy</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className={`p-2.5 rounded-xl border cursor-pointer text-xs flex flex-col gap-1 transition-all ${
+                      materialForm.selectionPolicy === "customer_selects_variant"
+                        ? "border-[#B66F72] bg-[#FAF7F5] ring-1 ring-[#B66F72]"
+                        : "border-[#E6D8D0] bg-white hover:bg-stone-50"
+                    }`}>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="selectionPolicy"
+                          value="customer_selects_variant"
+                          checked={materialForm.selectionPolicy === "customer_selects_variant"}
+                          onChange={() => setMaterialForm({ ...materialForm, selectionPolicy: "customer_selects_variant" })}
+                          className="accent-[#B66F72]"
+                        />
+                        <span className="font-semibold text-stone-800">Customer Selects</span>
+                      </div>
+                      <span className="text-[10px] text-stone-500">
+                        Customer chooses specific variant (e.g. Small Blue, 8mm).
+                      </span>
+                    </label>
+
+                    <label className={`p-2.5 rounded-xl border cursor-pointer text-xs flex flex-col gap-1 transition-all ${
+                      materialForm.selectionPolicy === "seller_random_variant"
+                        ? "border-[#B66F72] bg-[#FAF7F5] ring-1 ring-[#B66F72]"
+                        : "border-[#E6D8D0] bg-white hover:bg-stone-50"
+                    }`}>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="selectionPolicy"
+                          value="seller_random_variant"
+                          checked={materialForm.selectionPolicy === "seller_random_variant"}
+                          onChange={() => setMaterialForm({ ...materialForm, selectionPolicy: "seller_random_variant" })}
+                          className="accent-[#B66F72]"
+                        />
+                        <span className="font-semibold text-stone-800">Seller Random Assortment</span>
+                      </div>
+                      <span className="text-[10px] text-stone-500">
+                        Pooled inventory; seller randomly allocates variant on packing.
+                      </span>
+                    </label>
+                  </div>
+
+                  {materialForm.selectionPolicy === "seller_random_variant" && (
+                    <div className="space-y-1 pt-1">
+                      <Label>Customer Explanation Note</Label>
+                      <Input
+                        placeholder="e.g. Gold or Silver finish will be randomly selected by our artisans."
+                        value={materialForm.assortmentNotes}
+                        onChange={(e) => setMaterialForm({ ...materialForm, assortmentNotes: e.target.value })}
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                  )}
+                </div>
+
                 <div className="pt-2">
                   <label className="flex items-center gap-2 p-2.5 rounded-xl border border-[#E6D8D0] bg-[#FBF7F3]/50 dark:bg-muted/20 cursor-pointer text-xs">
                     <input
@@ -3423,6 +3499,34 @@ export default function AdminStudio() {
                       value={variantForm.lowStockThreshold}
                       onChange={(e) => setVariantForm({ ...variantForm, lowStockThreshold: Number(e.target.value) })}
                     />
+                  </div>
+                </div>
+
+                <div className="space-y-3 pt-2 border-t border-[#E6D8D0]/60">
+                  <div className="space-y-1">
+                    <Label>Variant Display Image (Optional)</Label>
+                    <Input
+                      placeholder="e.g. /uploads/variant-blue-butterfly.jpg or https://..."
+                      value={variantForm.imageUrl}
+                      onChange={(e) => setVariantForm({ ...variantForm, imageUrl: e.target.value })}
+                      className="h-8 text-xs font-mono"
+                    />
+                    <span className="text-[10px] text-stone-500">
+                      Overrides the parent photo in the material picker for this specific variant.
+                    </span>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label>Variant Transparent Render Asset (PNG / WebP)</Label>
+                    <Input
+                      placeholder="e.g. /uploads/variant-blue-butterfly-render.png"
+                      value={variantForm.renderAssetUrl}
+                      onChange={(e) => setVariantForm({ ...variantForm, renderAssetUrl: e.target.value })}
+                      className="h-8 text-xs font-mono"
+                    />
+                    <span className="text-[10px] text-stone-500">
+                      Transparent cut-out used on the 2D bracelet canvas hanging directly from the jump ring.
+                    </span>
                   </div>
                 </div>
 

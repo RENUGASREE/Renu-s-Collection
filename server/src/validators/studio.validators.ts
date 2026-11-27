@@ -23,22 +23,6 @@ export const dimensionsSchema = z.object({
   attachmentSizeMm: z.number().min(0).optional(),
 });
 
-export const createVariantSchema = z.object({
-  sku: z.string().min(2).max(64).trim().toUpperCase(),
-  color: z.string().max(80).optional(),
-  finish: z.string().max(80).optional(),
-  sizeLabel: z.string().min(1).max(60).trim(),
-  dimensionsMm: dimensionsSchema.optional().default({}),
-  sellingUnit: z.enum(SELLING_UNITS).default("piece"),
-  purchaseCost: z.number().min(0).default(0),
-  sellingRate: z.number().min(0),
-  stock: z.number().int().min(0).default(0),
-  lowStockThreshold: z.number().int().min(0).default(5),
-  isActive: z.boolean().default(true),
-});
-
-export const updateVariantSchema = createVariantSchema.partial();
-
 export const transparentMediaUrlSchema = mediaUrlSchema.refine(
   (url) => {
     const cleanUrl = url.split("?")[0].toLowerCase();
@@ -59,6 +43,24 @@ export const optionalTransparentMediaUrlSchema = z.preprocess(
   transparentMediaUrlSchema.optional().nullable()
 );
 
+export const createVariantSchema = z.object({
+  sku: z.string().min(2).max(64).trim().toUpperCase(),
+  color: z.string().max(80).optional(),
+  finish: z.string().max(80).optional(),
+  sizeLabel: z.string().min(1).max(60).trim(),
+  dimensionsMm: dimensionsSchema.optional().default({}),
+  sellingUnit: z.enum(SELLING_UNITS).default("piece"),
+  purchaseCost: z.number().min(0).default(0),
+  sellingRate: z.number().min(0),
+  stock: z.number().int().min(0).default(0),
+  lowStockThreshold: z.number().int().min(0).default(5),
+  isActive: z.boolean().default(true),
+  imageUrl: optionalMediaUrlSchema,
+  renderAssetUrl: optionalTransparentMediaUrlSchema,
+});
+
+export const updateVariantSchema = createVariantSchema.partial();
+
 export const createMaterialSchema = z.object({
   name: z.string().min(1).max(150).trim(),
   code: z.string().min(2).max(64).trim().toUpperCase(),
@@ -72,6 +74,9 @@ export const createMaterialSchema = z.object({
   visibilityScopes: z.array(z.enum(VISIBILITY_SCOPES)).optional().default(["studio"]),
   isActive: z.boolean().optional().default(true),
   sortOrder: z.number().int().optional().default(0),
+  selectionPolicy: z.enum(["customer_selects_variant", "seller_random_variant"]).optional().default("customer_selects_variant"),
+  assortmentNotes: z.string().max(1000).optional(),
+  eligibleAssortmentSkus: z.array(z.string()).optional().default([]),
   variants: z.array(createVariantSchema).optional().default([]),
 });
 
@@ -117,6 +122,7 @@ export const upsertDesignRuleSchema = z.object({
   permittedBeadSizesMm: z.array(z.number().positive()),
   allowedMaterialTypes: z.array(z.string().min(1)),
   maxCharms: z.number().int().min(0).default(5),
+  charmCountMode: z.enum(["total_units", "distinct_types"]).optional().default("total_units"),
   fitAllowanceMm: z.number().min(0).default(10),
   requiresReviewThresholds: z
     .object({

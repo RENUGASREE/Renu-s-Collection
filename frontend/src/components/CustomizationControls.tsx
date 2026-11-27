@@ -3,8 +3,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Check, Plus, Minus } from 'lucide-react';
+import { Check, Plus, Minus, AlertTriangle } from 'lucide-react';
 import { getAssetUrl } from '@/lib/queryClient';
+import { toast } from '@/hooks/use-toast';
 import ProductImage from '@/components/ProductImage';
 
 interface CustomizationOption {
@@ -33,6 +34,10 @@ interface CustomizationControlsProps {
   selections: Record<string, string | string[]>;
   onChange: (key: string, value: string | string[]) => void;
   disabled?: boolean;
+  maxCharms?: number;
+  charmCountMode?: 'total_units' | 'distinct_types';
+  allUnitSelections?: Array<Record<string, string | string[]>>;
+  currentUnitIndex?: number;
 }
 
 const resolveColor = (val: string) => {
@@ -66,6 +71,10 @@ export const CustomizationControls: React.FC<CustomizationControlsProps> = ({
   selections,
   onChange,
   disabled = false,
+  maxCharms,
+  charmCountMode,
+  allUnitSelections,
+  currentUnitIndex,
 }) => {
   const renderOptionCard = (
     field: CustomizationField,
@@ -74,7 +83,10 @@ export const CustomizationControls: React.FC<CustomizationControlsProps> = ({
     onSelect: () => void,
     count = isSelected ? 1 : 0,
     onIncrement?: () => void,
-    onDecrement?: () => void
+    onDecrement?: () => void,
+    disableIncrement = false,
+    disableSelect = false,
+    remainingStock?: number
   ) => {
     const isMultiQuantity = isSelected && onIncrement && onDecrement;
 
@@ -93,7 +105,9 @@ export const CustomizationControls: React.FC<CustomizationControlsProps> = ({
             }
           }}
           className={`group relative rounded-lg border transition-all cursor-pointer flex flex-col overflow-hidden select-none min-h-[40px] ${
-            isSelected
+            disableSelect
+              ? 'opacity-40 cursor-not-allowed border-[#E6D8D0]/60 bg-stone-50'
+              : isSelected
               ? 'border-[#B66F72] ring-2 ring-[#B66F72]/30 bg-[#B66F72]/5 dark:bg-primary/10 shadow-xs'
               : 'border-[#E6D8D0] dark:border-border hover:border-[#B66F72]/50 hover:bg-[#FBF7F3]/60 dark:hover:bg-muted/30 bg-white dark:bg-card'
           }`}
@@ -128,13 +142,18 @@ export const CustomizationControls: React.FC<CustomizationControlsProps> = ({
                 <span className="font-bold text-[10px] min-w-[12px] text-center">{count}</span>
                 <button
                   type="button"
-                  className="p-0.5 hover:bg-black/20 rounded-sm transition-colors"
+                  disabled={disableIncrement}
+                  className={`p-0.5 rounded-sm transition-colors ${
+                    disableIncrement
+                      ? 'opacity-40 cursor-not-allowed'
+                      : 'hover:bg-black/20'
+                  }`}
                   aria-label={`Increase ${option.label} count`}
                   onClick={(e) => {
                     e.stopPropagation();
-                    onIncrement();
+                    if (!disableIncrement) onIncrement();
                   }}
-                  title="Add another"
+                  title={disableIncrement ? "Limit or stock reached" : "Add another"}
                 >
                   <Plus className="w-2.5 h-2.5" />
                 </button>
@@ -151,6 +170,9 @@ export const CustomizationControls: React.FC<CustomizationControlsProps> = ({
             <p className="text-[11px] sm:text-xs font-medium text-[#342824] dark:text-foreground leading-tight line-clamp-2 break-words">
               {option.label}
             </p>
+            {remainingStock !== undefined && remainingStock <= 2 && remainingStock > 0 && (
+              <span className="text-[9px] text-amber-600 font-medium">Low ({remainingStock})</span>
+            )}
             {option.priceModifier !== undefined && option.priceModifier !== 0 && (
               <span className="text-[10px] sm:text-[11px] font-semibold text-[#B66F72] dark:text-primary mt-0.5">
                 {count > 1 ? (
@@ -175,7 +197,9 @@ export const CustomizationControls: React.FC<CustomizationControlsProps> = ({
       <Card
         key={option.value}
         className={`cursor-pointer transition-all border rounded-lg overflow-hidden min-h-[40px] flex flex-col justify-center select-none ${
-          isSelected
+          disableSelect
+            ? 'opacity-40 cursor-not-allowed border-[#E6D8D0]/60 bg-stone-50'
+            : isSelected
             ? 'border-[#B66F72] ring-2 ring-[#B66F72]/30 bg-[#B66F72]/5 dark:bg-primary/10 shadow-xs'
             : 'border-[#E6D8D0] dark:border-border hover:border-[#B66F72]/50 hover:bg-[#FBF7F3]/60 dark:hover:bg-muted/30 bg-white dark:bg-card'
         }`}
@@ -201,11 +225,16 @@ export const CustomizationControls: React.FC<CustomizationControlsProps> = ({
               <span className="font-bold text-[10px] min-w-[12px] text-center">{count}</span>
               <button
                 type="button"
-                className="p-0.5 hover:bg-black/20 rounded-sm transition-colors"
+                disabled={disableIncrement}
+                className={`p-0.5 rounded-sm transition-colors ${
+                  disableIncrement
+                    ? 'opacity-40 cursor-not-allowed'
+                    : 'hover:bg-black/20'
+                }`}
                 aria-label={`Increase ${option.label} count`}
                 onClick={(e) => {
                   e.stopPropagation();
-                  onIncrement();
+                  if (!disableIncrement) onIncrement();
                 }}
               >
                 <Plus className="w-2.5 h-2.5" />
@@ -219,6 +248,9 @@ export const CustomizationControls: React.FC<CustomizationControlsProps> = ({
           <p className="font-medium text-[11px] sm:text-xs text-[#342824] dark:text-foreground break-words max-w-full leading-tight line-clamp-2">
             {option.label}
           </p>
+          {remainingStock !== undefined && remainingStock <= 2 && remainingStock > 0 && (
+            <span className="text-[9px] text-amber-600 font-medium">Low ({remainingStock})</span>
+          )}
           {option.priceModifier !== undefined && option.priceModifier !== 0 && (
             <Badge
               variant="secondary"
@@ -279,9 +311,17 @@ export const CustomizationControls: React.FC<CustomizationControlsProps> = ({
     const displayName = normalizeFieldLabel(field.key, field.label);
     const hasAnyImages = field.options?.some((o) => !!o.imageUrl);
 
+    // Instant validation: maximum charms allowed
+    const effectiveMaxCharms = maxCharms ?? (field as any).max ?? 3;
+    const countMode = charmCountMode ?? "total_units";
+    const selectedCount = countMode === "distinct_types"
+      ? new Set(values).size
+      : values.length;
+    const isAtMaxLimit = selectedCount >= effectiveMaxCharms;
+
     return (
       <div key={field.key} className="space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-1.5">
             <Label className="font-playfair font-semibold text-sm sm:text-base text-[#342824] dark:text-foreground">
               {displayName}
@@ -290,12 +330,20 @@ export const CustomizationControls: React.FC<CustomizationControlsProps> = ({
               <span className="text-[#B66F72] font-semibold text-xs">* (Required)</span>
             )}
           </div>
-          {values.length > 0 && (
-            <span className="text-xs text-[#B99A72] font-medium">
-              {values.length} {values.length === 1 ? 'charm' : 'charms'} selected on this bracelet
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-[#B66F72] bg-[#FAF4F1] dark:bg-muted/40 px-2.5 py-0.5 rounded-full border border-[#B66F72]/30">
+              Selected charms: {selectedCount} / {effectiveMaxCharms}
             </span>
-          )}
+          </div>
         </div>
+
+        {/* Immediate alert when maximum charm limit is reached */}
+        {isAtMaxLimit && (
+          <div className="flex items-center gap-2 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 text-amber-900 dark:text-amber-200 text-xs">
+            <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600" />
+            <span>Maximum of {effectiveMaxCharms} charms reached. Remove a charm to select another.</span>
+          </div>
+        )}
 
         <div
           className={`grid gap-2 sm:gap-2.5 ${
@@ -308,13 +356,61 @@ export const CustomizationControls: React.FC<CustomizationControlsProps> = ({
             const count = values.filter((v) => v === option.value || v === option.label).length;
             const isSelected = count > 0;
 
-            const handleToggle = () => {
-              if (!isSelected) {
-                onChange(field.key, [...values, option.value]);
+            // Authoritative stock availability across all bracelet units
+            const rawStock = typeof option.stock === "number" ? option.stock : (option.inStock !== false ? 999 : 0);
+            let usedInOtherUnits = 0;
+            if (allUnitSelections && currentUnitIndex !== undefined) {
+              for (let i = 0; i < allUnitSelections.length; i++) {
+                if (i === currentUnitIndex) continue;
+                const otherVals = allUnitSelections[i]?.[field.key];
+                if (Array.isArray(otherVals)) {
+                  usedInOtherUnits += otherVals.filter(v => v === option.value || v === option.label).length;
+                }
               }
+            }
+            const remainingStock = Math.max(0, rawStock - usedInOtherUnits);
+            const isStockExhausted = count >= remainingStock;
+            const disableIncrement = isAtMaxLimit || isStockExhausted;
+            const disableSelect = !isSelected && (isAtMaxLimit || remainingStock <= 0);
+
+            const handleToggle = () => {
+              if (isSelected) return;
+              if (isAtMaxLimit) {
+                toast({
+                  title: "Charm Limit Reached",
+                  description: `Maximum of ${effectiveMaxCharms} charms reached. Remove a charm to select another.`,
+                  variant: "destructive",
+                });
+                return;
+              }
+              if (remainingStock <= 0) {
+                toast({
+                  title: "Stock Unavailable",
+                  description: `Only ${rawStock} ${option.label} is currently available in stock.`,
+                  variant: "destructive",
+                });
+                return;
+              }
+              onChange(field.key, [...values, option.value]);
             };
 
             const handleIncrement = () => {
+              if (isAtMaxLimit) {
+                toast({
+                  title: "Charm Limit Reached",
+                  description: `Maximum of ${effectiveMaxCharms} charms reached. Remove a charm to select another.`,
+                  variant: "destructive",
+                });
+                return;
+              }
+              if (count >= remainingStock) {
+                toast({
+                  title: "Stock Limit Reached",
+                  description: `Only ${rawStock} ${option.label} is currently available in stock.`,
+                  variant: "destructive",
+                });
+                return;
+              }
               onChange(field.key, [...values, option.value]);
             };
 
@@ -334,7 +430,10 @@ export const CustomizationControls: React.FC<CustomizationControlsProps> = ({
               handleToggle,
               count,
               handleIncrement,
-              handleDecrement
+              handleDecrement,
+              disableIncrement,
+              disableSelect,
+              remainingStock
             );
           })}
         </div>

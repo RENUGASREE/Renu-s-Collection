@@ -1,5 +1,6 @@
 import { Router } from "express";
 import * as studioController from "../controllers/studio.controller.js";
+import * as independentStudioController from "../controllers/independent-studio.controller.js";
 import { requireAuth, requireAdmin, optionalAuth } from "../middleware/auth.js";
 import { validateBody, validateQuery } from "../middleware/validate.js";
 import {
@@ -341,5 +342,57 @@ router.post(
   requireAdmin,
   studioController.reconcileReservationAdmin
 );
+
+// ============================================================================
+// INDEPENDENT CREATE YOUR OWN STUDIO ROUTES
+// ============================================================================
+
+// Categories & Subcategories (Public & Customer view)
+router.get("/categories/tree", optionalAuth, independentStudioController.getStudioCategoriesTree);
+router.get("/categories", optionalAuth, independentStudioController.getStudioCategories);
+router.get("/categories/:id", optionalAuth, independentStudioController.getStudioCategory);
+
+// Construction Methods (Public & Customer view)
+router.get("/methods", optionalAuth, independentStudioController.getConstructionMethods);
+router.get("/methods/:id", optionalAuth, independentStudioController.getConstructionMethod);
+router.get("/subcategories/:subcategoryId/methods", optionalAuth, independentStudioController.getMethodsForSubcategory);
+
+// Multi-Rule Management (Public & Customer view)
+router.get("/design-rules", optionalAuth, independentStudioController.getDesignRules);
+router.get("/design-rules/:id", optionalAuth, independentStudioController.getDesignRule);
+
+// Visual Assembly Structures (Public & Customer view)
+router.get("/methods/:methodId/assembly", optionalAuth, independentStudioController.getAssemblyStructure);
+
+// Physical Fit Calculation
+router.post("/physical-fit", optionalAuth, independentStudioController.checkPhysicalFit);
+
+// ADMIN: Category Management
+router.post("/admin/categories", requireAuth, requireAdmin, independentStudioController.createStudioCategory);
+router.patch("/admin/categories/:id", requireAuth, requireAdmin, independentStudioController.updateStudioCategory);
+router.delete("/admin/categories/:id", requireAuth, requireAdmin, independentStudioController.deleteStudioCategory);
+
+// ADMIN: Construction Methods Management
+router.post("/admin/methods", requireAuth, requireAdmin, independentStudioController.createConstructionMethod);
+router.patch("/admin/methods/:id", requireAuth, requireAdmin, independentStudioController.updateConstructionMethod);
+router.delete("/admin/methods/:id", requireAuth, requireAdmin, independentStudioController.deleteConstructionMethod);
+router.post("/admin/subcategories/:subcategoryId/methods/:methodId", requireAuth, requireAdmin, independentStudioController.assignMethodToSubcategory);
+router.delete("/admin/subcategories/:subcategoryId/methods/:methodId", requireAuth, requireAdmin, independentStudioController.removeMethodFromSubcategory);
+
+// ADMIN: Design Rules Management
+router.post("/admin/design-rules", requireAuth, requireAdmin, independentStudioController.createDesignRule);
+router.patch("/admin/design-rules/:id", requireAuth, requireAdmin, independentStudioController.updateDesignRule);
+router.post("/admin/design-rules/:id/duplicate", requireAuth, requireAdmin, independentStudioController.duplicateDesignRule);
+router.delete("/admin/design-rules/:id", requireAuth, requireAdmin, independentStudioController.deleteDesignRule);
+
+// ADMIN: Visual Assembly Structures Management
+router.post("/admin/assembly", requireAuth, requireAdmin, independentStudioController.saveAssemblyStructure);
+router.delete("/admin/assembly/:id", requireAuth, requireAdmin, independentStudioController.deleteAssemblyStructure);
+
+// ADMIN: Material Linking Management
+router.get("/admin/material-links", requireAuth, requireAdmin, independentStudioController.getMaterialLinks);
+router.post("/admin/material-links", requireAuth, requireAdmin, independentStudioController.createMaterialLink);
+router.patch("/admin/material-links/:id", requireAuth, requireAdmin, independentStudioController.updateMaterialLink);
+router.delete("/admin/material-links/:id", requireAuth, requireAdmin, independentStudioController.deleteMaterialLink);
 
 export default router;

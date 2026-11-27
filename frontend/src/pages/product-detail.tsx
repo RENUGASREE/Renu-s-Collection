@@ -1,12 +1,14 @@
 import Footer from "@/components/footer";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { apiRequest, getAssetUrl } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { SEO } from "@/components/SEO";
 import { CustomizationPreview } from "@/components/CustomizationPreview";
+import { SelectedCharmDetail } from "@/components/studio/BraceletStructureRenderer";
+import { IBraceletStructure } from "@/types/structure";
 import { CustomizationControls } from "@/components/CustomizationControls";
 import BrandedImagePlaceholder from "@/components/BrandedImagePlaceholder";
 import ProductImage from "@/components/ProductImage";
@@ -72,6 +74,7 @@ interface Product {
   isCustomizable: boolean;
   averageRating?: number;
   reviewCount?: number;
+  braceletStructure?: IBraceletStructure | null;
 }
 
 interface CustomizationField {
@@ -90,6 +93,7 @@ interface CustomizationConfig {
   fields: CustomizationField[];
   previewLayers: { layerId: string; imageUrl: string; zIndex: number; linkedFieldKey?: string }[];
   isCustomizable: boolean;
+  braceletStructure?: IBraceletStructure | null;
 }
 
 export interface UnitConfiguration {
@@ -133,6 +137,29 @@ export default function ProductDetail() {
   const [hasCustomizationAvailable, setHasCustomizationAvailable] = useState(false);
   const [customizationMode, setCustomizationMode] = useState<'standard' | 'customized'>('standard');
   const showCustomization = customizationMode === 'customized';
+
+  const charmDetailsMap = useMemo(() => {
+    const map = new Map<string, SelectedCharmDetail>();
+    if (!customizationConfig?.fields) return map;
+    for (const field of customizationConfig.fields) {
+      if (Array.isArray(field.options)) {
+        for (const opt of field.options) {
+          if (opt.value) {
+            const detail: SelectedCharmDetail = {
+              sku: opt.value,
+              name: opt.label || opt.value,
+              imageUrl: opt.imageUrl || "",
+              price: opt.priceModifier || 0,
+            };
+            map.set(opt.value, detail);
+            map.set(opt.value.toUpperCase(), detail);
+            map.set(opt.value.toLowerCase(), detail);
+          }
+        }
+      }
+    }
+    return map;
+  }, [customizationConfig]);
   const [isInWishlist, setIsInWishlist] = useState(false);
   const [, setWishlistIds] = useState<Set<string>>(new Set());
   const [showReviewForm, setShowReviewForm] = useState(false);
@@ -763,6 +790,8 @@ export default function ProductDetail() {
                   category={product.category}
                   layers={customizationConfig.previewLayers}
                   selections={customizationSelections}
+                  braceletStructure={customizationConfig.braceletStructure || product.braceletStructure || null}
+                  charmDetailsMap={charmDetailsMap}
                   className="w-full h-full"
                 />
               </div>
@@ -1024,6 +1053,9 @@ export default function ProductDetail() {
                     selections={customizationSelections}
                     onChange={handleCustomizationChange}
                     disabled={!product.isInStock}
+                    maxCharms={product.braceletStructure?.attachmentPoints?.length || 3}
+                    allUnitSelections={unitConfigurations.map(u => u.selections || {})}
+                    currentUnitIndex={activeUnitIndex}
                   />
 
                   {/* Instagram Custom Inquiry Note */}
