@@ -3,24 +3,70 @@ import { IStudioConstructionMethod } from "../types/studio.types.js";
 
 export class PostgresConstructionMethodRepository {
   async findAll(options?: { onlyPublished?: boolean; onlyActive?: boolean }): Promise<IStudioConstructionMethod[]> {
-    let query = "SELECT * FROM studio_construction_methods WHERE 1=1";
+    let query = `
+      SELECT m.*,
+        COALESCE(
+          (
+            SELECT json_agg(
+              json_build_object(
+                'id', c.id,
+                'name', c.name,
+                'slug', c.slug,
+                'parentId', c.parent_id,
+                'parentName', p.name,
+                'isPublished', sm.is_published,
+                'displayOrder', sm.display_order
+              ) ORDER BY sm.display_order ASC, c.name ASC
+            )
+            FROM studio_subcategory_methods sm
+            JOIN studio_categories c ON c.id = sm.subcategory_id
+            LEFT JOIN studio_categories p ON p.id = c.parent_id
+            WHERE sm.construction_method_id = m.id
+          ),
+          '[]'::json
+        ) AS assigned_subcategories
+      FROM studio_construction_methods m
+      WHERE 1=1
+    `;
     const params: any[] = [];
     if (options?.onlyActive) {
       params.push(true);
-      query += ` AND is_active = $${params.length}`;
+      query += ` AND m.is_active = $${params.length}`;
     }
     if (options?.onlyPublished) {
       params.push(true);
-      query += ` AND is_published = $${params.length}`;
+      query += ` AND m.is_published = $${params.length}`;
     }
-    query += " ORDER BY display_order ASC, name ASC;";
+    query += " ORDER BY m.display_order ASC, m.name ASC;";
     const res = await PostgresDatabase.query(query, params);
     return res.rows.map(this.mapRowToMethod);
   }
 
   async findById(id: string): Promise<IStudioConstructionMethod | null> {
     const res = await PostgresDatabase.query(
-      "SELECT * FROM studio_construction_methods WHERE id = $1 LIMIT 1;",
+      `SELECT m.*,
+        COALESCE(
+          (
+            SELECT json_agg(
+              json_build_object(
+                'id', c.id,
+                'name', c.name,
+                'slug', c.slug,
+                'parentId', c.parent_id,
+                'parentName', p.name,
+                'isPublished', sm.is_published,
+                'displayOrder', sm.display_order
+              ) ORDER BY sm.display_order ASC, c.name ASC
+            )
+            FROM studio_subcategory_methods sm
+            JOIN studio_categories c ON c.id = sm.subcategory_id
+            LEFT JOIN studio_categories p ON p.id = c.parent_id
+            WHERE sm.construction_method_id = m.id
+          ),
+          '[]'::json
+        ) AS assigned_subcategories
+      FROM studio_construction_methods m
+      WHERE m.id = $1 LIMIT 1;`,
       [id]
     );
     if (res.rows.length === 0) return null;
@@ -158,13 +204,124 @@ export class PostgresConstructionMethodRepository {
 
   async getSubcategoryIds(constructionMethodId: string): Promise<string[]> {
     const res = await PostgresDatabase.query(
-      "SELECT subcategory_id FROM studio_subcategory_methods WHERE construction_method_id = $1;",
+      "SELECT subcategory_id FROM studio_subcategory_methods WHERE construction_method_id = $1 ORDER BY display_order ASC, created_at ASC;",
       [constructionMethodId]
     );
     return res.rows.map((r: any) => r.subcategory_id);
   }
 
+  async getSubcategoryLinks(constructionMethodId: string): Promise<Array<{
+    subcategoryId: string;
+    name: string;
+    slug: string;
+    parentId?: string | null;
+    parentName?: string | null;
+    isPublished: boolean;
+    displayOrder: number;
+  }>> {
+    const res = await PostgresDatabase.query(
+      `SELECT sm.subcategory_id, sm.is_published, sm.display_order,
+              c.name, c.slug, c.parent_id, p.name AS parent_name
+       FROM studio_subcategory_methods sm
+       JOIN studio_categories c ON c.id = sm.subcategory_id
+       LEFT JOIN studio_categories p ON p.id = c.parent_id
+       WHERE sm.construction_method_id = $1
+       ORDER BY sm.display_order ASC, c.name ASC;`,
+      [constructionMethodId]
+    );
+    return res.rows.map((r: any) => ({
+      subcategoryId: r.subcategory_id,
+      name: r.name,
+      slug: r.slug,
+      parentId: r.parent_id,
+      parentName: r.parent_name,
+      isPublished: r.is_published,
+      displayOrder: r.display_order,
+    }));
+  }
+
+  async syncSubcategories(constructionMethodId: string, subcategoryIds: string[]): Promise<void> {
+    await PostgresDatabase.transaction(async (client) => {
+      // 1. Verify construction method exists
+      const methodRes = await client.query(
+        "SELECT id FROM studio_construction_methods WHERE id = $1 LIMIT 1;",
+        [constructionMethodId]
+      );
+      if (methodRes.rows.length === 0) {
+        throw new Error("Construction method not found");
+      }
+
+      // 2. Validate all provided subcategory IDs exist and are genuine subcategories (parent_id IS NOT NULL)
+      if (subcategoryIds.length > 0) {
+        const catRes = await client.query(
+          "SELECT id, parent_id, name FROM studio_categories WHERE id = ANY($1);",
+          [subcategoryIds]
+        );
+        const catMap = new Map<string, any>(catRes.rows.map((r) => [r.id, r]));
+        for (const subcatId of subcategoryIds) {
+          const cat = catMap.get(subcatId);
+          if (!cat) {
+            throw new Error(`Category with ID '${subcatId}' does not exist`);
+          }
+          if (!cat.parent_id) {
+            throw new Error(`Category '${cat.name}' is a root parent category and cannot be assigned to construction methods`);
+          }
+        }
+      }
+
+      // 3. Get existing relationships for this construction method
+      const existingRes = await client.query(
+        "SELECT subcategory_id, is_published, display_order FROM studio_subcategory_methods WHERE construction_method_id = $1;",
+        [constructionMethodId]
+      );
+      const existingMap = new Map<string, { is_published: boolean; display_order: number }>(
+        existingRes.rows.map((r) => [r.subcategory_id, { is_published: r.is_published, display_order: r.display_order }])
+      );
+
+      // 4. Remove unselected relationships
+      const targetSet = new Set(subcategoryIds);
+      const toRemove: string[] = [];
+      for (const existingId of existingMap.keys()) {
+        if (!targetSet.has(existingId)) {
+          toRemove.push(existingId);
+        }
+      }
+      if (toRemove.length > 0) {
+        await client.query(
+          "DELETE FROM studio_subcategory_methods WHERE construction_method_id = $1 AND subcategory_id = ANY($2);",
+          [constructionMethodId, toRemove]
+        );
+      }
+
+      // 5. Add new relationships (default is_published = false) or update display_order of existing
+      for (let i = 0; i < subcategoryIds.length; i++) {
+        const subcatId = subcategoryIds[i];
+        const existing = existingMap.get(subcatId);
+        if (existing) {
+          // Preserve existing is_published; update display_order
+          await client.query(
+            `UPDATE studio_subcategory_methods
+             SET display_order = $1, updated_at = NOW()
+             WHERE construction_method_id = $2 AND subcategory_id = $3;`,
+            [i, constructionMethodId, subcatId]
+          );
+        } else {
+          // Newly created relationship: must default to is_published = false
+          await client.query(
+            `INSERT INTO studio_subcategory_methods
+             (subcategory_id, construction_method_id, is_published, display_order, created_at, updated_at)
+             VALUES ($1, $2, false, $3, NOW(), NOW())
+             ON CONFLICT (subcategory_id, construction_method_id)
+             DO UPDATE SET display_order = EXCLUDED.display_order, updated_at = NOW();`,
+            [subcatId, constructionMethodId, i]
+          );
+        }
+      }
+    });
+  }
+
   private mapRowToMethod(row: any): IStudioConstructionMethod {
+    const assigned = Array.isArray(row.assigned_subcategories) ? row.assigned_subcategories : [];
     return {
       id: row.id,
       name: row.name,
@@ -181,6 +338,8 @@ export class PostgresConstructionMethodRepository {
       displayOrder: row.display_order,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
+      subcategoryIds: assigned.length > 0 ? assigned.map((s: any) => s.id) : (row.subcategory_ids || []),
+      assignedSubcategories: assigned,
     };
   }
 }

@@ -75,6 +75,34 @@ export class IndependentStudioService {
     return postgresConstructionMethodRepository.removeFromSubcategory(subcategoryId, methodId);
   }
 
+  async getSubcategoriesForMethod(methodId: string): Promise<{
+    constructionMethodId: string;
+    subcategoryIds: string[];
+    links: Array<{
+      subcategoryId: string;
+      name: string;
+      slug: string;
+      parentId?: string | null;
+      parentName?: string | null;
+      isPublished: boolean;
+      displayOrder: number;
+    }>;
+  }> {
+    const [subcategoryIds, links] = await Promise.all([
+      postgresConstructionMethodRepository.getSubcategoryIds(methodId),
+      postgresConstructionMethodRepository.getSubcategoryLinks(methodId),
+    ]);
+    return {
+      constructionMethodId: methodId,
+      subcategoryIds,
+      links,
+    };
+  }
+
+  async syncSubcategoriesForMethod(methodId: string, subcategoryIds: string[]): Promise<void> {
+    return postgresConstructionMethodRepository.syncSubcategories(methodId, subcategoryIds);
+  }
+
   // ==========================================================================
   // DESIGN RULES
   // ==========================================================================

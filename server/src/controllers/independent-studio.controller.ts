@@ -159,6 +159,38 @@ export const removeMethodFromSubcategory = async (req: Request, res: Response, n
   }
 };
 
+export const getSubcategoriesForMethod = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { methodId } = req.params;
+    const data = await independentStudioService.getSubcategoriesForMethod(methodId);
+    res.json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const syncMethodSubcategories = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { methodId } = req.params;
+    const { subcategoryIds } = req.body;
+    if (!Array.isArray(subcategoryIds)) {
+      res.status(400).json({ success: false, message: "subcategoryIds must be an array of strings" });
+      return;
+    }
+    await independentStudioService.syncSubcategoriesForMethod(methodId, subcategoryIds);
+    res.json({
+      success: true,
+      data: {
+        constructionMethodId: methodId,
+        subcategoryIds,
+      },
+      message: "Subcategories synchronized successfully",
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // ============================================================================
 // DESIGN RULES
 // ============================================================================

@@ -94,6 +94,31 @@ export async function removeMethodFromSubcategory(subcategoryId: string, methodI
   if (!res.ok) throw new Error(json.message || "Failed to remove method from subcategory");
 }
 
+export async function fetchSubcategoriesForMethod(methodId: string): Promise<{
+  constructionMethodId: string;
+  subcategoryIds: string[];
+  links: Array<{
+    subcategoryId: string;
+    name: string;
+    slug: string;
+    parentId?: string | null;
+    parentName?: string | null;
+    isPublished: boolean;
+    displayOrder: number;
+  }>;
+}> {
+  const res = await apiRequest("GET", `/api/v1/studio/admin/methods/${methodId}/subcategories`);
+  const json = await res.json();
+  if (!res.ok || !json.success) throw new Error(json.message || "Failed to load method subcategory assignments");
+  return json.data;
+}
+
+export async function syncMethodSubcategories(methodId: string, subcategoryIds: string[]): Promise<void> {
+  const res = await apiRequest("PUT", `/api/v1/studio/admin/methods/${methodId}/subcategories`, { subcategoryIds });
+  const json = await res.json();
+  if (!res.ok || !json.success) throw new Error(json.message || "Failed to update subcategory assignments");
+}
+
 // ============================================================================
 // DESIGN RULES
 // ============================================================================

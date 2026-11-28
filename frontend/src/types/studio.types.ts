@@ -15,6 +15,7 @@ export interface IStudioCategory {
   createdAt?: string;
   updatedAt?: string;
   subcategories?: IStudioCategory[];
+  methods?: IStudioConstructionMethod[];
   depth?: number;
   path?: string;
 }
@@ -68,6 +69,16 @@ export interface IStudioConstructionMethod {
   displayOrder: number;
   createdAt?: string;
   updatedAt?: string;
+  subcategoryIds?: string[];
+  assignedSubcategories?: Array<{
+    id: string;
+    name: string;
+    slug: string;
+    parentId?: string | null;
+    parentName?: string | null;
+    isPublished: boolean;
+    displayOrder: number;
+  }>;
 }
 
 export interface IStudioDesignRule {

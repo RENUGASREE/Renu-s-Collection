@@ -15,6 +15,8 @@ import {
   fetchStudioCategories,
   assignMethodToSubcategory,
   removeMethodFromSubcategory,
+  fetchSubcategoriesForMethod,
+  syncMethodSubcategories,
   fetchComponentTypes,
   IStudioComponentType,
 } from "@/lib/studio/independentStudioApi";
@@ -72,6 +74,7 @@ export const StudioConstructionMethodsSection: React.FC = () => {
     isActive: true,
     isPublished: true,
     allowedComponentRoles: [] as string[],
+    selectedSubcategoryIds: [] as string[],
     // Physical Specs (Nullable, starts blank)
     cordDiameterMm: null as number | null,
     chainLengthMm: null as number | null,
@@ -89,6 +92,13 @@ export const StudioConstructionMethodsSection: React.FC = () => {
     endpointBRequired: false,
     endpointBLabel: "End B Finish",
   });
+
+  const subcategories = categories.filter((c) => Boolean(c.parentId));
+
+  const getCategoryBreadcrumb = (subcat: IStudioCategory) => {
+    const parent = categories.find((c) => c.id === subcat.parentId);
+    return parent ? `${parent.name} › ${subcat.name}` : subcat.name;
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -128,6 +138,7 @@ export const StudioConstructionMethodsSection: React.FC = () => {
       isActive: true,
       isPublished: true,
       allowedComponentRoles: [],
+      selectedSubcategoryIds: [],
       cordDiameterMm: null,
       chainLengthMm: null,
       wireThicknessMm: null,
@@ -151,6 +162,7 @@ export const StudioConstructionMethodsSection: React.FC = () => {
     const specs = method.physicalSpecsConfig || {};
     const endA = method.endpointAConfig || ({} as EndpointConfig);
     const endB = method.endpointBConfig || ({} as EndpointConfig);
+    const initialSubcategoryIds = method.subcategoryIds || method.assignedSubcategories?.map((s) => s.id) || [];
 
     setFormData({
       name: method.name,
@@ -162,6 +174,7 @@ export const StudioConstructionMethodsSection: React.FC = () => {
       isActive: method.isActive,
       isPublished: method.isPublished,
       allowedComponentRoles: method.allowedComponentRoles || [],
+      selectedSubcategoryIds: initialSubcategoryIds,
       cordDiameterMm: specs.cordDiameterMm ?? null,
       chainLengthMm: specs.chainLengthMm ?? null,
       wireThicknessMm: specs.wireThicknessMm ?? null,
@@ -177,7 +190,29 @@ export const StudioConstructionMethodsSection: React.FC = () => {
       endpointBRequired: endB.isSelectionRequired ?? false,
       endpointBLabel: endB.label || "End B Finish",
     });
+
+    // Also fetch the latest authoritative assignments from backend
+    fetchSubcategoriesForMethod(method.id)
+      .then((res) => {
+        if (res?.subcategoryIds) {
+          setFormData((prev) => ({ ...prev, selectedSubcategoryIds: res.subcategoryIds }));
+        }
+      })
+      .catch(() => {});
+
     setShowForm(true);
+  };
+
+  const handleToggleSubcategory = (subcategoryId: string) => {
+    setFormData((prev) => {
+      const exists = prev.selectedSubcategoryIds.includes(subcategoryId);
+      return {
+        ...prev,
+        selectedSubcategoryIds: exists
+          ? prev.selectedSubcategoryIds.filter((id) => id !== subcategoryId)
+          : [...prev.selectedSubcategoryIds, subcategoryId],
+      };
+    });
   };
 
   const handleToggleRole = (role: string) => {
@@ -236,13 +271,21 @@ export const StudioConstructionMethodsSection: React.FC = () => {
     };
 
     try {
+      let targetMethodId = editingId;
       if (editingId) {
         await updateConstructionMethod(editingId, payload);
         toast({ title: "Construction method updated" });
       } else {
-        await createConstructionMethod(payload);
+        const created = await createConstructionMethod(payload);
+        targetMethodId = created.id;
         toast({ title: "Construction method created" });
       }
+
+      // Persist assigned subcategories
+      if (targetMethodId) {
+        await syncMethodSubcategories(targetMethodId, formData.selectedSubcategoryIds);
+      }
+
       setShowForm(false);
       loadData();
     } catch (err: any) {
@@ -386,6 +429,34 @@ export const StudioConstructionMethodsSection: React.FC = () => {
                         {role}
                       </Badge>
                     ))}
+                  </div>
+
+                  {/* Applicable Subcategories */}
+                  <div className="pt-2 border-t border-[#E6D8D0]/60 space-y-1">
+                    <span className="font-semibold text-[#5C4D44] dark:text-foreground text-[11px] flex items-center gap-1">
+                      <Layers className="w-3 h-3 text-[#B66F72]" />
+                      <span>Applicable Subcategories:</span>
+                    </span>
+                    {method.assignedSubcategories && method.assignedSubcategories.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {method.assignedSubcategories.map((subcat) => (
+                          <Badge
+                            key={subcat.id}
+                            variant="outline"
+                            className="text-[10px] px-2 py-0.5 bg-[#FBF7F3] dark:bg-muted text-[#5C4D44] dark:text-foreground border-[#E6D8D0] dark:border-border font-medium"
+                          >
+                            {subcat.parentName ? `${subcat.parentName} › ` : ""}{subcat.name}
+                            {!subcat.isPublished && (
+                              <span className="ml-1 text-[9px] text-amber-600 font-normal">(unpublished)</span>
+                            )}
+                          </Badge>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded-lg border border-amber-200 dark:border-amber-900 inline-block">
+                        No subcategories assigned
+                      </span>
+                    )}
                   </div>
                 </CardContent>
 
@@ -691,6 +762,53 @@ export const StudioConstructionMethodsSection: React.FC = () => {
                         >
                           {type.displayName}
                         </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Applicable Subcategories */}
+              <div className="p-4 rounded-xl border border-[#E6D8D0] bg-[#FBF7F3] dark:bg-muted/30 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="font-semibold text-xs text-[#5C4D44] dark:text-foreground flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5 text-[#B66F72]" />
+                    <span>Applicable Subcategories</span>
+                  </div>
+                  <span className="text-[10px] text-[#756861] dark:text-muted-foreground font-medium">
+                    {formData.selectedSubcategoryIds.length} subcategor{formData.selectedSubcategoryIds.length === 1 ? "y" : "ies"} selected
+                  </span>
+                </div>
+                <p className="text-[11px] text-[#756861] dark:text-muted-foreground">
+                  Select which jewellery subcategories can be crafted using this construction method. Only subcategories can be assigned.
+                </p>
+
+                {subcategories.length === 0 ? (
+                  <div className="p-3 rounded-lg border border-dashed border-[#E6D8D0] text-center text-[11px] text-[#756861]">
+                    No subcategories found. Create subcategories under Categories &amp; Subcategories first.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                    {subcategories.map((subcat) => {
+                      const checked = formData.selectedSubcategoryIds.includes(subcat.id);
+                      const breadcrumb = getCategoryBreadcrumb(subcat);
+                      return (
+                        <label
+                          key={subcat.id}
+                          className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-all ${
+                            checked
+                              ? "bg-white dark:bg-card border-[#B66F72] text-[#342824] dark:text-foreground shadow-xs font-medium"
+                              : "bg-white/60 dark:bg-card/60 border-[#E6D8D0]/80 text-[#756861] dark:text-muted-foreground hover:border-[#B66F72]/50"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => handleToggleSubcategory(subcat.id)}
+                            className="rounded text-[#B66F72] focus:ring-[#B66F72]"
+                          />
+                          <span className="text-xs">{breadcrumb}</span>
+                        </label>
                       );
                     })}
                   </div>

@@ -1,5 +1,5 @@
 import { PostgresDatabase } from "../db/postgres.js";
-import { IStudioCategory } from "../types/studio.types.js";
+import { IStudioCategory, IStudioConstructionMethod } from "../types/studio.types.js";
 
 export class PostgresStudioCategoryRepository {
   // Detect circular parent relationships
@@ -37,7 +37,47 @@ export class PostgresStudioCategoryRepository {
     const roots: IStudioCategory[] = [];
 
     all.forEach((item) => {
-      map.set(item.id, { ...item, subcategories: [] });
+      map.set(item.id, { ...item, subcategories: [], methods: [] });
+    });
+
+    // Load subcategory methods from junction table studio_subcategory_methods
+    let methodQuery = `
+      SELECT sm.subcategory_id, sm.is_published AS link_published, sm.display_order AS link_display_order,
+             m.*
+      FROM studio_construction_methods m
+      INNER JOIN studio_subcategory_methods sm ON sm.construction_method_id = m.id
+      WHERE 1=1
+    `;
+    const methodParams: any[] = [];
+    if (options?.onlyPublished) {
+      methodParams.push(true);
+      methodQuery += ` AND m.is_published = $${methodParams.length} AND sm.is_published = $${methodParams.length} AND m.is_active = $${methodParams.length}`;
+    }
+    methodQuery += " ORDER BY sm.display_order ASC, m.display_order ASC, m.name ASC;";
+
+    const methodRes = await PostgresDatabase.query(methodQuery, methodParams);
+    methodRes.rows.forEach((r: any) => {
+      const subcatNode = map.get(r.subcategory_id);
+      if (subcatNode) {
+        if (!subcatNode.methods) subcatNode.methods = [];
+        subcatNode.methods.push({
+          id: r.id,
+          name: r.name,
+          slug: r.slug,
+          description: r.description,
+          imageUrl: r.image_url,
+          baseMaterialType: r.base_material_type,
+          physicalSpecsConfig: typeof r.physical_specs_config === "string" ? JSON.parse(r.physical_specs_config) : (r.physical_specs_config || {}),
+          endpointAConfig: typeof r.endpoint_a_config === "string" ? JSON.parse(r.endpoint_a_config) : (r.endpoint_a_config || {}),
+          endpointBConfig: typeof r.endpoint_b_config === "string" ? JSON.parse(r.endpoint_b_config) : (r.endpoint_b_config || {}),
+          allowedComponentRoles: r.allowed_component_roles || [],
+          isPublished: r.is_published,
+          isActive: r.is_active,
+          displayOrder: r.display_order,
+          createdAt: r.created_at,
+          updatedAt: r.updated_at,
+        });
+      }
     });
 
     all.forEach((item) => {
@@ -47,6 +87,19 @@ export class PostgresStudioCategoryRepository {
       } else {
         roots.push(node);
       }
+    });
+
+    // Populate aggregated methods on parent root categories from their subcategories
+    roots.forEach((root) => {
+      const methodMap = new Map<string, IStudioConstructionMethod>();
+      (root.subcategories || []).forEach((sub) => {
+        (sub.methods || []).forEach((m) => {
+          if (!methodMap.has(m.id)) {
+            methodMap.set(m.id, m);
+          }
+        });
+      });
+      root.methods = Array.from(methodMap.values());
     });
 
     return roots;

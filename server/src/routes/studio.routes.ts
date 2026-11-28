@@ -390,6 +390,8 @@ router.delete("/admin/categories/:id", requireAuth, requireAdmin, independentStu
 router.post("/admin/methods", requireAuth, requireAdmin, independentStudioController.createConstructionMethod);
 router.patch("/admin/methods/:id", requireAuth, requireAdmin, independentStudioController.updateConstructionMethod);
 router.delete("/admin/methods/:id", requireAuth, requireAdmin, independentStudioController.deleteConstructionMethod);
+router.get("/admin/methods/:methodId/subcategories", requireAuth, requireAdmin, independentStudioController.getSubcategoriesForMethod);
+router.put("/admin/methods/:methodId/subcategories", requireAuth, requireAdmin, independentStudioController.syncMethodSubcategories);
 router.post("/admin/subcategories/:subcategoryId/methods/:methodId", requireAuth, requireAdmin, independentStudioController.assignMethodToSubcategory);
 router.delete("/admin/subcategories/:subcategoryId/methods/:methodId", requireAuth, requireAdmin, independentStudioController.removeMethodFromSubcategory);
 

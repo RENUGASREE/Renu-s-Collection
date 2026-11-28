@@ -73,31 +73,45 @@ export default function CreateYourOwnLanding() {
         const treeRes = await apiRequest("GET", "/api/v1/studio/categories/tree?published=true");
         const treeJson = await treeRes.json().catch(() => null);
         if (treeJson?.success && Array.isArray(treeJson.data) && treeJson.data.length > 0) {
-          const mapped = treeJson.data.map((cat: any) => ({
-            slug: cat.slug || cat.id,
-            displayName: cat.name,
-            description: cat.description || "Customizable handcrafted jewellery.",
-            imageUrl: cat.image_url,
-            displayOrder: cat.display_order ?? 1,
-            isEnabled: cat.is_active ?? true,
-            isPublished: cat.is_published ?? true,
-            isArchived: false,
-            designerStatus: (cat.children && cat.children.length > 0) ? "available" : "coming_soon",
-            supportedConstructionTypes: Array.isArray(cat.methods) ? cat.methods.map((m: any) => m.name) : [],
-            eligibleMaterialCount: 0,
-            inStockVariantCount: 0,
-            hasDesignRule: true,
-            hasMakingCharge: true,
-            templateCount: 0,
-            isFullyReady: true,
-            gapAnalysis: {
-              materialsStatus: "stocked",
-              materialsDetail: "Active Studio category",
-              rulesStatus: "active",
-              pricingStatus: "active",
-              summary: cat.description || "",
-            },
-          }));
+          const mapped = treeJson.data.map((cat: any) => {
+            const subcats = Array.isArray(cat.subcategories) ? cat.subcategories : (Array.isArray(cat.children) ? cat.children : []);
+            const allMethods = Array.isArray(cat.methods) && cat.methods.length > 0
+              ? cat.methods
+              : subcats.flatMap((s: any) => Array.isArray(s.methods) ? s.methods : []);
+            const uniqueMethodsMap = new Map();
+            allMethods.forEach((m: any) => {
+              if (m && m.name && !uniqueMethodsMap.has(m.id || m.slug)) {
+                uniqueMethodsMap.set(m.id || m.slug, m.name);
+              }
+            });
+            const methodNames = Array.from(uniqueMethodsMap.values());
+
+            return {
+              slug: cat.slug || cat.id,
+              displayName: cat.name,
+              description: cat.description || "Customizable handcrafted jewellery.",
+              imageUrl: cat.coverImageUrl || cat.cover_image_url || cat.image_url,
+              displayOrder: cat.displayOrder ?? cat.display_order ?? 1,
+              isEnabled: cat.isActive ?? cat.is_active ?? true,
+              isPublished: cat.isPublished ?? cat.is_published ?? true,
+              isArchived: false,
+              designerStatus: subcats.length > 0 ? "available" : "coming_soon",
+              supportedConstructionTypes: methodNames,
+              eligibleMaterialCount: 0,
+              inStockVariantCount: 0,
+              hasDesignRule: true,
+              hasMakingCharge: true,
+              templateCount: 0,
+              isFullyReady: true,
+              gapAnalysis: {
+                materialsStatus: "stocked",
+                materialsDetail: "Active Studio category",
+                rulesStatus: "active",
+                pricingStatus: "active",
+                summary: cat.description || "",
+              },
+            };
+          });
           if (!cancelled) {
             setTypes(mapped);
             setLoading(false);
