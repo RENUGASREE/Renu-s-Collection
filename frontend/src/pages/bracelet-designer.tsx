@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { SEO } from "@/components/SEO";
 import Footer from "@/components/footer";
 import Navbar from "@/components/navbar";
@@ -198,6 +198,7 @@ function ToolBtn({
 
 export default function BraceletDesigner() {
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   // ---- Server data ----
   const [materials, setMaterials] = useState<PublicMaterial[]>([]);
@@ -211,7 +212,7 @@ export default function BraceletDesigner() {
   const designIdParam = searchParams.get("designId");
   const [showTemplates, setShowTemplates] = useState(false);
   const [showAIAssistant, setShowAIAssistant] = useState(false);
-  const [currentDesignName, setCurrentDesignName] = useState("My Custom Bracelet");
+  const [currentDesignName, setCurrentDesignName] = useState("");
   const [loadedSavedDesignId, setLoadedSavedDesignId] = useState<string | undefined>(undefined);
   const [latestQuote, setLatestQuote] = useState<DesignPriceQuote | null>(null);
 
@@ -238,11 +239,21 @@ export default function BraceletDesigner() {
       setDataError(null);
       try {
         const [mats, rule, charge] = await Promise.all([
-          fetchBraceletMaterials(),
+          fetchBraceletMaterials().catch((e) => {
+            console.warn("fetchBraceletMaterials returned error or 404:", e);
+            return [];
+          }),
           fetchBraceletDesignRule().catch(() => null),
           fetchBraceletMakingCharge().catch(() => null),
         ]);
         if (cancelled) return;
+
+        // If no materials and no design rules exist for bracelet, cleanly redirect to studio categories
+        if (mats.length === 0 && !rule) {
+          navigate("/create-your-own", { replace: true });
+          return;
+        }
+
         setMaterials(mats);
         setDesignRule(rule);
         _setMakingCharge(charge);

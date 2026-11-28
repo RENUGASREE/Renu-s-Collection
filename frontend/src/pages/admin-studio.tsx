@@ -324,12 +324,12 @@ export default function AdminStudio() {
   const [readinessList, setReadinessList] = useState<JewelleryTypeReadiness[]>([]);
 
   // State: Design Rules & Making Charges (Multi-Type)
-  const [selectedRuleType, setSelectedRuleType] = useState<string>("bracelet");
+  const [selectedRuleType, setSelectedRuleType] = useState<string>("");
   const [selectedRuleConstruction, setSelectedRuleConstruction] = useState<string>("elastic_bead");
   const [currentRule, setCurrentRule] = useState<DesignRule | null>(null);
   const [loadingRule, setLoadingRule] = useState(false);
 
-  const [selectedPricingType, setSelectedPricingType] = useState<string>("bracelet");
+  const [selectedPricingType, setSelectedPricingType] = useState<string>("");
   const [selectedPricingConstruction, setSelectedPricingConstruction] = useState<string>("elastic_bead");
   const [currentMakingCharge, setCurrentMakingCharge] = useState<MakingCharge | null>(null);
   const [loadingCharge, setLoadingCharge] = useState(false);
@@ -2449,13 +2449,14 @@ export default function AdminStudio() {
                       {c.name}
                     </option>
                   ))}
-                  {/* Preserved legacy category to access the ₹20 craftsmanship charge */}
-                  <option value="bracelet">Bracelet (Legacy ₹20 Record)</option>
-                  {jewelleryTypes.filter(jt => jt.slug !== "bracelet").map((t) => (
+                  {jewelleryTypes.map((t) => (
                     <option key={t.slug} value={t.slug}>
                       {t.displayName}
                     </option>
                   ))}
+                  {studioCategories.length === 0 && jewelleryTypes.length === 0 && (
+                    <option value="">No categories configured yet</option>
+                  )}
                 </select>
               </div>
 
