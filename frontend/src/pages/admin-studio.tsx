@@ -53,6 +53,8 @@ import {
   Info,
   FolderTree,
   Wrench,
+  ChevronDown,
+  ChevronUp,
   Link as LinkIcon,
   Boxes,
 } from "lucide-react";
@@ -242,6 +244,7 @@ export default function AdminStudio() {
   const [filterType, setFilterType] = useState<string>("all");
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [materialStatusFilter, setMaterialStatusFilter] = useState<"active" | "inactive" | "all">("active");
+  const [expandedMaterialId, setExpandedMaterialId] = useState<string | null>(null);
 
   // Material Form Modal
   const [showMaterialModal, setShowMaterialModal] = useState(false);
@@ -1738,381 +1741,433 @@ export default function AdminStudio() {
               </Card>
             ) : (
               <div className="space-y-4">
-                {filteredMaterials.map((mat) => (
-                  <Card
-                    key={mat._id || (mat as any).id}
-                    className="rounded-2xl border border-[#E6D8D0] dark:border-border bg-white dark:bg-card overflow-hidden shadow-xs"
-                  >
-                    <div className="p-5 flex flex-col md:flex-row md:items-start justify-between gap-4 border-b border-[#E6D8D0]/60 dark:border-border/60">
-                      <div className="flex items-start gap-4">
-                        <img
-                          src={getAssetUrl(mat.imageUrl)}
-                          alt={mat.name}
-                          className="w-16 h-16 rounded-xl object-cover border border-[#E6D8D0] dark:border-border shrink-0 bg-stone-50"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = "/placeholders/placeholder.png";
-                          }}
-                        />
+                {filteredMaterials.map((mat) => {
+                  const matId = String(mat._id || (mat as any).id);
+                  const isExpanded = expandedMaterialId === matId;
 
-                        <div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className="font-playfair text-lg font-semibold text-[#342824] dark:text-foreground">
-                              {mat.name}
-                            </h3>
-                            <Badge variant="outline" className="font-mono text-[10px] uppercase border-[#B99A72]/30 text-[#B99A72]">
-                              {mat.code}
-                            </Badge>
-                            <Badge variant="secondary" className="text-[10px] capitalize">
-                              {mat.materialType}
-                            </Badge>
-                            {mat.isActive ? (
-                              <Badge className="text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200">
-                                Active Material
+                  return (
+                    <Card
+                      key={matId}
+                      className={`rounded-2xl border bg-white dark:bg-card overflow-hidden shadow-xs transition-all ${
+                        isExpanded ? "border-[#B66F72]/50 ring-1 ring-[#B66F72]/20" : "border-[#E6D8D0] dark:border-border"
+                      }`}
+                    >
+                      {/* Compact Header Row (Always Visible) */}
+                      <div className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                        <div className="flex items-center gap-3.5 min-w-0">
+                          <img
+                            src={getAssetUrl(mat.imageUrl)}
+                            alt={mat.name}
+                            className="w-12 h-12 rounded-xl object-cover border border-[#E6D8D0] dark:border-border shrink-0 bg-stone-50"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = "/placeholders/placeholder.png";
+                            }}
+                          />
+
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h3 className="font-playfair text-base font-semibold text-[#342824] dark:text-foreground">
+                                {mat.name}
+                              </h3>
+                              <Badge variant="outline" className="font-mono text-[10px] uppercase border-[#B99A72]/30 text-[#B99A72]">
+                                {mat.code}
                               </Badge>
+                              <Badge variant="secondary" className="text-[10px] capitalize">
+                                {mat.materialType}
+                              </Badge>
+                              {mat.isActive ? (
+                                <Badge className="text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200">
+                                  Active
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-[10px] bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border-rose-200">
+                                  Inactive
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Controls & Actions */}
+                        <div className="flex items-center gap-2 shrink-0 flex-wrap sm:flex-nowrap">
+                          {/* Toggle View Variants */}
+                          <Button
+                            size="sm"
+                            variant={isExpanded ? "default" : "outline"}
+                            onClick={() => setExpandedMaterialId((prev) => (prev === matId ? null : matId))}
+                            className={`h-8 text-xs rounded-xl font-medium flex items-center gap-1.5 transition-all ${
+                              isExpanded
+                                ? "bg-[#B66F72] text-white hover:bg-[#95565A]"
+                                : "border-[#E6D8D0] dark:border-border text-[#756861] dark:text-foreground hover:bg-[#FBF7F3] dark:hover:bg-muted"
+                            }`}
+                            title={isExpanded ? "Hide Variants & Details" : "View Variants & Details"}
+                          >
+                            {isExpanded ? (
+                              <>
+                                <ChevronUp className="w-3.5 h-3.5" />
+                                <span>Hide Variants</span>
+                              </>
                             ) : (
-                              <Badge variant="outline" className="text-[10px] bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border-rose-200">
-                                Inactive Material
-                              </Badge>
+                              <>
+                                <ChevronDown className="w-3.5 h-3.5 text-[#B66F72]" />
+                                <span>View Variants · {mat.variants.length}</span>
+                              </>
                             )}
-                          </div>
+                          </Button>
 
-                          <p className="text-xs text-[#756861] dark:text-muted-foreground mt-1 max-w-xl">
-                            {mat.description || "No description provided."}
-                          </p>
+                          {/* Activate / Deactivate */}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={async () => {
+                              try {
+                                const newStatus = !mat.isActive;
+                                const res = await apiRequest("PATCH", `/api/v1/studio/admin/materials/${matId}`, {
+                                  isActive: newStatus,
+                                });
+                                if (!res.ok) throw new Error("Failed to update status");
+                                toast({
+                                  title: newStatus ? "Material Activated" : "Material Deactivated",
+                                  description: `${mat.name} is now ${newStatus ? "active" : "inactive"}.`,
+                                });
+                                fetchMaterials(false);
+                              } catch (err: any) {
+                                toast({ title: "Update Failed", description: err.message, variant: "destructive" });
+                              }
+                            }}
+                            className={`h-8 text-xs rounded-xl ${
+                              mat.isActive
+                                ? "text-[#756861] hover:text-rose-600 hover:bg-rose-50 border-[#E6D8D0]"
+                                : "text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 border-emerald-300"
+                            }`}
+                            title={mat.isActive ? "Deactivate Material" : "Activate Material"}
+                          >
+                            {mat.isActive ? (
+                              <>
+                                <EyeOff className="w-3.5 h-3.5 mr-1" />
+                                <span className="hidden sm:inline">Deactivate</span>
+                              </>
+                            ) : (
+                              <>
+                                <Eye className="w-3.5 h-3.5 mr-1" />
+                                <span className="hidden sm:inline">Activate</span>
+                              </>
+                            )}
+                          </Button>
 
-                          {/* Category eligibility pills */}
-                          <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                            <span className="text-[11px] font-medium text-[#756861]">Eligible in:</span>
-                            {mat.allowedJewelleryTypes.map((t) => (
-                              <span
-                                key={t}
-                                className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#B66F72]/10 text-[#B66F72] dark:text-primary capitalize"
-                              >
-                                {t.replace("_", " ")}
-                              </span>
-                            ))}
-                          </div>
+                          {/* Edit Material */}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setEditingMaterial(mat);
+                              setSyncVariantSkus(true);
+                              setMaterialForm({
+                                name: mat.name,
+                                code: mat.code,
+                                description: mat.description || "",
+                                materialType: mat.materialType,
+                                imageUrl: mat.imageUrl,
+                                renderAssetUrl: mat.renderAssetUrl || "",
+                                allowedJewelleryTypes: mat.allowedJewelleryTypes,
+                                visibilityScopes: mat.visibilityScopes && mat.visibilityScopes.length > 0 ? mat.visibilityScopes : ["studio"],
+                                isActive: mat.isActive,
+                                selectionPolicy: (mat as any).selectionPolicy || "customer_selects_variant",
+                                assortmentNotes: (mat as any).assortmentNotes || "",
+                                eligibleAssortmentSkus: (mat as any).eligibleAssortmentSkus || [],
+                              });
+                              setShowMaterialModal(true);
+                            }}
+                            className="h-8 text-xs rounded-xl border-[#E6D8D0] dark:border-border"
+                            title="Edit Material Details"
+                          >
+                            <Pencil className="w-3.5 h-3.5 mr-1" />
+                            <span>Edit</span>
+                          </Button>
 
-                          {/* Feature availability pills */}
-                          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                            <span className="text-[11px] font-medium text-[#756861]">Available in:</span>
-                            {(mat.visibilityScopes && mat.visibilityScopes.length > 0 ? mat.visibilityScopes : ["studio"]).map((s) => (
-                              <span
-                                key={s}
-                                className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
-                                  s === "bracelet_customization"
-                                    ? "bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800/40"
-                                    : "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800/40"
-                                }`}
-                              >
-                                {s === "studio" ? "Create Your Own Studio" : "Bracelet Customization"}
-                              </span>
-                            ))}
-                          </div>
+                          {/* Add SKU Variant */}
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              setSelectedMaterialForVariant(mat);
+                              setEditingVariantSku(null);
+                              setVariantForm({
+                                sku: `${mat.code}-8MM`,
+                                color: "",
+                                finish: "",
+                                sizeLabel: "8mm",
+                                diameterMm: 8,
+                                holeDiameterMm: 1,
+                                sellingUnit: "piece",
+                                purchaseCost: 15,
+                                sellingRate: 35,
+                                stock: 50,
+                                lowStockThreshold: 10,
+                                isActive: true,
+                                imageUrl: "",
+                                renderAssetUrl: "",
+                              });
+                              setShowVariantModal(true);
+                            }}
+                            className="h-8 text-xs rounded-xl bg-[#B66F72] hover:bg-[#95565A] text-white"
+                            title="Add SKU Variant"
+                          >
+                            <Plus className="w-3.5 h-3.5 mr-1" />
+                            <span>Add Variant</span>
+                          </Button>
+
+                          {/* Delete Material */}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setDeletingMaterial(mat);
+                              setMaterialConflictMsg(null);
+                            }}
+                            className="h-8 w-8 p-0 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl"
+                            title="Delete Material"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 shrink-0">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={async () => {
-                            try {
-                              const newStatus = !mat.isActive;
-                              const res = await apiRequest("PATCH", `/api/v1/studio/admin/materials/${mat._id || (mat as any).id}`, {
-                                isActive: newStatus,
-                              });
-                              if (!res.ok) throw new Error("Failed to update status");
-                              toast({
-                                title: newStatus ? "Material Activated" : "Material Deactivated",
-                                description: `${mat.name} is now ${newStatus ? "active" : "inactive"}.`,
-                              });
-                              fetchMaterials(false);
-                            } catch (err: any) {
-                              toast({ title: "Update Failed", description: err.message, variant: "destructive" });
-                            }
-                          }}
-                          className={`h-8 text-xs rounded-xl ${
-                            mat.isActive
-                              ? "text-[#756861] hover:text-rose-600 hover:bg-rose-50 border-[#E6D8D0]"
-                              : "text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 border-emerald-300"
-                          }`}
-                          title={mat.isActive ? "Deactivate Material" : "Activate Material"}
-                        >
-                          {mat.isActive ? (
-                            <>
-                              <EyeOff className="w-3.5 h-3.5 mr-1" />
-                              <span>Deactivate</span>
-                            </>
-                          ) : (
-                            <>
-                              <Eye className="w-3.5 h-3.5 mr-1" />
-                              <span>Activate</span>
-                            </>
-                          )}
-                        </Button>
+                      {/* Expanded Section */}
+                      {isExpanded && (
+                        <div className="border-t border-[#E6D8D0]/60 dark:border-border/60 p-4 space-y-4 bg-[#FBF7F3]/20 dark:bg-muted/5">
+                          {/* Details & Pills */}
+                          <div className="space-y-2">
+                            {mat.description && (
+                              <p className="text-xs text-[#756861] dark:text-muted-foreground leading-relaxed max-w-2xl">
+                                {mat.description}
+                              </p>
+                            )}
 
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => {
-                            setDeletingMaterial(mat);
-                            setMaterialConflictMsg(null);
-                          }}
-                          className="h-8 w-8 p-0 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl"
-                          title="Delete Material"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 pt-1">
+                              {/* Category eligibility pills */}
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-[11px] font-medium text-[#756861]">Eligible in:</span>
+                                {mat.allowedJewelleryTypes.map((t) => (
+                                  <span
+                                    key={t}
+                                    className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#B66F72]/10 text-[#B66F72] dark:text-primary capitalize"
+                                  >
+                                    {t.replace("_", " ")}
+                                  </span>
+                                ))}
+                              </div>
 
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setEditingMaterial(mat);
-                            setSyncVariantSkus(true);
-                            setMaterialForm({
-                              name: mat.name,
-                              code: mat.code,
-                              description: mat.description || "",
-                              materialType: mat.materialType,
-                              imageUrl: mat.imageUrl,
-                              renderAssetUrl: mat.renderAssetUrl || "",
-                              allowedJewelleryTypes: mat.allowedJewelleryTypes,
-                              visibilityScopes: mat.visibilityScopes && mat.visibilityScopes.length > 0 ? mat.visibilityScopes : ["studio"],
-                              isActive: mat.isActive,
-                              selectionPolicy: (mat as any).selectionPolicy || "customer_selects_variant",
-                              assortmentNotes: (mat as any).assortmentNotes || "",
-                              eligibleAssortmentSkus: (mat as any).eligibleAssortmentSkus || [],
-                            });
-                            setShowMaterialModal(true);
-                          }}
-                          className="h-8 text-xs rounded-xl border-[#E6D8D0] dark:border-border"
-                        >
-                          <Pencil className="w-3.5 h-3.5 mr-1" />
-                          <span>Edit Material</span>
-                        </Button>
+                              {/* Feature availability pills */}
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-[11px] font-medium text-[#756861]">Available in:</span>
+                                {(mat.visibilityScopes && mat.visibilityScopes.length > 0 ? mat.visibilityScopes : ["studio"]).map((s) => (
+                                  <span
+                                    key={s}
+                                    className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                                      s === "bracelet_customization"
+                                        ? "bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800/40"
+                                        : "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800/40"
+                                    }`}
+                                  >
+                                    {s === "studio" ? "Create Your Own Studio" : "Bracelet Customization"}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
 
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            setSelectedMaterialForVariant(mat);
-                            setEditingVariantSku(null);
-                            setVariantForm({
-                              sku: `${mat.code}-8MM`,
-                              color: "",
-                              finish: "",
-                              sizeLabel: "8mm",
-                              diameterMm: 8,
-                              holeDiameterMm: 1,
-                              sellingUnit: "piece",
-                              purchaseCost: 15,
-                              sellingRate: 35,
-                              stock: 50,
-                              lowStockThreshold: 10,
-                              isActive: true,
-                              imageUrl: "",
-                              renderAssetUrl: "",
-                            });
-                            setShowVariantModal(true);
-                          }}
-                          className="h-8 text-xs rounded-xl bg-[#B66F72] hover:bg-[#95565A] text-white"
-                        >
-                          <Plus className="w-3.5 h-3.5 mr-1" />
-                          <span>Add SKU Variant</span>
-                        </Button>
-                      </div>
-                    </div>
+                          {/* Stocked Variants Table inside scrollable container */}
+                          <div className="space-y-2 pt-2 border-t border-[#E6D8D0]/40 dark:border-border/40">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] uppercase font-semibold text-[#756861] tracking-wider">
+                                Stocked Variants ({mat.variants.length})
+                              </span>
+                              <span className="text-[11px] text-[#756861] italic">
+                                Private purchase cost is strictly hidden from customer APIs
+                              </span>
+                            </div>
 
-                    {/* Stocked Variants Table */}
-                    <div className="p-4 bg-[#FBF7F3]/40 dark:bg-muted/10">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-[11px] uppercase font-semibold text-[#756861] tracking-wider">
-                          Stocked Variants ({mat.variants.length})
-                        </span>
-                        <span className="text-[11px] text-[#756861] italic">
-                          Private purchase cost is strictly hidden from customer APIs
-                        </span>
-                      </div>
-
-                      {mat.variants.length === 0 ? (
-                        <p className="text-xs text-[#756861] italic py-2">
-                          No variants added yet. Click "Add SKU Variant" to stock specific sizes or colors.
-                        </p>
-                      ) : (
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-left text-xs">
-                            <thead>
-                              <tr className="border-b border-[#E6D8D0]/60 dark:border-border/60 text-[#756861]">
-                                <th className="py-2 px-2">SKU</th>
-                                <th className="py-2 px-2">Size / Label</th>
-                                <th className="py-2 px-2">Color / Finish</th>
-                                <th className="py-2 px-2">Unit</th>
-                                <th className="py-2 px-2">Status</th>
-                                <th className="py-2 px-2">Stock (Available)</th>
-                                <th className="py-2 px-2 font-mono text-stone-500">Cost (Private)</th>
-                                <th className="py-2 px-2 font-semibold text-[#B66F72]">Selling Rate</th>
-                                <th className="py-2 px-2 text-right">Actions</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {mat.variants.map((v) => (
-                                <tr
-                                  key={v.sku}
-                                  className={`border-b border-[#E6D8D0]/30 dark:border-border/30 hover:bg-white/50 dark:hover:bg-muted/20 ${
-                                    !v.isActive ? "opacity-60 bg-stone-50/50 dark:bg-muted/10" : ""
-                                  }`}
-                                >
-                                  <td className="py-2.5 px-2 font-mono font-medium">{v.sku}</td>
-                                  <td className="py-2.5 px-2">{v.sizeLabel}</td>
-                                  <td className="py-2.5 px-2 text-[#756861]">
-                                    {[v.color, v.finish].filter(Boolean).join(" • ") || "—"}
-                                  </td>
-                                  <td className="py-2.5 px-2 capitalize">{v.sellingUnit}</td>
-                                  <td className="py-2.5 px-2">
-                                    {!mat.isActive ? (
-                                      <Badge variant="outline" className="text-[10px] text-amber-700 border-amber-300 bg-amber-50 dark:bg-amber-950/30">
-                                        Parent Inactive
-                                      </Badge>
-                                    ) : v.isActive ? (
-                                      <Badge className="text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200">
-                                        Active
-                                      </Badge>
-                                    ) : (
-                                      <Badge variant="outline" className="text-[10px] text-rose-700 border-rose-300 bg-rose-50 dark:bg-rose-950/30">
-                                        Inactive
-                                      </Badge>
-                                    )}
-                                  </td>
-                                  <td className="py-2.5 px-2">
-                                    <div className="flex flex-col">
-                                      <span
-                                        className={`font-medium ${
-                                          v.stock <= v.lowStockThreshold
-                                            ? "text-amber-600 dark:text-amber-400 font-bold"
-                                            : "text-emerald-700 dark:text-emerald-400"
+                            {mat.variants.length === 0 ? (
+                              <p className="text-xs text-[#756861] italic py-2">
+                                No variants added yet. Click "Add Variant" above to stock specific sizes or colors.
+                              </p>
+                            ) : (
+                              <div className="max-h-[380px] overflow-y-auto overflow-x-auto rounded-xl border border-[#E6D8D0] dark:border-border bg-white dark:bg-card shadow-xs">
+                                <table className="w-full text-left text-xs border-collapse">
+                                  <thead className="sticky top-0 bg-[#FBF7F3] dark:bg-muted z-10 shadow-xs border-b border-[#E6D8D0]/60 dark:border-border/60 text-[#756861]">
+                                    <tr>
+                                      <th className="py-2.5 px-2.5 font-semibold">SKU</th>
+                                      <th className="py-2.5 px-2.5 font-semibold">Size / Label</th>
+                                      <th className="py-2.5 px-2.5 font-semibold">Color / Finish</th>
+                                      <th className="py-2.5 px-2.5 font-semibold">Unit</th>
+                                      <th className="py-2.5 px-2.5 font-semibold">Status</th>
+                                      <th className="py-2.5 px-2.5 font-semibold">Stock (Available)</th>
+                                      <th className="py-2.5 px-2.5 font-mono text-stone-500 font-semibold">Cost (Private)</th>
+                                      <th className="py-2.5 px-2.5 font-semibold text-[#B66F72]">Selling Rate</th>
+                                      <th className="py-2.5 px-2.5 text-right font-semibold">Actions</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-[#E6D8D0]/30 dark:divide-border/30">
+                                    {mat.variants.map((v) => (
+                                      <tr
+                                        key={v.sku}
+                                        className={`hover:bg-[#FBF7F3]/50 dark:hover:bg-muted/20 transition-colors ${
+                                          !v.isActive ? "opacity-60 bg-stone-50/50 dark:bg-muted/10" : ""
                                         }`}
                                       >
-                                        {v.stock} available
-                                      </span>
-                                      {((v.committedStock || 0) > 0 || (v.reservedStock || 0) > 0) && (
-                                        <span className="text-[10px] text-[#756861] dark:text-muted-foreground">
-                                          {v.committedStock ? `${v.committedStock} committed` : ""}
-                                          {v.committedStock && v.reservedStock ? " · " : ""}
-                                          {v.reservedStock ? `${v.reservedStock} held in checkout` : ""}
-                                          {` (${v.physicalStock ?? v.stock} physical)`}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </td>
-                                  <td className="py-2.5 px-2 font-mono text-stone-500">₹{v.purchaseCost}</td>
-                                  <td className="py-2.5 px-2 font-semibold text-[#B66F72] dark:text-primary">
-                                    ₹{v.sellingRate}
-                                  </td>
-                                  <td className="py-2.5 px-2 text-right">
-                                    <div className="flex items-center justify-end gap-1.5">
-                                      <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        onClick={() => {
-                                          setSelectedMaterialForVariant(mat);
-                                          setEditingVariantSku(v.sku);
-                                          setVariantForm({
-                                            sku: v.sku,
-                                            color: v.color || "",
-                                            finish: v.finish || "",
-                                            sizeLabel: v.sizeLabel,
-                                            diameterMm: v.dimensionsMm?.diameterMm || 8,
-                                            holeDiameterMm: v.dimensionsMm?.holeDiameterMm || 1,
-                                            sellingUnit: v.sellingUnit,
-                                            purchaseCost: v.purchaseCost,
-                                            sellingRate: v.sellingRate,
-                                            stock: v.stock,
-                                            lowStockThreshold: v.lowStockThreshold,
-                                            isActive: v.isActive,
-                                            imageUrl: (v as any).imageUrl || "",
-                                            renderAssetUrl: (v as any).renderAssetUrl || "",
-                                          });
-                                          setShowVariantModal(true);
-                                        }}
-                                        className="h-7 px-2 text-xs"
-                                        title="Edit variant stock & rates"
-                                      >
-                                        <Pencil className="w-3 h-3" />
-                                      </Button>
+                                        <td className="py-2.5 px-2.5 font-mono font-medium">{v.sku}</td>
+                                        <td className="py-2.5 px-2.5">{v.sizeLabel}</td>
+                                        <td className="py-2.5 px-2.5 text-[#756861]">
+                                          {[v.color, v.finish].filter(Boolean).join(" • ") || "—"}
+                                        </td>
+                                        <td className="py-2.5 px-2.5 capitalize">{v.sellingUnit}</td>
+                                        <td className="py-2.5 px-2.5">
+                                          {!mat.isActive ? (
+                                            <Badge variant="outline" className="text-[10px] text-amber-700 border-amber-300 bg-amber-50 dark:bg-amber-950/30">
+                                              Parent Inactive
+                                            </Badge>
+                                          ) : v.isActive ? (
+                                            <Badge className="text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200">
+                                              Active
+                                            </Badge>
+                                          ) : (
+                                            <Badge variant="outline" className="text-[10px] text-rose-700 border-rose-300 bg-rose-50 dark:bg-rose-950/30">
+                                              Inactive
+                                            </Badge>
+                                          )}
+                                        </td>
+                                        <td className="py-2.5 px-2.5">
+                                          <div className="flex flex-col">
+                                            <span
+                                              className={`font-medium ${
+                                                v.stock <= v.lowStockThreshold
+                                                  ? "text-amber-600 dark:text-amber-400 font-bold"
+                                                  : "text-emerald-700 dark:text-emerald-400"
+                                              }`}
+                                            >
+                                              {v.stock} available
+                                            </span>
+                                            {((v.committedStock || 0) > 0 || (v.reservedStock || 0) > 0) && (
+                                              <span className="text-[10px] text-[#756861] dark:text-muted-foreground">
+                                                {v.committedStock ? `${v.committedStock} committed` : ""}
+                                                {v.committedStock && v.reservedStock ? " · " : ""}
+                                                {v.reservedStock ? `${v.reservedStock} held in checkout` : ""}
+                                                {` (${v.physicalStock ?? v.stock} physical)`}
+                                              </span>
+                                            )}
+                                          </div>
+                                        </td>
+                                        <td className="py-2.5 px-2.5 font-mono text-stone-500">₹{v.purchaseCost}</td>
+                                        <td className="py-2.5 px-2.5 font-semibold text-[#B66F72] dark:text-primary">
+                                          ₹{v.sellingRate}
+                                        </td>
+                                        <td className="py-2.5 px-2.5 text-right">
+                                          <div className="flex items-center justify-end gap-1.5">
+                                            <Button
+                                              size="sm"
+                                              variant="ghost"
+                                              onClick={() => {
+                                                setSelectedMaterialForVariant(mat);
+                                                setEditingVariantSku(v.sku);
+                                                setVariantForm({
+                                                  sku: v.sku,
+                                                  color: v.color || "",
+                                                  finish: v.finish || "",
+                                                  sizeLabel: v.sizeLabel,
+                                                  diameterMm: v.dimensionsMm?.diameterMm || 8,
+                                                  holeDiameterMm: v.dimensionsMm?.holeDiameterMm || 1,
+                                                  sellingUnit: v.sellingUnit,
+                                                  purchaseCost: v.purchaseCost,
+                                                  sellingRate: v.sellingRate,
+                                                  stock: v.stock,
+                                                  lowStockThreshold: v.lowStockThreshold,
+                                                  isActive: v.isActive,
+                                                  imageUrl: (v as any).imageUrl || "",
+                                                  renderAssetUrl: (v as any).renderAssetUrl || "",
+                                                });
+                                                setShowVariantModal(true);
+                                              }}
+                                              className="h-7 px-2 text-xs"
+                                              title="Edit variant stock & rates"
+                                            >
+                                              <Pencil className="w-3 h-3" />
+                                            </Button>
 
-                                      {v.isActive ? (
-                                        <Button
-                                          size="sm"
-                                          variant="ghost"
-                                          onClick={() => setDisablingVariant({ materialId: mat._id || (mat as any).id, sku: v.sku })}
-                                          className="h-7 px-2 text-xs text-stone-500 hover:text-amber-700 hover:bg-amber-50"
-                                          title="Deactivate variant"
-                                        >
-                                          <EyeOff className="w-3 h-3 mr-1" />
-                                          <span>Deactivate</span>
-                                        </Button>
-                                      ) : (
-                                        <Button
-                                          size="sm"
-                                          variant="ghost"
-                                          onClick={async () => {
-                                            try {
-                                              const res = await apiRequest(
-                                                "PATCH",
-                                                `/api/v1/studio/admin/materials/${mat._id || (mat as any).id}/variants/${encodeURIComponent(v.sku)}`,
-                                                { isActive: true }
-                                              );
-                                              if (!res.ok) throw new Error("Activation failed");
-                                              toast({
-                                                title: "Variant Activated",
-                                                description: `SKU ${v.sku} is now active.`,
-                                              });
-                                              fetchMaterials(false);
-                                            } catch (err: any) {
-                                              toast({
-                                                title: "Activation Failed",
-                                                description: err.message,
-                                                variant: "destructive",
-                                              });
-                                            }
-                                          }}
-                                          className="h-7 px-2 text-xs text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50"
-                                          title="Activate variant"
-                                        >
-                                          <Eye className="w-3 h-3 mr-1" />
-                                          <span>Activate</span>
-                                        </Button>
-                                      )}
+                                            {v.isActive ? (
+                                              <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                onClick={() => setDisablingVariant({ materialId: matId, sku: v.sku })}
+                                                className="h-7 px-2 text-xs text-stone-500 hover:text-amber-700 hover:bg-amber-50"
+                                                title="Deactivate variant"
+                                              >
+                                                <EyeOff className="w-3 h-3 mr-1" />
+                                                <span>Deactivate</span>
+                                              </Button>
+                                            ) : (
+                                              <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                onClick={async () => {
+                                                  try {
+                                                    const res = await apiRequest(
+                                                      "PATCH",
+                                                      `/api/v1/studio/admin/materials/${matId}/variants/${encodeURIComponent(v.sku)}`,
+                                                      { isActive: true }
+                                                    );
+                                                    if (!res.ok) throw new Error("Activation failed");
+                                                    toast({
+                                                      title: "Variant Activated",
+                                                      description: `SKU ${v.sku} is now active.`,
+                                                    });
+                                                    fetchMaterials(false);
+                                                  } catch (err: any) {
+                                                    toast({
+                                                      title: "Activation Failed",
+                                                      description: err.message,
+                                                      variant: "destructive",
+                                                    });
+                                                  }
+                                                }}
+                                                className="h-7 px-2 text-xs text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50"
+                                                title="Activate variant"
+                                              >
+                                                <Eye className="w-3 h-3 mr-1" />
+                                                <span>Activate</span>
+                                              </Button>
+                                            )}
 
-                                      <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        onClick={() =>
-                                          setDeletingVariant({
-                                            materialId: mat._id || (mat as any).id,
-                                            materialName: mat.name,
-                                            sku: v.sku,
-                                            variantId: (v as any)._id,
-                                            isActive: v.isActive,
-                                          })
-                                        }
-                                        className="h-7 w-7 p-0 text-stone-400 hover:text-rose-600 hover:bg-rose-50"
-                                        title="Delete SKU Variant"
-                                      >
-                                        <Trash2 className="w-3.5 h-3.5" />
-                                      </Button>
-                                    </div>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                                            <Button
+                                              size="sm"
+                                              variant="ghost"
+                                              onClick={() =>
+                                                setDeletingVariant({
+                                                  materialId: matId,
+                                                  materialName: mat.name,
+                                                  sku: v.sku,
+                                                  variantId: (v as any)._id,
+                                                  isActive: v.isActive,
+                                                })
+                                              }
+                                              className="h-7 w-7 p-0 text-stone-400 hover:text-rose-600 hover:bg-rose-50"
+                                              title="Delete SKU Variant"
+                                            >
+                                              <Trash2 className="w-3.5 h-3.5" />
+                                            </Button>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       )}
-                    </div>
-                  </Card>
-                ))}
+                    </Card>
+                  );
+                })}
               </div>
             )}
           </div>
