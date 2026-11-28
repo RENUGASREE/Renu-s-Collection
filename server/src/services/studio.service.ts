@@ -20,6 +20,7 @@
  */
 
 import { PostgresStudioRepository } from "../repositories/postgres-studio.repository.js";
+import { postgresStudioCategoryRepository } from "../repositories/postgres-studio-category.repository.js";
 import { addStudioDesignToCart } from "./cart.service.js";
 import { AppError } from "../middleware/errorHandler.js";
 import { env } from "../config/env.js";
@@ -738,12 +739,18 @@ export async function getDesignTemplates(
 ): Promise<IDesignTemplateRecord[]> {
   const repo = defaultStudioRepo;
   if (onlyPublished) {
-    const publishedTypes = await repo.listJewelleryTypes(
-      { isPublished: true, isEnabled: true, isArchived: false },
-      client
-    );
-    const templates = await repo.findTemplates({ isPublished: true }, client);
-    const publishedSlugs = new Set(publishedTypes.map((t) => t.slug.toLowerCase()));
+    const [publishedTypes, studioCats, templates] = await Promise.all([
+      repo.listJewelleryTypes(
+        { isPublished: true, isEnabled: true, isArchived: false },
+        client
+      ),
+      postgresStudioCategoryRepository.findAll({ onlyPublished: true, onlyActive: true }),
+      repo.findTemplates({ isPublished: true }, client),
+    ]);
+    const publishedSlugs = new Set([
+      ...publishedTypes.map((t) => t.slug.toLowerCase()),
+      ...studioCats.map((c) => c.slug.toLowerCase()),
+    ]);
     return templates.filter((t) => publishedSlugs.has(t.jewelleryType.toLowerCase()));
   }
   return repo.findTemplates({}, client);
@@ -763,7 +770,19 @@ export async function getDesignTemplateBySlug(
     if (!template.isPublished) {
       throw new AppError("Design template not found", 404);
     }
-    const jType = await repo.findJewelleryTypeBySlug(template.jewelleryType, client);
+    let jType = await repo.findJewelleryTypeBySlug(template.jewelleryType, client);
+    if (!jType) {
+      const sCat = await postgresStudioCategoryRepository.findBySlug(template.jewelleryType);
+      if (sCat) {
+        jType = {
+          id: sCat.id,
+          slug: sCat.slug,
+          isPublished: sCat.isPublished,
+          isEnabled: sCat.isActive,
+          isArchived: false,
+        } as any;
+      }
+    }
     if (!jType || !jType.isPublished || jType.isEnabled === false || jType.isArchived) {
       throw new AppError("Design template is currently unavailable", 404);
     }
@@ -779,13 +798,28 @@ async function validateAndEnrichTemplateComponents(
   client?: IDbClient
 ) {
   const repo = defaultStudioRepo;
-  const jType = await repo.findJewelleryTypeBySlug(jewelleryType, client);
+  let jType = await repo.findJewelleryTypeBySlug(jewelleryType, client);
   if (!jType) {
-    throw new AppError(`Jewellery type "${jewelleryType}" not found`, 400);
+    const sCat = await postgresStudioCategoryRepository.findBySlug(jewelleryType);
+    if (sCat) {
+      jType = {
+        id: sCat.id,
+        slug: sCat.slug,
+        displayName: sCat.name,
+        isPublished: sCat.isPublished,
+        isEnabled: sCat.isActive,
+        isArchived: false,
+        supportedConstructionTypes: [],
+        displayOrder: sCat.displayOrder,
+      } as any;
+    }
+  }
+  if (!jType) {
+    throw new AppError(`Jewellery category/type "${jewelleryType}" not found`, 400);
   }
   if (isPublished && (!jType.isPublished || jType.isEnabled === false || jType.isArchived === true)) {
     throw new AppError(
-      `Cannot publish template: jewellery type "${jewelleryType}" is not currently published/available`,
+      `Cannot publish template: jewellery category/type "${jewelleryType}" is not currently published/available`,
       400
     );
   }

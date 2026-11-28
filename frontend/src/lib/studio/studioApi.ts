@@ -380,8 +380,8 @@ export interface DesignTemplate {
   name: string;
   description?: string;
   thumbnailUrl?: string;
-  jewelleryType: "bracelet";
-  constructionType: "elastic_bead";
+  jewelleryType: string;
+  constructionType: string;
   wristMm: number;
   beadSequence: TemplateBead[];
   charms: TemplateCharm[];

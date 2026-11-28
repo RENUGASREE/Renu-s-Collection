@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import ImageUploadField from "@/components/ImageUploadField";
 import { SEO } from "@/components/SEO";
 import Footer from "@/components/footer";
@@ -66,6 +66,7 @@ import { StudioInventorySection } from "@/components/studio/admin/StudioInventor
 import { ManualAssemblyDesigner } from "@/components/studio/ManualAssemblyDesigner";
 import {
   fetchStudioCategories,
+  fetchStudioCategoriesTree,
   fetchConstructionMethods,
 } from "@/lib/studio/independentStudioApi";
 import type {
@@ -190,7 +191,22 @@ export default function AdminStudio() {
 
   // State: Independent Studio Hierarchy & Methods
   const [studioCategories, setStudioCategories] = useState<IStudioCategory[]>([]);
+  const [studioCategoriesTree, setStudioCategoriesTree] = useState<IStudioCategory[]>([]);
   const [studioMethods, setStudioMethods] = useState<IStudioConstructionMethod[]>([]);
+
+  // Category & Subcategory name lookup map for clean UI display
+  const categoryNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    studioCategoriesTree.forEach((p) => {
+      map.set(p.slug, p.name);
+      if (p.id) map.set(p.id, p.name);
+      (p.subcategories || []).forEach((s) => {
+        map.set(s.slug, `${p.name} → ${s.name}`);
+        if (s.id) map.set(s.id, `${p.name} → ${s.name}`);
+      });
+    });
+    return map;
+  }, [studioCategoriesTree]);
 
   // State: Design Templates
   const [templates, setTemplates] = useState<DesignTemplate[]>([]);
@@ -347,6 +363,7 @@ export default function AdminStudio() {
     fetchMaterials(true);
     fetchComponentTypes();
     fetchStudioCategories(false).then(setStudioCategories).catch(() => {});
+    fetchStudioCategoriesTree(false).then(setStudioCategoriesTree).catch(() => {});
     fetchConstructionMethods(false).then(setStudioMethods).catch(() => {});
     fetchTemplates();
     fetchReservations();
@@ -362,6 +379,7 @@ export default function AdminStudio() {
       fetchReservations();
     } else if (activeTab === "templates") {
       fetchTemplates();
+      fetchStudioCategoriesTree(false).then(setStudioCategoriesTree).catch(() => {});
     }
   }, [activeTab, filterReservationStatus]);
 
@@ -539,12 +557,18 @@ export default function AdminStudio() {
 
   const handleOpenCreateTemplate = () => {
     setEditingTemplate(null);
+    const firstActiveSub = studioCategoriesTree
+      .flatMap((c) => (c.subcategories || []).filter((s) => s.isActive !== false))
+      .find(Boolean);
+    const firstActiveRoot = studioCategoriesTree.find((c) => c.isActive !== false);
+    const defaultCatSlug = firstActiveSub?.slug || firstActiveRoot?.slug || "";
+
     setTemplateForm({
       name: "",
       slug: "",
       description: "",
       thumbnailUrl: "",
-      jewelleryType: "bracelet" as const,
+      jewelleryType: defaultCatSlug,
       constructionType: "elastic_bead" as const,
       wristMm: 160,
       sortOrder: (templates.length + 1) * 10,
@@ -561,12 +585,18 @@ export default function AdminStudio() {
 
   const handleOpenEditTemplate = (tpl: DesignTemplate) => {
     setEditingTemplate(tpl);
+    const firstActiveSub = studioCategoriesTree
+      .flatMap((c) => (c.subcategories || []).filter((s) => s.isActive !== false))
+      .find(Boolean);
+    const firstActiveRoot = studioCategoriesTree.find((c) => c.isActive !== false);
+    const fallbackCat = firstActiveSub?.slug || firstActiveRoot?.slug || "";
+
     setTemplateForm({
       name: tpl.name,
       slug: tpl.slug,
       description: tpl.description || "",
       thumbnailUrl: tpl.thumbnailUrl || "",
-      jewelleryType: (tpl.jewelleryType || "bracelet") as "bracelet",
+      jewelleryType: tpl.jewelleryType || fallbackCat,
       constructionType: (tpl.constructionType || "elastic_bead") as "elastic_bead",
       wristMm: tpl.wristMm || 160,
       sortOrder: tpl.sortOrder || 0,
@@ -2993,7 +3023,7 @@ export default function AdminStudio() {
                               )}
                             </div>
                             <span className="font-mono text-[11px] text-[#756861] dark:text-muted-foreground block mt-0.5">
-                              /{tpl.slug} · {tpl.jewelleryType} · {tpl.wristMm / 10} cm wrist
+                              /{tpl.slug} · {categoryNameMap.get(tpl.jewelleryType) || tpl.jewelleryType} · {tpl.wristMm / 10} cm wrist
                             </span>
                           </div>
 
@@ -4290,17 +4320,46 @@ export default function AdminStudio() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold">Jewellery Category</Label>
+                    <Label className="text-xs font-semibold">Jewellery Category *</Label>
                     <select
                       value={templateForm.jewelleryType}
-                      onChange={(e) => setTemplateForm({ ...templateForm, jewelleryType: e.target.value as "bracelet" })}
+                      onChange={(e) => setTemplateForm({ ...templateForm, jewelleryType: e.target.value })}
                       className="w-full text-xs rounded-xl border border-[#E6D8D0] bg-[#FBF7F3] dark:bg-background h-9 px-3"
                     >
-                      {jewelleryTypes.map((t) => (
-                        <option key={t.slug} value={t.slug}>
-                          {t.displayName} ({t.slug})
-                        </option>
-                      ))}
+                      <option value="">Select Category / Subcategory...</option>
+                      {templateForm.jewelleryType &&
+                        !studioCategoriesTree.some(
+                          (p) =>
+                            p.slug === templateForm.jewelleryType ||
+                            (p.subcategories || []).some((s) => s.slug === templateForm.jewelleryType)
+                        ) && (
+                          <option value={templateForm.jewelleryType}>
+                            {categoryNameMap.get(templateForm.jewelleryType) || templateForm.jewelleryType} (Current)
+                          </option>
+                        )}
+                      {studioCategoriesTree
+                        .filter((parent) => parent.isActive !== false)
+                        .map((parent) => {
+                          const activeSubs = (parent.subcategories || []).filter(
+                            (sub) => sub.isActive !== false
+                          );
+                          if (activeSubs.length > 0) {
+                            return (
+                              <optgroup key={parent.id || parent.slug} label={parent.name}>
+                                {activeSubs.map((sub) => (
+                                  <option key={sub.id || sub.slug} value={sub.slug || sub.id}>
+                                    {sub.name}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            );
+                          }
+                          return (
+                            <option key={parent.id || parent.slug} value={parent.slug || parent.id}>
+                              {parent.name}
+                            </option>
+                          );
+                        })}
                     </select>
                   </div>
 
