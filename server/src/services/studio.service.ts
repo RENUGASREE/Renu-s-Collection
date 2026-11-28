@@ -64,80 +64,10 @@ export const KNOWN_SAMPLE_TEMPLATE_SLUGS = [
   "grounding-earth",
 ];
 
-export async function initStudioDefaults(client?: IDbClient): Promise<void> {
-  const repo = defaultStudioRepo;
-  try {
-    // A. Base Bracelet Category template
-    const existingBracelet = await repo.findJewelleryTypeBySlug("bracelet", client);
-    if (!existingBracelet) {
-      await repo.createJewelleryType(
-        {
-          slug: "bracelet",
-          displayName: "Bracelets",
-          description: "Design bespoke handcrafted elastic bead and custom gemstone bracelets.",
-          imageUrl: "https://images.unsplash.com/photo-1611591475878-1a51187494c8?auto=format&fit=crop&w=800&q=80",
-          displayOrder: 1,
-          isEnabled: true,
-          isPublished: false,
-          isArchived: false,
-          designerStatus: "coming_soon",
-          supportedConstructionTypes: ["elastic_bead"],
-        },
-        client
-      );
-    }
-
-    // B. Default Elastic Bead Bracelet Design Rule
-    const existingRule = await repo.findDesignRule("bracelet", "elastic_bead", client);
-    if (!existingRule) {
-      await repo.upsertDesignRule(
-        {
-          jewelleryType: "bracelet",
-          constructionType: "elastic_bead",
-          minWristMm: 130,
-          maxWristMm: 220,
-          minComponents: 12,
-          maxComponents: 45,
-          permittedBeadSizesMm: [4, 6, 8, 10, 12],
-          allowedMaterialTypes: ["bead", "stone", "spacer", "charm"],
-          maxCharms: 5,
-          fitAllowanceMm: 10,
-          requiresReviewThresholds: {
-            minComponentsForReview: 14,
-            maxComponentsForReview: 38,
-            notes: "Artisan review recommended when component count deviates significantly from calibrated bead size standards.",
-          },
-          isActive: true,
-          version: 1,
-        },
-        client
-      );
-    }
-
-    // C. Default Making Charge for Elastic Bead Bracelet
-    const existingCharge = await repo.findMakingCharge("bracelet", "elastic_bead", client);
-    if (!existingCharge) {
-      await repo.upsertMakingCharge(
-        {
-          jewelleryType: "bracelet",
-          constructionType: "elastic_bead",
-          baseFee: 150,
-          serviceCharges: [
-            {
-              name: "Premium Velvet Gift Box",
-              fee: 100,
-              isOptional: true,
-              description: "Luxurious velvet keepsake storage and gift box",
-            },
-          ],
-          isActive: true,
-        },
-        client
-      );
-    }
-  } catch (err) {
-    console.error("Studio initialization error (non-fatal):", err);
-  }
+export async function initStudioDefaults(_client?: IDbClient): Promise<void> {
+  // Automatic studio default seeding is permanently disabled.
+  // Store administrator creates categories, rules, and pricing manually.
+  return;
 }
 
 // ============================================================================

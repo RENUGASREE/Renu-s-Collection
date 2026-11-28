@@ -4,7 +4,6 @@ import { connectDatabase } from "./db/connection.js";
 import { env } from "./config/env.js";
 import { User } from "./models/User.js";
 import { hashPassword } from "./utils/password.js";
-import { initStudioDefaults } from "./services/studio.service.js";
 import { PostgresDatabase } from "./db/postgres.js";
 import { PostgresUserRepository } from "./repositories/postgres-user.repository.js";
 import { PostgresImageMappingRepository } from "./repositories/postgres-image-mapping.repository.js";
@@ -78,8 +77,8 @@ async function bootstrap() {
   // Seed admin user on startup
   await seedAdminUser();
 
-  // Initialize Create Your Own studio defaults safely and idempotently
-  await initStudioDefaults();
+  // Automatic studio default seeding is permanently disabled to allow full clean business setup
+  // Studio categories, rules, and pricing are created manually via Admin Studio Management
 
   // Run startup durable recovery reconciliations if PostgreSQL is initialized
   if (PostgresDatabase.isInitialized()) {
