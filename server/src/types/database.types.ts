@@ -66,6 +66,46 @@ export interface IImageMappingRecord {
   created_at: Date;
 }
 
+export interface IProductTypeDbRow {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  display_order: number;
+  is_active: boolean;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface IProductTypeRecord {
+  id: string;
+  _id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  displayOrder: number;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ICreateProductTypeData {
+  id?: string;
+  name: string;
+  slug?: string;
+  description?: string | null;
+  displayOrder?: number;
+  isActive?: boolean;
+}
+
+export interface IUpdateProductTypeData {
+  name?: string;
+  slug?: string;
+  description?: string | null;
+  displayOrder?: number;
+  isActive?: boolean;
+}
+
 export interface ICategoryDbRow {
   id: string;
   name: string;

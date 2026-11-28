@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { PRODUCT_TYPES } from "../types/index.js";
 
 const mediaUrlSchema = z.string().min(1).max(2 * 1024 * 1024, "Media URL exceeds maximum length").refine(
   (val) => {
@@ -51,12 +50,38 @@ const optionalMediaUrlSchema = z.preprocess(
   mediaUrlSchema.optional()
 );
 
+export const createProductTypeSchema = z.object({
+  name: z.string().min(1, "Name is required").max(100),
+  slug: z
+    .string()
+    .min(1)
+    .max(100)
+    .regex(/^[a-z0-9-_]+$/, "Slug can only contain lowercase alphanumeric characters, dashes, and underscores")
+    .optional(),
+  description: z.string().max(2000).optional().nullable(),
+  displayOrder: z.number().int().optional(),
+  isActive: z.boolean().optional(),
+});
+
+export const updateProductTypeSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  slug: z
+    .string()
+    .min(1)
+    .max(100)
+    .regex(/^[a-z0-9-_]+$/, "Slug can only contain lowercase alphanumeric characters, dashes, and underscores")
+    .optional(),
+  description: z.string().max(2000).optional().nullable(),
+  displayOrder: z.number().int().optional(),
+  isActive: z.boolean().optional(),
+});
+
 export const createCategorySchema = z.object({
   name: z.string().min(1).max(120),
   slug: z.string().min(1).max(120).optional(),
   description: z.string().max(2000).optional(),
   parentId: z.string().optional().nullable(),
-  productType: z.enum(PRODUCT_TYPES),
+  productType: z.string().min(1).max(50),
   imageUrl: optionalMediaUrlSchema,
   isActive: z.boolean().optional(),
   showInMenu: z.boolean().optional(),
@@ -71,7 +96,7 @@ export const updateCategorySchema = createCategorySchema.partial();
 export const categoryQuerySchema = z.object({
   active: z.enum(["true", "false"]).optional(),
   menu: z.enum(["true", "false"]).optional(),
-  productType: z.enum(PRODUCT_TYPES).optional(),
+  productType: z.string().min(1).max(50).optional(),
   parentId: z.string().optional(),
 });
 

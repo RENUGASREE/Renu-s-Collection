@@ -7,6 +7,7 @@ import {
   CategoryFilterOptions,
   UpdateCategoryData,
 } from "../repositories/postgres-category.repository.js";
+import { postgresProductTypeRepository } from "../repositories/postgres-product-type.repository.js";
 import { PostgresDatabase, withTransaction } from "../db/postgres.js";
 import { IDbPool } from "../types/database.types.js";
 import type { z } from "zod";
@@ -117,6 +118,14 @@ export async function createCategory(
     }
   }
 
+  if (input.productType) {
+    const ptSlug = input.productType.toLowerCase().trim();
+    const pt = await postgresProductTypeRepository.findBySlug(ptSlug);
+    if (!pt) {
+      throw new AppError(`Product type "${input.productType}" is invalid. Please select an active product type.`, 400);
+    }
+  }
+
   try {
     const category = await repo.create({
       ...input,
@@ -172,6 +181,15 @@ export async function updateCategory(
       }
     }
     updateData.parentId = input.parentId ? input.parentId : null;
+  }
+
+  if (input.productType) {
+    const ptSlug = input.productType.toLowerCase().trim();
+    const pt = await postgresProductTypeRepository.findBySlug(ptSlug);
+    if (!pt) {
+      throw new AppError(`Product type "${input.productType}" is invalid. Please select an active product type.`, 400);
+    }
+    updateData.productType = ptSlug;
   }
 
   // If customization fields are updated, synchronize related tables atomically

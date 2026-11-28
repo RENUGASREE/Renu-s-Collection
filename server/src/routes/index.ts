@@ -14,6 +14,7 @@ import orderRoutes from "./order.routes.js";
 import reviewRoutes from "./review.routes.js";
 import studioRoutes from "./studio.routes.js";
 import contactRoutes from "./contact.routes.js";
+import productTypeRoutes from "./product-type.routes.js";
 import { sanitizeRequest } from "../middleware/validate.js";
 
 const router = Router();
@@ -36,5 +37,6 @@ router.use("/orders", orderRoutes);
 router.use("/reviews", reviewRoutes);
 router.use("/studio", studioRoutes);
 router.use("/contact", contactRoutes);
+router.use("/product-types", productTypeRoutes);
 
 export default router;
