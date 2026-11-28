@@ -69,6 +69,43 @@ export default function CreateYourOwnLanding() {
     let cancelled = false;
     async function load() {
       try {
+        // 1. Check Independent Studio categories first
+        const treeRes = await apiRequest("GET", "/api/v1/studio/categories/tree?published=true");
+        const treeJson = await treeRes.json().catch(() => null);
+        if (treeJson?.success && Array.isArray(treeJson.data) && treeJson.data.length > 0) {
+          const mapped = treeJson.data.map((cat: any) => ({
+            slug: cat.slug || cat.id,
+            displayName: cat.name,
+            description: cat.description || "Customizable handcrafted jewellery.",
+            imageUrl: cat.image_url,
+            displayOrder: cat.display_order ?? 1,
+            isEnabled: cat.is_active ?? true,
+            isPublished: cat.is_published ?? true,
+            isArchived: false,
+            designerStatus: (cat.children && cat.children.length > 0) ? "available" : "coming_soon",
+            supportedConstructionTypes: Array.isArray(cat.methods) ? cat.methods.map((m: any) => m.name) : [],
+            eligibleMaterialCount: 0,
+            inStockVariantCount: 0,
+            hasDesignRule: true,
+            hasMakingCharge: true,
+            templateCount: 0,
+            isFullyReady: true,
+            gapAnalysis: {
+              materialsStatus: "stocked",
+              materialsDetail: "Active Studio category",
+              rulesStatus: "active",
+              pricingStatus: "active",
+              summary: cat.description || "",
+            },
+          }));
+          if (!cancelled) {
+            setTypes(mapped);
+            setLoading(false);
+            return;
+          }
+        }
+
+        // 2. Fallback to legacy categories check
         const data = await fetchJewelleryTypesReadiness();
         if (!cancelled) {
           setTypes(data);

@@ -151,7 +151,7 @@ export default function MyDesignsPage() {
               </p>
             </div>
 
-            <Link to="/create-your-own/bracelet">
+            <Link to="/create-your-own">
               <Button className="text-xs rounded-xl bg-[#B66F72] hover:bg-[#95565A] text-white flex items-center gap-1.5 shadow-xs">
                 <Sparkles className="w-3.5 h-3.5" />
                 <span>Open Design Studio</span>
@@ -200,9 +200,9 @@ export default function MyDesignsPage() {
               <p className="text-xs sm:text-sm text-[#756861] dark:text-muted-foreground max-w-md mx-auto mb-6">
                 You haven't saved any custom designs yet. Explore our interactive studio to handpick gemstones, adjust sizes, and craft your signature piece.
               </p>
-              <Link to="/create-your-own/bracelet">
+              <Link to="/create-your-own">
                 <Button className="rounded-xl text-xs bg-[#B66F72] hover:bg-[#95565A] text-white">
-                  <span>Start Designing a Bracelet</span>
+                  <span>Explore Design Studio</span>
                   <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
                 </Button>
               </Link>

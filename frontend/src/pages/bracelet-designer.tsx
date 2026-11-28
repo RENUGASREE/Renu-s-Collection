@@ -877,7 +877,26 @@ export default function BraceletDesigner() {
           </div>
         )}
 
-        {!loadingData && !dataError && (
+        {!loadingData && !dataError && materials.length === 0 && !designRule && (
+          <div className="container mx-auto px-4 py-24 text-center max-w-md">
+            <div className="w-14 h-14 rounded-2xl bg-[#B66F72]/10 dark:bg-primary/10 flex items-center justify-center text-[#B66F72] dark:text-primary mx-auto mb-4">
+              <Sparkles className="w-7 h-7" />
+            </div>
+            <h2 className="font-playfair text-2xl font-semibold mb-2">
+              Studio Category In Preparation
+            </h2>
+            <p className="text-xs sm:text-sm text-[#756861] dark:text-muted-foreground mb-6 leading-relaxed">
+              This category is currently being configured with authentic jewellery materials and construction methods. Please explore our studio categories or check back soon.
+            </p>
+            <Link to="/create-your-own">
+              <Button className="rounded-xl text-xs bg-[#B66F72] hover:bg-[#95565A] text-white">
+                View Studio Categories
+              </Button>
+            </Link>
+          </div>
+        )}
+
+        {!loadingData && !dataError && (materials.length > 0 || designRule) && (
           <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-screen-xl">
             {/* Three-panel layout */}
             <div className="flex flex-col lg:flex-row gap-4 items-start">
