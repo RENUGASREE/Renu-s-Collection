@@ -263,7 +263,7 @@ export default function CreateYourOwnLanding() {
               </p>
               <ul className="space-y-2.5 text-xs sm:text-sm">
                 {[
-                  'Natural language prompts (e.g., "Rose gold summer pastel bracelet")',
+                  'Natural language prompts (e.g., "Rose gold summer pastel jewellery")',
                   "Strictly utilizes real in-stock gemstones and components",
                   "Fully editable in manual mode before purchasing",
                 ].map((t) => (

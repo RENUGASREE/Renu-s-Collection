@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { BrowserRouter as Router, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { BrowserRouter as Router, Route, Routes, useLocation, useNavigate, Navigate } from "react-router-dom";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -78,9 +78,27 @@ function UrlSanitizer() {
 }
 
 function App() {
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => {
+    if (typeof window !== "undefined") {
+      // If user has already entered during this session, do not intercept
+      if (sessionStorage.getItem("renu_entered_world") === "true") {
+        return false;
+      }
+      // If redirected from a reload or visiting any non-root path, bypass splash screen
+      if (sessionStorage.getItem("spa_fallback_redirect")) {
+        return false;
+      }
+      if (window.location.pathname !== "/" && window.location.pathname !== "") {
+        return false;
+      }
+    }
+    return true;
+  });
 
   const handleFinishLoading = () => {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("renu_entered_world", "true");
+    }
     setLoading(false);
   };
 
@@ -286,7 +304,7 @@ function App() {
                   }
                 />
                 <Route path="/create-your-own" element={<CreateYourOwnLanding />} />
-                <Route path="/create-your-own/bracelet" element={<BraceletDesigner />} />
+                <Route path="/create-your-own/bracelet" element={<Navigate to="/create-your-own" replace />} />
                 <Route
                   path="/my-designs"
                   element={
