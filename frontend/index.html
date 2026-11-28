@@ -13,6 +13,17 @@
     <script>
       (function() {
         var l = window.location;
+        // Restore SPA path if redirected via 404 fallback
+        try {
+          var redirect = sessionStorage.getItem('spa_fallback_redirect');
+          if (redirect) {
+            sessionStorage.removeItem('spa_fallback_redirect');
+            if (redirect !== l.pathname + l.search + l.hash && redirect !== '/') {
+              window.history.replaceState(null, null, redirect);
+            }
+          }
+        } catch (e) {}
+
         if (l.pathname.includes('/~and~/') || l.search.includes('~and~') || l.search.startsWith('?/')) {
           var cleanPath = l.pathname.replace(/\/\?\/.*$/, '').replace(/~and~.*/, '').replace(/\/+$/, '');
           window.history.replaceState(null, null, cleanPath || '/');

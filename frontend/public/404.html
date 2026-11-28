@@ -2,16 +2,22 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>Renu's Collections - Redirecting…</title>
+    <title>Renu's Collections</title>
     <meta name="robots" content="noindex" />
     <script>
       (function() {
-        // Clean single-page application redirect
         var l = window.location;
-        // If query parameters or path are malformed with ~and~ or ?/, redirect cleanly
+        // Clean out malformed exploit queries
         if (l.search && (l.search.includes('~and~') || l.search.startsWith('?/'))) {
           window.location.replace('/');
           return;
+        }
+        // Preserve the full path, search parameters, and hash
+        var intended = l.pathname + l.search + l.hash;
+        if (intended && intended !== '/' && !intended.endsWith('/404.html')) {
+          try {
+            sessionStorage.setItem('spa_fallback_redirect', intended);
+          } catch (e) {}
         }
         window.location.replace('/');
       })();

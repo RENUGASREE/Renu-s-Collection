@@ -1,12 +1,25 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Renu's Collections - Page Not Found</title>
-    <meta http-equiv="refresh" content="0; url=/Renu_Collections/">
-</head>
-<body>
-    <p>Redirecting to <a href="/Renu_Collections/">Renu's Collections Home</a>...</p>
-</body>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Renu's Collections</title>
+    <meta name="robots" content="noindex" />
+    <script>
+      (function() {
+        var l = window.location;
+        if (l.search && (l.search.includes('~and~') || l.search.startsWith('?/'))) {
+          window.location.replace('/');
+          return;
+        }
+        var intended = l.pathname + l.search + l.hash;
+        if (intended && intended !== '/' && !intended.endsWith('/404.html')) {
+          try {
+            sessionStorage.setItem('spa_fallback_redirect', intended);
+          } catch (e) {}
+        }
+        window.location.replace('/');
+      })();
+    </script>
+  </head>
+  <body></body>
 </html>
